@@ -586,9 +586,7 @@
     } else if (state.isRolling) {
       moveHint.textContent = `${turnLabel} · 주사위 굴리는 중…`;
     } else {
-      moveHint.textContent = state.rolled === null
-        ? `${turnLabel} · 주사위를 굴려 이동`
-        : `${turnLabel} · 1~${state.rolled}칸 이동 가능`;
+      moveHint.textContent = turnLabel;
     }
 
     const prep = canUseWorldPrepActions();
