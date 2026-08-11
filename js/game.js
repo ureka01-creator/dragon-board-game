@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.9
+// DRAGON BOARD V0.5.5.11
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -611,7 +611,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.9 — 탐험 시야 규칙.
+  // V0.5.5.11 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -732,11 +732,9 @@
     const party = getHeroParty(active);
     const unit = getWorldUnitMembers(active);
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
-    const canStopMove = Boolean(canAct && state.rolled !== null && state.moveStepsTaken > 0 && state.moveRemaining > 0 && !state.isRolling && !state.isMoving);
-    rollBtn.disabled = state.rolled === null
-      ? (!canAct || state.isRolling || state.isMoving)
-      : !canStopMove;
-    rollBtn.textContent = canStopMove ? '⏹ 이동 종료' : '🎲 D6 굴리기';
+    // V0.5.5.11: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
+    rollBtn.disabled = state.rolled !== null || !canAct || state.isRolling || state.isMoving;
+    rollBtn.textContent = '🎲 D6 굴리기';
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
     const turnLabel = active ? `${active.icon} ${active.name} 턴` : '턴 없음';
     if (state.gameOver) {
@@ -1332,7 +1330,7 @@
     const unit = getWorldUnitMembers(hero);
     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    // V0.5.5.9: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+    // V0.5.5.11: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
     // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
     const node = WORLD_NODES.find(n => n.id === hero.position);
     for (const nextId of (node?.links || [])) {
@@ -2734,9 +2732,9 @@
       });
 
       addQuestProgress('combatWin', 1);
-      // V0.5.5.9: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
+      // V0.5.5.11: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
       if (!c.isBoss && c.node?.type === '전투' && !String(c.node.id || '').startsWith('event-')) {
-        const boardNode = nodeById(c.node.id);
+        const boardNode = WORLD_NODES.find(n => n.id === c.node.id);
         if (boardNode) {
           boardNode.combatCleared = true;
           boardNode.lastDefeatedMonsterId = c.enemies?.[0]?.id || null;
@@ -2902,14 +2900,6 @@
 
     renderAll();
   }
-
-  async function stopPlannedMove() {
-    if (state.rolled === null || state.moveStepsTaken <= 0 || state.isMoving || state.isRolling || state.combat || state.gameOver) return;
-    const hero = getWorldUnitLeader(getActiveHero());
-    if (!hero || hero.down || hero.acted) return;
-    await finalizePlannedMove(hero);
-  }
-
 
 
   function shuffleArray(values) {
@@ -3298,7 +3288,7 @@
       }
 
       case '전투': {
-        // V0.5.5.9: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
+        // V0.5.5.11: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
         // 보스/사건 전투는 이 로직을 사용하지 않는다.
         if (node.combatCleared) {
           const roll = Math.random();
@@ -3572,8 +3562,7 @@
   backToTitleBtn.addEventListener('click', () => showScreen(titleScreen));
   startGameBtn.addEventListener('click', startGame);
   rollBtn.addEventListener('click', () => {
-    if (state.rolled !== null && state.moveStepsTaken > 0) stopPlannedMove();
-    else rollD6();
+    if (state.rolled === null) rollD6();
   });
   partyManageBtn?.addEventListener('click', openPartyManager);
   moveHint?.addEventListener('click', (event) => {
