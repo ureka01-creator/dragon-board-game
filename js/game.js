@@ -185,7 +185,7 @@
     const canAct = active && !active.acted && !state.gameOver;
     rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling;
     stayBtn.disabled = !canAct || state.rolled === null || state.isRolling;
-    diceValue.textContent = state.isRolling ? '…' : (state.rolled ?? '-');
+    diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
     if (state.isRolling) {
       moveHint.textContent = '주사위 굴리는 중…';
     } else {
@@ -194,63 +194,182 @@
   }
 
   const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  let diceAnimationFrame = null;
+
+  function clearDiceDisplay() {
+    if (diceAnimationFrame) {
+      cancelAnimationFrame(diceAnimationFrame);
+      diceAnimationFrame = null;
+    }
+    if (!diceRoller) return;
+    diceRoller.classList.remove('rolling', 'landed');
+    diceRoller.style.display = 'none';
+    diceRoller.style.transform = '';
+    diceRoller.style.filter = '';
+    diceRoller.style.opacity = '';
+    diceRoller.setAttribute('aria-hidden', 'true');
+    worldMap?.classList.remove('board-impact');
+  }
 
   function playDiceRollAnimation(finalValue) {
     return new Promise(resolve => {
-      if (!diceRoller || !diceBox) {
+      if (!diceRoller || !worldMap) {
         resolve();
         return;
       }
 
-      const controls = diceBox.parentElement.getBoundingClientRect();
-      const target = diceBox.getBoundingClientRect();
-      const dieSize = Math.max(36, Math.min(52, target.height * 0.62));
-      const startX = Math.max(4, target.left - controls.left - dieSize - 72);
-      const endX = target.left - controls.left + (target.width - dieSize) / 2;
-      const baseY = target.top - controls.top + (target.height - dieSize) / 2;
+      const boardPanel = worldMap.closest('.board-panel');
+      if (!boardPanel) {
+        resolve();
+        return;
+      }
+
+      clearDiceDisplay();
+
+      const panelRect = boardPanel.getBoundingClientRect();
+      const mapRect = worldMap.getBoundingClientRect();
+      const dieSize = Math.max(42, Math.min(58, mapRect.width * 0.09));
+      const fromLeft = Math.random() < 0.5;
+      const dir = fromLeft ? 1 : -1;
+
+      const mapLeft = mapRect.left - panelRect.left;
+      const mapTop = mapRect.top - panelRect.top;
+      const mapW = mapRect.width;
+      const mapH = mapRect.height;
+
+      // 손에서 높게 던진 뒤 보드 중앙 쪽으로 들어오는 시작/정점/착지 위치.
+      const startX = fromLeft
+        ? mapLeft - dieSize * 0.18
+        : mapLeft + mapW - dieSize * 0.82;
+      const startY = mapTop - dieSize * (1.0 + Math.random() * 0.35);
+      const apexX = startX + dir * mapW * (0.18 + Math.random() * 0.08);
+      const apexY = mapTop - dieSize * (2.7 + Math.random() * 0.55);
+      const groundY = mapTop + mapH * (0.54 + Math.random() * 0.17) - dieSize / 2;
+      const impactX = mapLeft + mapW * (fromLeft ? 0.34 : 0.58) - dieSize / 2;
+      const endX = impactX + dir * mapW * (0.16 + Math.random() * 0.08);
 
       diceRoller.style.setProperty('--die-size', `${dieSize}px`);
-      diceRoller.style.setProperty('--dice-start-x', `${startX}px`);
-      diceRoller.style.setProperty('--dice-x24', `${startX * .76 + endX * .24}px`);
-      diceRoller.style.setProperty('--dice-x45', `${startX * .55 + endX * .45}px`);
-      diceRoller.style.setProperty('--dice-x66', `${startX * .34 + endX * .66}px`);
-      diceRoller.style.setProperty('--dice-x82', `${startX * .18 + endX * .82}px`);
-      diceRoller.style.setProperty('--dice-x92', `${startX * .08 + endX * .92}px`);
-      diceRoller.style.setProperty('--dice-end-x', `${endX}px`);
-      diceRoller.style.setProperty('--dice-base-y', `${baseY}px`);
-      diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
-      diceRoller.classList.remove('rolling');
-      void diceRoller.offsetWidth;
+      diceRoller.style.display = 'grid';
+      diceRoller.style.opacity = '1';
       diceRoller.classList.add('rolling');
+      diceRoller.setAttribute('aria-hidden', 'false');
 
-      let ticks = 0;
-      const faceTimer = setInterval(() => {
-        diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
-        ticks += 1;
-        if (ticks > 11) clearInterval(faceTimer);
-      }, 65);
-
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        clearInterval(faceTimer);
+      // 모션 감소 설정에서는 연출을 짧게 하고 바로 결과를 남긴다.
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) {
         diceRoller.textContent = DICE_FACES[finalValue - 1];
+        diceRoller.style.transform = `translate3d(${endX}px, ${groundY}px, 0) rotate(0deg) scale(1)`;
+        diceRoller.classList.remove('rolling');
         diceRoller.classList.add('landed');
-        diceBox.classList.remove('dice-impact');
-        void diceBox.offsetWidth;
-        diceBox.classList.add('dice-impact');
-        setTimeout(() => {
-          diceRoller.classList.remove('rolling', 'landed');
-          resolve();
-        }, 180);
+        diceRoller.setAttribute('aria-label', `주사위 결과 ${finalValue}`);
+        setTimeout(resolve, 120);
+        return;
+      }
+
+      const totalMs = 1500;
+      const impactAt = 0.54;
+      const bounce1End = 0.73;
+      const bounce2End = 0.86;
+      let startTime = null;
+      let impactDone = false;
+      let lastFaceAt = -1000;
+
+      // 부드러운 감속/보간 함수.
+      const clamp01 = v => Math.max(0, Math.min(1, v));
+      const smooth = v => {
+        const x = clamp01(v);
+        return x * x * (3 - 2 * x);
+      };
+      const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
+      const lerp = (a, b, v) => a + (b - a) * v;
+      const quadBezier = (a, b, c, v) => {
+        const u = 1 - v;
+        return u * u * a + 2 * u * v * b + v * v * c;
       };
 
-      diceRoller.addEventListener('animationend', finish, { once: true });
-      // Safari에서 animationend가 누락되는 극단적 상황을 위한 안전장치.
-      setTimeout(() => {
-        if (diceRoller.classList.contains('rolling')) finish();
-      }, 1050);
+      function draw(now) {
+        if (startTime === null) startTime = now;
+        const elapsed = now - startTime;
+        const t = clamp01(elapsed / totalMs);
+
+        let x;
+        let y;
+        let scale;
+
+        if (t < impactAt) {
+          // 공중 궤적: CSS 구간 이동이 아니라 매 프레임 베지어 곡선을 계산해 부드럽게 낙하한다.
+          const u = t / impactAt;
+          x = quadBezier(startX, apexX, impactX, u);
+          y = quadBezier(startY, apexY, groundY, u);
+          scale = lerp(0.72, 1.08, smooth(u));
+        } else if (t < bounce1End) {
+          // 첫 번째 바운스: 높고 길게.
+          const u = (t - impactAt) / (bounce1End - impactAt);
+          const travel = smooth(u);
+          x = lerp(impactX, impactX + dir * mapW * 0.095, travel);
+          y = groundY - Math.sin(Math.PI * u) * dieSize * 0.82;
+          scale = 1 - Math.sin(Math.PI * u) * 0.035;
+        } else if (t < bounce2End) {
+          // 두 번째 바운스: 낮고 짧게.
+          const u = (t - bounce1End) / (bounce2End - bounce1End);
+          const fromX = impactX + dir * mapW * 0.095;
+          const travel = smooth(u);
+          x = lerp(fromX, impactX + dir * mapW * 0.135, travel);
+          y = groundY - Math.sin(Math.PI * u) * dieSize * 0.31;
+          scale = 1 - Math.sin(Math.PI * u) * 0.018;
+        } else {
+          // 마지막은 미끄러지는 게 아니라 짧게 또르륵 굴러가며 마찰로 감속한다.
+          const u = (t - bounce2End) / (1 - bounce2End);
+          const fromX = impactX + dir * mapW * 0.135;
+          x = lerp(fromX, endX, easeOut(u));
+          const microBounce = Math.abs(Math.sin(u * Math.PI * 3)) * (1 - u) * dieSize * 0.055;
+          y = groundY - microBounce;
+          scale = 1;
+        }
+
+        // 회전량도 마지막으로 갈수록 자연스럽게 줄어든다.
+        const rotationProgress = 1 - Math.pow(1 - t, 1.65);
+        const totalRotation = dir * (1510 + Math.random() * 0); // 프레임마다 난수 방지용 상수식
+        const angle = -dir * 24 + totalRotation * rotationProgress;
+        const squash = (t > impactAt - 0.012 && t < impactAt + 0.025) ? 0.94 : 1;
+        diceRoller.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${angle}deg) scale(${scale}, ${scale * squash})`;
+
+        // 날아가는 동안 면을 바꾸되, 막판에는 최종 면을 먼저 보여줘 눈으로 결과를 따라갈 수 있게 한다.
+        if (elapsed - lastFaceAt > (t < 0.72 ? 78 : 118)) {
+          lastFaceAt = elapsed;
+          if (t < 0.88) {
+            diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+          } else {
+            diceRoller.textContent = DICE_FACES[finalValue - 1];
+          }
+        }
+
+        if (!impactDone && t >= impactAt) {
+          impactDone = true;
+          worldMap.classList.remove('board-impact');
+          void worldMap.offsetWidth;
+          worldMap.classList.add('board-impact');
+          setTimeout(() => worldMap.classList.remove('board-impact'), 190);
+        }
+
+        if (t < 1) {
+          diceAnimationFrame = requestAnimationFrame(draw);
+          return;
+        }
+
+        diceAnimationFrame = null;
+        diceRoller.textContent = DICE_FACES[finalValue - 1];
+        diceRoller.style.transform = `translate3d(${endX}px, ${groundY}px, 0) rotate(${Math.round(angle / 90) * 90}deg) scale(1)`;
+        diceRoller.classList.remove('rolling');
+        diceRoller.classList.add('landed');
+        diceRoller.setAttribute('aria-label', `주사위 결과 ${finalValue}`);
+
+        // 결과 주사위는 사라지지 않는다. 플레이어가 이동/이동 안 함을 확정할 때까지 보드 위에 남아 있다.
+        setTimeout(resolve, 180);
+      }
+
+      diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+      diceAnimationFrame = requestAnimationFrame(draw);
     });
   }
 
@@ -378,6 +497,7 @@
   function finishHeroTurn(hero) {
     hero.acted = true;
     state.rolled = null;
+    clearDiceDisplay();
 
     const next = state.heroes.find(h => !h.acted);
     if (next) {
@@ -421,7 +541,7 @@
     state.heroes = [];
     state.rolled = null;
     state.isRolling = false;
-    diceRoller?.classList.remove('rolling', 'landed');
+    clearDiceDisplay();
     state.gameOver = false;
     modal.classList.add('hidden');
     showScreen(titleScreen);
