@@ -1299,25 +1299,8 @@ h2 { font-size: 17px; margin: 0; }
 
 
 /* V0.4.6 — 3~4인 전투 대형을 바닥 쪽으로 압축하고, 현재 행동 영웅만 빛나는 프레임으로 표시. */
-.stage-hero-actor.active {
-  z-index: 7;
-}
-.stage-hero-actor.active::after {
-  content: "";
-  position: absolute;
-  inset: 1px 2px;
-  border: 1px solid rgba(242, 203, 103, .92);
-  box-shadow:
-    0 0 5px rgba(244, 196, 78, .72),
-    0 0 12px rgba(244, 196, 78, .28),
-    inset 0 0 7px rgba(244, 196, 78, .18);
-  pointer-events: none;
-  animation: active-actor-frame 1.05s ease-in-out infinite alternate;
-}
-@keyframes active-actor-frame {
-  from { opacity: .58; filter: brightness(.95); }
-  to   { opacity: 1; filter: brightness(1.18); }
-}
+/* 현재 행동 영웅은 사각 프레임 없이 캐릭터 스프라이트 자체의 글로우만 사용한다. */
+.stage-hero-actor.active { z-index:7; }
 
 /* 세 명은 뒤 1명 + 앞 2명의 삼각 대형. */
 .stage-heroes[data-count="3"] .stage-hero-actor:first-child {
@@ -1387,13 +1370,6 @@ h2 { font-size: 17px; margin: 0; }
   .stage-heroes[data-count="3"] .stage-actor-sprite .pixel-hero.medium,
   .stage-heroes[data-count="4"] .stage-actor-sprite .pixel-hero.medium {
     --u: 1.48px;
-  }
-  .stage-hero-actor.active::after {
-    inset: 0 1px;
-    box-shadow:
-      0 0 4px rgba(244, 196, 78, .8),
-      0 0 9px rgba(244, 196, 78, .30),
-      inset 0 0 5px rgba(244, 196, 78, .16);
   }
 }
 
@@ -1728,7 +1704,7 @@ h2 { font-size: 17px; margin: 0; }
   .current-turn-banner { margin: 4px 0 6px; }
 }
 
-/* V0.5.2.7 - current turn is integrated into the world-board move hint */
+/* V0.5.2.9 - current turn is integrated into the world-board move hint */
 .current-turn-banner { display:none !important; }
 .move-hint-locator {
   cursor:pointer;
@@ -1746,3 +1722,71 @@ h2 { font-size: 17px; margin: 0; }
   .board-panel .section-head { align-items:center; gap:8px; }
   .move-hint-locator { font-size:12px; line-height:1.25; max-width:68%; }
 }
+
+
+/* V0.5.2.9 — iOS combat modal + viewport scroll hotfix */
+body.combat-open {
+  overflow: hidden !important;
+  height: 100dvh;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+body.combat-open .combat-overlay {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+.combat-overlay {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+.combat-shell {
+  height: calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+  min-height: 0 !important;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+.combat-stage {
+  min-height: 0 !important;
+}
+/* Generic modal must stay above the fixed combat layer on iOS Safari. */
+.modal.combat-item-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10000 !important;
+  overflow: hidden !important;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  isolation: isolate;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+.modal.combat-item-modal .modal-card {
+  position: relative;
+  z-index: 1;
+  max-height: min(86dvh, 680px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+@media (max-width:700px) {
+  .combat-shell {
+    height: calc(100dvh - 8px - env(safe-area-inset-bottom));
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .combat-stage {
+    height: auto !important;
+    min-height: 0 !important;
+    margin-top: 4px;
+  }
+  .combat-command-panel { margin-top: 4px; }
+  .combat-actions { gap: 4px; }
+  .combat-log-wrap { padding: 5px 6px; }
+  .combat-log-summary { max-height: 34px; overflow: hidden; }
+  .modal.combat-item-modal { padding: max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom)); }
+}
+
+
+/* V0.5.3.0 — 전투 현재 영웅은 사각 박스를 사용하지 않고 기존 스프라이트 글로우만 유지. */
+.stage-hero-actor.active::after { content:none !important; display:none !important; }
