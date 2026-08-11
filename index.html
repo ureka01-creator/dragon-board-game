@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#17130f" />
+  <title>Dragon Board Prototype</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section id="setupScreen" class="screen active">
+      <header class="title-panel pixel-panel">
+        <div class="eyebrow">CO-OP DARK FANTASY BOARD RPG</div>
+        <h1>DRAGON BOARD</h1>
+        <p>프로토타입 V0.1 · 영웅 1~4명을 선택해 왕국을 탐험하자.</p>
+      </header>
+
+      <section class="pixel-panel">
+        <div class="section-head">
+          <h2>영웅 선택</h2>
+          <span id="heroCount">0 / 4</span>
+        </div>
+        <div id="heroGrid" class="hero-grid"></div>
+        <button id="startGameBtn" class="pixel-btn primary" disabled>모험 시작</button>
+      </section>
+    </section>
+
+    <section id="gameScreen" class="screen">
+      <header class="hud pixel-panel">
+        <div>
+          <div class="hud-label">ROUND</div>
+          <div id="roundValue" class="hud-value">1</div>
+        </div>
+        <div class="threat-wrap">
+          <div class="hud-label">DRAGON THREAT</div>
+          <div class="threat-row"><span>🔥</span><strong id="threatValue">0 / 12</strong></div>
+          <div class="threat-bar"><div id="threatFill"></div></div>
+        </div>
+        <button id="resetBtn" class="pixel-btn danger small">RESET</button>
+      </header>
+
+      <section class="game-grid">
+        <aside class="pixel-panel party-panel">
+          <div class="section-head"><h2>파티</h2><span id="activeHeroLabel"></span></div>
+          <div id="partyList" class="party-list"></div>
+          <div class="turn-order-hint">이번 라운드에 아직 행동하지 않은 영웅을 선택해서 진행.</div>
+        </aside>
+
+        <section class="pixel-panel board-panel">
+          <div class="section-head"><h2>월드맵</h2><span id="moveHint">주사위를 굴려 이동</span></div>
+          <div id="worldMap" class="world-map" aria-label="월드맵"></div>
+
+          <div class="move-controls">
+            <button id="rollBtn" class="pixel-btn primary">🎲 D6 굴리기</button>
+            <div class="dice-box">
+              <div class="hud-label">MOVE</div>
+              <div id="diceValue" class="dice-value">-</div>
+            </div>
+            <button id="stayBtn" class="pixel-btn" disabled>이동 안 함</button>
+          </div>
+        </section>
+
+        <aside class="pixel-panel log-panel">
+          <div class="section-head"><h2>모험 기록</h2><button id="clearLogBtn" class="text-btn">지우기</button></div>
+          <div id="gameLog" class="game-log"></div>
+        </aside>
+      </section>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card pixel-panel">
+      <div id="modalContent"></div>
+      <button id="modalCloseBtn" class="pixel-btn primary">확인</button>
+    </div>
+  </div>
+
+  <script src="js/heroes.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
