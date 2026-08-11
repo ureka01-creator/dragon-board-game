@@ -13,7 +13,8 @@
     gameOver: false,
     defeatedBosses: new Set(),
     gold: 0,
-    inventory: [],
+    parties: {},
+    nextPartySerial: 1,
     combat: null,
   };
 
@@ -32,6 +33,10 @@
   const worldMap = $('#worldMap');
   const currentTurnBanner = $('#currentTurnBanner');
   const currentTurnName = $('#currentTurnName');
+  const worldActionBar = $('#worldActionBar');
+  const partyManageBtn = $('#partyManageBtn');
+  const itemTransferBtn = $('#itemTransferBtn');
+  const partyStatusText = $('#partyStatusText');
   const rollBtn = $('#rollBtn');
   const stayBtn = $('#stayBtn');
   const diceValue = $('#diceValue');
@@ -141,6 +146,8 @@
         attackPenalty: 0,
         acPenalty: 0,
         equipment: { armor: null, weapon: null, accessory: null },
+        inventory: [],
+        partyId: null,
       };
     });
     state.round = 1;
@@ -153,7 +160,8 @@
     state.gameOver = false;
     state.defeatedBosses = new Set();
     state.gold = 0;
-    state.inventory = [];
+    state.parties = {};
+    state.nextPartySerial = 1;
     state.combat = null;
     gameLog.innerHTML = '';
 
@@ -170,12 +178,122 @@
     renderControls();
   }
 
+  function heroInventory(hero) {
+    if (!hero) return [];
+    if (!Array.isArray(hero.inventory)) hero.inventory = [];
+    return hero.inventory;
+  }
+
+  function getPartyById(partyId) {
+    return partyId ? state.parties?.[partyId] || null : null;
+  }
+
+  function getHeroParty(hero) {
+    return hero ? getPartyById(hero.partyId) : null;
+  }
+
+  function getPartyMembers(party, { aliveOnly = false } = {}) {
+    if (!party) return [];
+    return party.memberIds
+      .map(id => state.heroes.find(h => h.id === id))
+      .filter(Boolean)
+      .filter(h => !aliveOnly || (!h.down && h.currentHp > 0));
+  }
+
+  function partyDisplayName(party) {
+    if (!party) return 'SOLO';
+    return `PARTY ${party.label || party.id.replace('party-', '')}`;
+  }
+
+  function getWorldUnitMembers(hero = getActiveHero()) {
+    if (!hero) return [];
+    const party = getHeroParty(hero);
+    if (!party) return [hero];
+    return getPartyMembers(party).filter(h => !h.down);
+  }
+
+  function getWorldUnitLeader(hero = getActiveHero()) {
+    if (!hero) return null;
+    const party = getHeroParty(hero);
+    if (!party) return hero;
+    const leader = state.heroes.find(h => h.id === party.leaderId && !h.down);
+    if (leader) return leader;
+    const fallback = getPartyMembers(party, { aliveOnly:true })[0] || null;
+    if (fallback) party.leaderId = fallback.id;
+    return fallback;
+  }
+
+  function sameWorldUnit(a, b) {
+    if (!a || !b) return false;
+    if (a.id === b.id) return true;
+    return Boolean(a.partyId && a.partyId === b.partyId);
+  }
+
+  function canUseWorldPrepActions() {
+    const active = getActiveHero();
+    if (!active || active.down || active.acted || state.gameOver || state.combat) return false;
+    if (state.rolled !== null || state.isRolling || state.isMoving) return false;
+    return getWorldUnitMembers(active).every(h => !h.acted && !h.down);
+  }
+
+  function cleanupParty(partyId) {
+    const party = getPartyById(partyId);
+    if (!party) return;
+    party.memberIds = party.memberIds.filter(id => {
+      const hero = state.heroes.find(h => h.id === id);
+      return hero && hero.partyId === party.id && !hero.down;
+    });
+    if (party.memberIds.length < 2) {
+      party.memberIds.forEach(id => {
+        const hero = state.heroes.find(h => h.id === id);
+        if (hero) hero.partyId = null;
+      });
+      delete state.parties[party.id];
+      return;
+    }
+    if (!party.memberIds.includes(party.leaderId)) party.leaderId = party.memberIds[0];
+  }
+
+  function removeHeroFromParty(hero) {
+    if (!hero?.partyId) return;
+    const partyId = hero.partyId;
+    const party = getPartyById(partyId);
+    hero.partyId = null;
+    if (!party) return;
+    party.memberIds = party.memberIds.filter(id => id !== hero.id);
+    cleanupParty(partyId);
+  }
+
+  function getNextReadyHero() {
+    for (const hero of state.heroes) {
+      if (hero.down || hero.acted) continue;
+      const party = getHeroParty(hero);
+      if (!party) return hero;
+      const leader = getWorldUnitLeader(hero);
+      if (leader && !leader.acted && !leader.down) return leader;
+      const readyMember = getPartyMembers(party).find(h => !h.acted && !h.down);
+      if (readyMember) {
+        party.leaderId = readyMember.id;
+        return readyMember;
+      }
+    }
+    return null;
+  }
+
   function renderHUD() {
     roundValue.textContent = state.round;
     threatValue.textContent = `${state.threat} / 12`;
     threatFill.style.width = `${Math.min(100, state.threat / 12 * 100)}%`;
 
-    const active = getActiveHero();
+    let active = getActiveHero();
+    const leader = getWorldUnitLeader(active);
+    if (leader && active?.id !== leader.id && state.rolled === null && !state.combat) {
+      state.activeHeroId = leader.id;
+      active = leader;
+    }
+    const party = getHeroParty(active);
+    const unit = getWorldUnitMembers(active);
+
     if (currentTurnBanner && currentTurnName) {
       currentTurnBanner.classList.toggle('game-over', state.gameOver);
       currentTurnBanner.dataset.hero = active?.id || '';
@@ -184,7 +302,9 @@
         : state.combat
           ? '⚔ 전투 진행 중'
           : active
-            ? `${active.icon} ${active.name} 턴`
+            ? party
+              ? `🤝 ${active.name} 파티 턴 (${unit.length}명)`
+              : `${active.icon} ${active.name} 턴`
             : '-';
       const guide = currentTurnBanner.querySelector('.turn-guide');
       if (guide) {
@@ -193,11 +313,11 @@
           : state.combat
             ? '전투를 먼저 해결해'
             : state.isMoving
-              ? '이동 중…'
+              ? party ? '파티 이동 중…' : '이동 중…'
               : state.isRolling
                 ? '주사위 굴리는 중…'
                 : state.rolled === null
-                  ? '주사위를 굴려 행동해'
+                  ? party ? '파티는 주사위 1개로 함께 이동해' : '주사위를 굴려 행동해'
                   : `최대 ${state.rolled}칸 이동할 곳을 선택해`;
       }
     }
@@ -205,11 +325,22 @@
 
   function renderParty() {
     partyList.innerHTML = '';
+    const active = getActiveHero();
     state.heroes.forEach(hero => {
       const el = document.createElement('div');
+      const party = getHeroParty(hero);
+      const isLeader = Boolean(party && party.leaderId === hero.id);
       const isActive = hero.id === state.activeHeroId;
-      el.className = `party-member ${isActive ? 'active' : ''} ${hero.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
-      const status = hero.down ? 'DOWN' : (hero.acted ? 'DONE' : 'READY');
+      const isUnitActive = active && sameWorldUnit(active, hero);
+      el.className = `party-member ${isActive ? 'active' : ''} ${isUnitActive ? 'unit-active' : ''} ${hero.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
+      const status = hero.down
+        ? 'DOWN'
+        : hero.acted
+          ? 'DONE'
+          : party
+            ? isLeader ? 'PARTY LEADER' : 'PARTY'
+            : 'READY';
+      const bagCount = heroInventory(hero).length;
       el.innerHTML = `
         ${heroSpriteHTML(hero, 'medium')}
         <div class="party-info">
@@ -218,8 +349,9 @@
             <span class="party-state">${status}</span>
             <button type="button" class="party-status-btn" aria-label="${hero.name} 상태 보기">상태</button>
           </div>
-          <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''}</div>
+          <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''} · 🎒 ${bagCount}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${hero.currentHp/hero.hp*100}%"></div></div>
+          ${party ? `<div class="party-link-note">🤝 ${partyDisplayName(party)}${isLeader ? ' · 리더' : ''}</div>` : ''}
           ${hero.down ? `<div class="down-note">다음 라운드 마을에서 부활</div>` : ''}
         </div>
       `;
@@ -229,15 +361,20 @@
       });
       el.addEventListener('click', () => {
         if (!hero.down && !hero.acted && state.rolled === null && !state.gameOver && !state.combat) {
-          state.activeHeroId = hero.id;
+          const targetParty = getHeroParty(hero);
+          state.activeHeroId = targetParty?.leaderId || hero.id;
           renderAll();
         }
       });
       partyList.appendChild(el);
     });
-    const active = getActiveHero();
-    activeHeroLabel.textContent = active ? `${active.icon} ${active.name}` : '';
-    if (resourceSummary) resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${state.inventory.length}`;
+    const normalizedActive = getActiveHero();
+    const party = getHeroParty(normalizedActive);
+    activeHeroLabel.textContent = normalizedActive
+      ? party ? `🤝 ${partyDisplayName(party)}` : `${normalizedActive.icon} ${normalizedActive.name}`
+      : '';
+    const totalBag = state.heroes.reduce((sum, h) => sum + heroInventory(h).length, 0);
+    if (resourceSummary) resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}`;
   }
 
   function renderMap() {
@@ -246,7 +383,9 @@
     WORLD_NODES.forEach(node => {
       const el = document.createElement('div');
       const heroesHere = state.heroes.filter(h => h.position === node.id);
-      const isCurrent = getActiveHero()?.position === node.id;
+      const activeHero = getActiveHero();
+      const activeUnit = getWorldUnitMembers(activeHero);
+      const isCurrent = activeUnit.some(h => h.position === node.id);
       const locked = node.locked && state.seals < 3 && state.threat < 9;
       el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${locked ? 'locked' : ''}`;
       el.dataset.nodeId = node.id;
@@ -256,7 +395,7 @@
         <div class="node-icon">${node.icon}</div>
         <div class="node-name">${node.short || node.name}</div>
         <div class="node-type">${locked ? '🔒 잠김' : node.type}</div>
-        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${h.id === state.activeHeroId ? 'active' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
+        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${h.partyId ? 'in-party' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
       if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
       worldMap.appendChild(el);
@@ -265,17 +404,255 @@
 
   function renderControls() {
     const active = getActiveHero();
-    const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat;
+    const party = getHeroParty(active);
+    const unit = getWorldUnitMembers(active);
+    const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
     rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling || state.isMoving;
     stayBtn.disabled = !canAct || state.rolled === null || state.isRolling || state.isMoving;
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
     if (state.isMoving) {
-      moveHint.textContent = '영웅 이동 중…';
+      moveHint.textContent = party ? '파티 이동 중…' : '영웅 이동 중…';
     } else if (state.isRolling) {
       moveHint.textContent = '주사위 굴리는 중…';
     } else {
-      moveHint.textContent = state.rolled === null ? '주사위를 굴려 이동' : `0~${state.rolled}칸 이동 가능`;
+      moveHint.textContent = state.rolled === null
+        ? party ? `${partyDisplayName(party)} · 주사위 1개로 함께 이동` : '주사위를 굴려 이동'
+        : `0~${state.rolled}칸 이동 가능`;
     }
+
+    const prep = canUseWorldPrepActions();
+    if (partyManageBtn) partyManageBtn.disabled = !prep;
+    const transferSources = unit.filter(h => heroInventory(h).length || Object.values(h.equipment || {}).some(Boolean));
+    const nearbyCount = active ? state.heroes.filter(h => !h.down && h.position === active.position).length : 0;
+    if (itemTransferBtn) itemTransferBtn.disabled = !prep || !transferSources.length || nearbyCount < 2;
+    if (partyStatusText) {
+      partyStatusText.textContent = party
+        ? `${partyDisplayName(party)} · ${unit.map(h => h.icon + h.name).join(' + ')}`
+        : 'SOLO · 같은 칸의 READY 영웅과 파티 편성 가능';
+    }
+    worldActionBar?.classList.toggle('disabled', !prep);
+  }
+
+  function closeModalPanel() {
+    modal.classList.add('hidden');
+    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal');
+    modalCloseBtn.textContent = '확인';
+  }
+
+  function openPartyManager() {
+    if (!canUseWorldPrepActions()) return;
+    const active = getActiveHero();
+    if (!active) return;
+    const currentParty = getHeroParty(active);
+    const currentPartyId = currentParty?.id || null;
+    const candidates = state.heroes.filter(h =>
+      !h.down && !h.acted && h.position === active.position && (!h.partyId || h.partyId === currentPartyId)
+    );
+
+    if (!currentParty && candidates.length < 2) {
+      showModal('🤝 파티 편성', '같은 칸에 아직 행동하지 않은 다른 영웅이 있어야 파티를 만들 수 있어.');
+      return;
+    }
+
+    const selected = new Set(currentParty ? currentParty.memberIds : [active.id]);
+    selected.add(active.id);
+    const renderManager = () => {
+      modal.classList.remove('hero-status-modal', 'item-transfer-modal');
+      modal.classList.add('party-manage-modal');
+      modalCloseBtn.textContent = '닫기';
+      const pos = WORLD_NODES.find(n => n.id === active.position);
+      modalContent.innerHTML = `
+        <div class="party-manage-sheet">
+          <div class="status-kicker">PARTY FORMATION</div>
+          <h3>🤝 파티 편성</h3>
+          <p class="party-rule-copy">같은 칸의 READY 영웅끼리 파티를 만든다. 파티는 D6 하나로 함께 이동하고, 전투에는 파티원 전원이 참가해. 파티 이동/행동을 하면 파티원 모두의 월드 턴이 끝난다.</p>
+          <div class="party-location">📍 ${pos?.name || active.position}</div>
+          <div class="party-picker-list">
+            ${candidates.map(h => {
+              const checked = selected.has(h.id);
+              const locked = h.id === active.id;
+              return `<label class="party-picker-row ${checked ? 'selected' : ''}">
+                <input type="checkbox" data-party-hero="${h.id}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+                <span>${h.icon} <strong>${h.name}</strong></span>
+                <small>${locked ? '현재 리더' : 'READY'}</small>
+              </label>`;
+            }).join('')}
+          </div>
+          <div class="party-manage-actions">
+            <button type="button" class="pixel-btn primary" id="partySaveBtn">${currentParty ? '파티 변경' : '파티 만들기'}</button>
+            ${currentParty ? '<button type="button" class="pixel-btn danger" id="partyDisbandBtn">파티 해산</button>' : ''}
+          </div>
+        </div>
+      `;
+
+      modalContent.querySelectorAll('[data-party-hero]').forEach(input => {
+        input.addEventListener('change', () => {
+          if (input.checked) selected.add(input.dataset.partyHero);
+          else selected.delete(input.dataset.partyHero);
+          input.closest('.party-picker-row')?.classList.toggle('selected', input.checked);
+        });
+      });
+
+      modalContent.querySelector('#partySaveBtn')?.addEventListener('click', () => {
+        const memberIds = [...selected].filter(id => candidates.some(h => h.id === id));
+        if (memberIds.length < 2) {
+          showModal('🤝 파티 편성', '파티는 최소 2명의 영웅이 필요해.');
+          return;
+        }
+        let party = currentParty;
+        if (!party) {
+          const serial = state.nextPartySerial++;
+          const id = `party-${serial}`;
+          party = { id, label:String.fromCharCode(64 + Math.min(serial, 26)), leaderId:active.id, memberIds:[] };
+          state.parties[id] = party;
+        }
+        const previousIds = [...party.memberIds];
+        previousIds.forEach(id => {
+          if (!memberIds.includes(id)) {
+            const h = state.heroes.find(hero => hero.id === id);
+            if (h) h.partyId = null;
+          }
+        });
+        party.memberIds = memberIds;
+        party.leaderId = active.id;
+        memberIds.forEach(id => {
+          const h = state.heroes.find(hero => hero.id === id);
+          if (h) h.partyId = party.id;
+        });
+        state.activeHeroId = active.id;
+        log(`🤝 <strong>${partyDisplayName(party)}</strong> 편성 · ${getPartyMembers(party).map(h => h.icon + h.name).join(' + ')}`);
+        closeModalPanel();
+        renderAll();
+      });
+
+      modalContent.querySelector('#partyDisbandBtn')?.addEventListener('click', () => {
+        if (!currentParty) return;
+        const names = getPartyMembers(currentParty).map(h => h.name).join(', ');
+        getPartyMembers(currentParty).forEach(h => { h.partyId = null; });
+        delete state.parties[currentParty.id];
+        state.activeHeroId = active.id;
+        log(`↔️ <strong>${partyDisplayName(currentParty)}</strong> 해산 · ${names}`);
+        closeModalPanel();
+        renderAll();
+      });
+    };
+    renderManager();
+    modal.classList.remove('hidden');
+  }
+
+  function ownedItemEntries(hero) {
+    const entries = heroInventory(hero).map((id, index) => ({ id, source:'inventory', index, slot:null }));
+    Object.entries(hero.equipment || {}).forEach(([slot, id]) => {
+      if (id) entries.push({ id, source:'equipment', index:null, slot });
+    });
+    return entries;
+  }
+
+  function removeOwnedItem(hero, entry) {
+    if (entry.source === 'equipment') {
+      if (hero.equipment?.[entry.slot] === entry.id) hero.equipment[entry.slot] = null;
+      return true;
+    }
+    const inv = heroInventory(hero);
+    const idx = Number.isInteger(entry.index) && inv[entry.index] === entry.id ? entry.index : inv.indexOf(entry.id);
+    if (idx < 0) return false;
+    inv.splice(idx, 1);
+    return true;
+  }
+
+  function equipInventoryItem(hero, itemId, inventoryIndex = null) {
+    const item = getItemCard?.(itemId);
+    if (!hero || !item || item.type !== 'equipment') return false;
+    const inv = heroInventory(hero);
+    const idx = Number.isInteger(inventoryIndex) && inv[inventoryIndex] === itemId ? inventoryIndex : inv.indexOf(itemId);
+    if (idx < 0) return false;
+    inv.splice(idx, 1);
+    const oldId = hero.equipment?.[item.slot];
+    if (!hero.equipment) hero.equipment = { armor:null, weapon:null, accessory:null };
+    if (oldId) inv.push(oldId);
+    hero.equipment[item.slot] = item.id;
+    log(`✨ ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 장착${oldId ? ' / 기존 장비는 가방으로' : ''}.`);
+    return true;
+  }
+
+  function openItemTransfer() {
+    if (!canUseWorldPrepActions()) return;
+    const active = getActiveHero();
+    if (!active) return;
+    const unit = getWorldUnitMembers(active);
+    const sources = unit.filter(h => ownedItemEntries(h).length > 0);
+    if (!sources.length) {
+      showModal('🎒 아이템 전달', '현재 행동하는 영웅/파티가 가진 아이템이 없어.');
+      return;
+    }
+    const sameTileHeroes = state.heroes.filter(h => !h.down && h.position === active.position);
+    if (sameTileHeroes.length < 2) {
+      showModal('🎒 아이템 전달', '아이템을 주려면 다른 영웅과 같은 칸에 있어야 해.');
+      return;
+    }
+    let sourceHero = sources[0];
+    let chosenEntry = null;
+
+    const renderTransfer = () => {
+      modal.classList.remove('hero-status-modal', 'party-manage-modal');
+      modal.classList.add('item-transfer-modal');
+      modalCloseBtn.textContent = '취소';
+      const sourceEntries = ownedItemEntries(sourceHero);
+      if (chosenEntry && !sourceEntries.some(e => e.id === chosenEntry.id && e.source === chosenEntry.source && e.slot === chosenEntry.slot)) chosenEntry = null;
+      const recipients = sameTileHeroes.filter(h => h.id !== sourceHero.id);
+      modalContent.innerHTML = `
+        <div class="item-transfer-sheet">
+          <div class="status-kicker">TRADE ACTION</div>
+          <h3>🎒 아이템 전달</h3>
+          <p class="party-rule-copy">같은 칸의 영웅에게 아이템 1개를 전달할 수 있어. 전달하면 <strong>${getHeroParty(active) ? '파티의' : sourceHero.name + '의'} 이번 월드 턴이 즉시 끝나.</strong></p>
+          ${sources.length > 1 ? `<div class="transfer-source-tabs">${sources.map(h => `<button type="button" class="text-btn ${h.id === sourceHero.id ? 'active' : ''}" data-transfer-source="${h.id}">${h.icon} ${h.name}</button>`).join('')}</div>` : `<div class="transfer-source-single">보내는 영웅 · ${sourceHero.icon} <strong>${sourceHero.name}</strong></div>`}
+          <div class="transfer-item-list">
+            ${sourceEntries.map((entry, idx) => {
+              const item = getItemCard(entry.id);
+              if (!item) return '';
+              const selected = chosenEntry && chosenEntry.id === entry.id && chosenEntry.source === entry.source && chosenEntry.slot === entry.slot && (entry.source === 'equipment' || chosenEntry.index === entry.index);
+              return `<button type="button" class="transfer-item-row ${selected ? 'selected' : ''}" data-transfer-entry="${idx}">
+                <span>${item.icon || '🎁'}</span><strong>${item.name}</strong><small>${entry.source === 'equipment' ? '장착 중 · 전달 시 해제' : item.type === 'equipment' ? itemSlotLabel(item.slot) : '가방'}</small>
+              </button>`;
+            }).join('')}
+          </div>
+          <div class="transfer-recipient-title">받을 영웅</div>
+          <div class="transfer-recipient-grid">
+            ${recipients.map(h => `<button type="button" class="pixel-btn" data-transfer-recipient="${h.id}" ${chosenEntry ? '' : 'disabled'}>${h.icon} ${h.name}</button>`).join('')}
+          </div>
+        </div>
+      `;
+      modalContent.querySelectorAll('[data-transfer-source]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sourceHero = sources.find(h => h.id === btn.dataset.transferSource) || sourceHero;
+          chosenEntry = null;
+          renderTransfer();
+        });
+      });
+      modalContent.querySelectorAll('[data-transfer-entry]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const index = Number(btn.dataset.transferEntry);
+          chosenEntry = ownedItemEntries(sourceHero)[index] || null;
+          renderTransfer();
+        });
+      });
+      modalContent.querySelectorAll('[data-transfer-recipient]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!chosenEntry) return;
+          const recipient = state.heroes.find(h => h.id === btn.dataset.transferRecipient);
+          const item = getItemCard(chosenEntry.id);
+          if (!recipient || !item || recipient.position !== sourceHero.position || recipient.id === sourceHero.id) return;
+          if (!removeOwnedItem(sourceHero, chosenEntry)) return;
+          heroInventory(recipient).push(item.id);
+          log(`🎒 ${sourceHero.icon} <strong>${sourceHero.name}</strong> → ${recipient.icon} <strong>${recipient.name}</strong> · ${item.name} 전달.`);
+          closeModalPanel();
+          renderAll();
+          finishWorldUnitTurn(active, 'item-transfer');
+        }, { once:true });
+      });
+    };
+    renderTransfer();
+    modal.classList.remove('hidden');
   }
 
   const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
@@ -465,9 +842,13 @@
   }
 
   async function rollD6() {
-    if (state.rolled !== null || state.isRolling || state.isMoving || state.gameOver) return;
-    const hero = getActiveHero();
+    if (state.rolled !== null || state.isRolling || state.isMoving || state.gameOver || state.combat) return;
+    const hero = getWorldUnitLeader(getActiveHero());
+    if (!hero || hero.down || hero.acted) return;
+    const unit = getWorldUnitMembers(hero);
+    if (unit.some(h => h.acted || h.down)) return;
     const result = Math.floor(Math.random() * 6) + 1;
+    state.activeHeroId = hero.id;
     state.isRolling = true;
     renderControls();
 
@@ -475,7 +856,8 @@
 
     state.rolled = result;
     state.isRolling = false;
-    log(`${hero.icon} <strong>${hero.name}</strong> 이동 주사위 → 🎲 <strong>${state.rolled}</strong>`);
+    const party = getHeroParty(hero);
+    log(`${party ? '🤝 <strong>' + partyDisplayName(party) + '</strong>' : hero.icon + ' <strong>' + hero.name + '</strong>'} 이동 주사위 → 🎲 <strong>${state.rolled}</strong>`);
     renderAll();
   }
 
@@ -485,8 +867,9 @@
 
   function getReachableNodeIds() {
     const result = new Set();
-    const hero = getActiveHero();
-    if (state.combat || !hero || hero.down || state.rolled === null || hero.acted) return result;
+    const hero = getWorldUnitLeader(getActiveHero());
+    const unit = getWorldUnitMembers(hero);
+    if (state.combat || !hero || hero.down || state.rolled === null || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
     const maxDepth = state.rolled;
     const queue = [{ id: hero.position, depth: 0 }];
@@ -552,7 +935,7 @@
     };
   }
 
-  function animateHeroHop(hero, path) {
+  function animateHeroHop(hero, path, unitIndex = 0, unitCount = 1) {
     return new Promise(resolve => {
       if (!worldMap || !path || path.length < 2) {
         resolve();
@@ -570,6 +953,17 @@
         resolve();
         return;
       }
+
+      const cellSize = points[0]?.cell || 36;
+      const offsetUnit = Math.max(2, Math.min(5, cellSize * 0.09));
+      const offsets = unitCount <= 1
+        ? [[0,0]]
+        : unitCount === 2
+          ? [[-offsetUnit,0],[offsetUnit,0]]
+          : unitCount === 3
+            ? [[0,-offsetUnit],[-offsetUnit,offsetUnit],[offsetUnit,offsetUnit]]
+            : [[-offsetUnit,-offsetUnit],[offsetUnit,-offsetUnit],[-offsetUnit,offsetUnit],[offsetUnit,offsetUnit]];
+      const unitOffset = offsets[Math.min(unitIndex, offsets.length - 1)] || [0,0];
 
       const sourceToken = worldMap.querySelector(`.map-hero-token[data-hero-id="${hero.id}"]`);
       sourceToken?.classList.add('movement-source-hidden');
@@ -597,9 +991,11 @@
       const lerp = (a, b, v) => a + (b - a) * v;
 
       function place(point, lift = 0, scaleX = 1, scaleY = 1, shadowScale = 1, shadowOpacity = .34) {
-        mover.style.transform = `translate3d(${point.x}px, ${point.y - lift}px, 0)`;
+        const px = point.x + unitOffset[0];
+        const py = point.y + unitOffset[1];
+        mover.style.transform = `translate3d(${px}px, ${py - lift}px, 0)`;
         if (token) token.style.transform = `translate(-50%, -50%) scale(${scaleX}, ${scaleY})`;
-        shadow.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) translate(-50%, -50%) scale(${shadowScale})`;
+        shadow.style.transform = `translate3d(${px}px, ${py}px, 0) translate(-50%, -50%) scale(${shadowScale})`;
         shadow.style.opacity = String(shadowOpacity);
       }
 
@@ -983,7 +1379,8 @@
       const hero = state.heroes.find(h => h.id === id);
       if (!hero) return;
       const hs = combatHeroState(id);
-      const active = id === c.currentHeroId && !c.busy;
+      // 현재 공격 차례 표시는 주사위/공격 연출 중에도 유지한다.
+      const active = id === c.currentHeroId && !hero.down;
       const el = document.createElement('button');
       el.type = 'button';
       el.className = `stage-hero-actor ${active ? 'active' : ''} ${hs?.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
@@ -1121,6 +1518,7 @@
     if (hero.down) return;
     hero.down = true;
     hero.currentHp = 0;
+    removeHeroFromParty(hero);
     hero.position = 'village';
     hero.acted = true;
     hero.reviveRound = state.round + 1;
@@ -1485,129 +1883,76 @@
     return parts.join(' · ');
   }
 
-  function stashLoot(item) {
-    state.inventory.push(item.id);
-    log(`🎒 <strong>${item.name}</strong> 가방에 보관.`);
+  function stashLoot(hero, item) {
+    if (!hero || !item) return;
+    heroInventory(hero).push(item.id);
+    log(`🎒 ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 보관.`);
   }
 
   function equipLoot(hero, item) {
+    if (!hero || !item) return;
     const slot = item.slot;
     const oldId = hero.equipment?.[slot];
     if (!hero.equipment) hero.equipment = { armor:null, weapon:null, accessory:null };
     if (oldId) {
-      state.inventory.push(oldId);
+      heroInventory(hero).push(oldId);
       const old = getItemCard(oldId);
-      if (old) log(`🎒 ${hero.name}의 <strong>${old.name}</strong> → 가방으로 이동.`);
+      if (old) log(`🎒 ${hero.name}의 <strong>${old.name}</strong> → ${hero.name} 가방으로 이동.`);
     }
     hero.equipment[slot] = item.id;
     log(`✨ ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 장착!`);
   }
 
-  function acquireSimpleLoot(item) {
+  function acquireSimpleLoot(owner, item) {
     if (item.type === 'gold') {
       state.gold += Number(item.value || 0);
-      log(`💰 <strong>${item.value} 골드</strong> 획득!`);
+      log(`💰 <strong>${item.value} 골드</strong> 획득! (파티 공용)`);
       return;
     }
-    if (item.type === 'consumable') {
-      stashLoot(item);
-      return;
-    }
+    if (item.type === 'consumable') stashLoot(owner, item);
   }
 
   function showCombatLoot(c) {
     return new Promise(resolve => {
-      if (!lootOverlay || !lootCard || !window.drawCombatLoot) {
-        resolve(null);
-        return;
-      }
-
+      if (!lootOverlay || !lootCard || !window.drawCombatLoot) { resolve(null); return; }
       const tier = lootTierForCombat(c);
       const item = drawCombatLoot(tier);
+      const owner = state.heroes.find(h => h.id === c.lootOwnerId) || state.heroes.find(h => h.id === c.initiatorHeroId) || state.heroes.find(h => h.id === c.participantIds[0]);
       let revealed = false;
       let finished = false;
-
       lootOverlay.classList.remove('hidden');
       lootCard.classList.add('face-down');
       lootCard.classList.remove('revealed', 'rare', 'danger');
       lootCard.disabled = false;
-      lootCardIcon.textContent = '📦';
-      lootCardName.textContent = '?';
-      lootCardDesc.textContent = '카드를 터치해서 열기';
-      lootGuide.textContent = tier === 'boss' ? '보스 전리품 · 장비 1개 확정' : tier === 'elite' ? '정예 전리품 · 장비 확률 상승' : '전리품 상자를 발견했다.';
+      lootCardIcon.textContent = '📦'; lootCardName.textContent = '?'; lootCardDesc.textContent = '카드를 터치해서 열기';
+      lootGuide.textContent = tier === 'boss' ? `보스 전리품 · 장비 1개 확정 · ${owner?.name || '획득 영웅'} 소유` : tier === 'elite' ? `정예 전리품 · 장비 확률 상승 · ${owner?.name || '획득 영웅'} 소유` : `전리품 상자 · ${owner?.name || '획득 영웅'}이 획득`;
       lootActions.innerHTML = '';
-
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        lootOverlay.classList.add('hidden');
-        renderParty();
-        resolve(item);
-      };
-
-      const makeButton = (text, cls, handler) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `pixel-btn ${cls || ''}`.trim();
-        btn.textContent = text;
-        btn.addEventListener('click', handler, { once:true });
-        lootActions.appendChild(btn);
-        return btn;
-      };
-
+      const finish = () => { if (finished) return; finished = true; lootOverlay.classList.add('hidden'); renderParty(); resolve(item); };
+      const makeButton = (text, cls, handler) => { const btn=document.createElement('button'); btn.type='button'; btn.className=`pixel-btn ${cls||''}`.trim(); btn.textContent=text; btn.addEventListener('click',handler,{once:true}); lootActions.appendChild(btn); return btn; };
       const reveal = () => {
         if (revealed) return;
-        revealed = true;
-        lootCard.disabled = true;
-        lootCard.classList.remove('face-down');
-        lootCard.classList.add('revealed');
+        revealed = true; lootCard.disabled = true; lootCard.classList.remove('face-down'); lootCard.classList.add('revealed');
         if (item.rarity === 'rare') lootCard.classList.add('rare');
         if (item.type === 'curse' || item.type === 'mimic') lootCard.classList.add('danger');
-        lootCardIcon.textContent = item.icon || '🎁';
-        lootCardName.textContent = item.name;
-        const stats = itemStatsText(item);
-        lootCardDesc.textContent = `${item.desc}${stats ? ` · ${stats}` : ''}`;
-        lootActions.innerHTML = '';
-
+        lootCardIcon.textContent=item.icon||'🎁'; lootCardName.textContent=item.name;
+        const stats=itemStatsText(item); lootCardDesc.textContent=`${item.desc}${stats ? ` · ${stats}` : ''}`; lootActions.innerHTML='';
         if (item.type === 'equipment') {
-          lootGuide.textContent = `${itemSlotLabel(item.slot)} · 장착할 영웅을 선택해.`;
-          state.heroes.forEach(hero => {
-            const current = getItemCard(hero.equipment?.[item.slot]);
-            makeButton(`${hero.icon} ${hero.name}${current ? ` ↔ ${current.name}` : ''}`, '', () => {
-              equipLoot(hero, item);
-              finish();
-            });
-          });
-          makeButton('🎒 가방에 보관', '', () => {
-            stashLoot(item);
-            finish();
-          });
+          lootGuide.textContent = `${owner?.icon || ''} ${owner?.name || '획득 영웅'} 소유 · ${itemSlotLabel(item.slot)}. 다른 영웅에게 즉시 줄 수 없어.`;
+          makeButton(`${owner?.icon || ''} ${owner?.name || ''} 바로 장착`, 'primary', () => { equipLoot(owner,item); finish(); });
+          makeButton(`🎒 ${owner?.name || '획득 영웅'} 가방에 보관`, '', () => { stashLoot(owner,item); finish(); });
           return;
         }
-
         if (item.type === 'gold') {
-          lootGuide.textContent = `${item.value} 골드를 발견했다.`;
-          makeButton(`💰 ${item.value} 골드 획득`, 'primary', () => {
-            acquireSimpleLoot(item);
-            finish();
-          });
-          return;
+          lootGuide.textContent = `${item.value} 골드 발견 · 골드는 파티 공용 자원으로 처리.`;
+          makeButton(`💰 ${item.value} 골드 획득`, 'primary', () => { acquireSimpleLoot(owner,item); finish(); }); return;
         }
-
         if (item.type === 'consumable') {
-          lootGuide.textContent = '소비 아이템을 발견했다.';
-          makeButton('🎒 가방에 넣기', 'primary', () => {
-            acquireSimpleLoot(item);
-            finish();
-          });
-          return;
+          lootGuide.textContent = `${owner?.icon || ''} ${owner?.name || '획득 영웅'}의 가방에 들어간다.`;
+          makeButton(`🎒 ${owner?.name || '획득 영웅'} 가방에 넣기`, 'primary', () => { acquireSimpleLoot(owner,item); finish(); }); return;
         }
-
-        lootGuide.textContent = '이번 상자는 비어 있었다.';
-        makeButton('계속', 'primary', finish);
+        lootGuide.textContent='이번 상자는 비어 있었다.'; makeButton('계속','primary',finish);
       };
-
-      lootCard.addEventListener('click', reveal, { once:true });
+      lootCard.addEventListener('click',reveal,{once:true});
     });
   }
 
@@ -1624,7 +1969,7 @@
       return;
     }
 
-    const next = state.heroes.find(h => !h.acted && !h.down);
+    const next = getNextReadyHero();
     if (next) {
       state.activeHeroId = next.id;
     } else {
@@ -1686,11 +2031,14 @@
         return;
       }
 
-      // 같은 칸의 아직 행동하지 않은 영웅은 자동으로 전투에 합류한다.
-      const participants = state.heroes.filter(h =>
-        !h.down && h.currentHp > 0 && h.position === node.id && (!h.acted || h.id === hero.id)
-      );
-      if (!participants.some(h => h.id === hero.id)) participants.unshift(hero);
+      // V0.4.6: 전투 참가자는 "같은 칸"이 아니라 "같은 파티"로 결정한다.
+      // SOLO 영웅은 같은 칸에 다른 영웅이 있어도 혼자 싸운다.
+      // 파티로 편성된 경우에만 생존 파티원 전원이 전투에 참가한다.
+      const party = getHeroParty(hero);
+      const participants = party
+        ? getPartyMembers(party, { aliveOnly:true }).filter(h => h.position === node.id)
+        : [hero].filter(h => !h.down && h.currentHp > 0);
+      if (!participants.some(h => h.id === hero.id) && !hero.down && hero.currentHp > 0) participants.unshift(hero);
 
       const enemies = chooseEncounter(node, participants.length);
       const isBoss = node.type === '보스';
@@ -1705,6 +2053,9 @@
         originNodeId,
         isBoss,
         participantIds: participants.map(h => h.id),
+        initiatorHeroId: hero.id,
+        lootOwnerId: hero.id,
+        partyId: party?.id || null,
         heroStates,
         enemies,
         selectedEnemyId: enemies[0]?.uid || null,
@@ -1744,42 +2095,43 @@
     if (state.isMoving || state.isRolling || state.gameOver || state.combat) return;
     const reachable = getReachableNodeIds();
     if (!reachable.has(nodeId)) return;
-    const hero = getActiveHero();
+    const hero = getWorldUnitLeader(getActiveHero());
     if (!hero || hero.down) return;
+    const unit = getWorldUnitMembers(hero);
+    if (!unit.length || unit.some(h => h.acted || h.down)) return;
     const originNodeId = hero.position;
     const path = getShortestPath(hero.position, nodeId, state.rolled ?? 0);
     if (!path) return;
     const node = WORLD_NODES.find(n => n.id === nodeId);
-
-    state.isMoving = true;
-    renderControls();
-    await animateHeroHop(hero, path);
-    hero.position = nodeId;
+    state.activeHeroId = hero.id;
+    state.isMoving = true; renderControls();
+    await Promise.all(unit.map((member,index) => animateHeroHop(member,path,index,unit.length)));
+    unit.forEach(member => { member.position = nodeId; });
     state.isMoving = false;
-
-    log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
-    const turnHandled = await resolveNode(hero, node, originNodeId);
-    if (!turnHandled) finishHeroTurn(hero);
+    const party = getHeroParty(hero);
+    if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
+    else log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
+    const turnHandled = await resolveNode(hero,node,originNodeId,unit);
+    if (!turnHandled) finishWorldUnitTurn(hero);
   }
 
   async function stayPut() {
     if (state.rolled === null || state.isMoving || state.isRolling || state.combat) return;
-    const hero = getActiveHero();
+    const hero = getWorldUnitLeader(getActiveHero());
     if (!hero || hero.down) return;
+    const unit = getWorldUnitMembers(hero);
     const node = WORLD_NODES.find(n => n.id === hero.position);
-    log(`${hero.icon} <strong>${hero.name}</strong> 이동하지 않음 → ${node.icon} ${node.name} 행동`);
-    const turnHandled = await resolveNode(hero, node, hero.position);
-    if (!turnHandled) finishHeroTurn(hero);
+    const party = getHeroParty(hero);
+    log(`${party ? '🤝 <strong>' + partyDisplayName(party) + '</strong>' : hero.icon + ' <strong>' + hero.name + '</strong>'} 이동하지 않음 → ${node.icon} ${node.name} 행동`);
+    const turnHandled = await resolveNode(hero,node,hero.position,unit);
+    if (!turnHandled) finishWorldUnitTurn(hero);
   }
 
-  async function resolveNode(hero, node, originNodeId) {
+  async function resolveNode(hero, node, originNodeId, unitMembers = getWorldUnitMembers(hero)) {
     switch (node.type) {
       case '마을':
-        hero.currentHp = hero.hp;
-        hero.down = false;
-        hero.reviveRound = null;
-        if (hero.currentMana !== null) hero.currentMana = 3;
-        showModal('🏠 왕국 마을', `${hero.name}의 HP가 모두 회복되었다.${hero.currentMana !== null ? ' 마나도 3/3 회복.' : ''}`);
+        unitMembers.forEach(member => { member.currentHp=member.hp; member.down=false; member.reviveRound=null; if (member.currentMana !== null) member.currentMana=3; });
+        showModal('🏠 왕국 마을', `${unitMembers.length > 1 ? '파티 전원' : hero.name}의 HP가 모두 회복되었다.${unitMembers.some(member => member.currentMana !== null) ? ' 마나도 회복.' : ''}`);
         return false;
 
       case '전투':
@@ -1799,9 +2151,8 @@
         return false;
 
       case '휴식':
-        hero.currentHp = Math.min(hero.hp, hero.currentHp + Math.ceil(hero.hp * 0.3));
-        if (hero.currentMana !== null) hero.currentMana = Math.min(3, hero.currentMana + 1);
-        showModal('❤️ 휴식', `${hero.name}이 휴식했다. HP 일부 회복${hero.currentMana !== null ? ' / MANA +1' : ''}.`);
+        unitMembers.forEach(member => { member.currentHp=Math.min(member.hp,member.currentHp+Math.ceil(member.hp*.3)); if (member.currentMana !== null) member.currentMana=Math.min(3,member.currentMana+1); });
+        showModal('❤️ 휴식', `${unitMembers.length > 1 ? '파티 전원' : hero.name}이 휴식했다. HP 일부 회복${unitMembers.some(member => member.currentMana !== null) ? ' / MANA +1' : ''}.`);
         return false;
 
       case '길':
@@ -1847,24 +2198,21 @@
     return false;
   }
 
-  function finishHeroTurn(hero) {
-    hero.acted = true;
-    state.rolled = null;
-    clearDiceDisplay();
-
-    if (state.gameOver) {
-      renderAll();
-      return;
+  function finishWorldUnitTurn(hero, reason = 'normal') {
+    const leader = getWorldUnitLeader(hero) || hero;
+    const unit = getWorldUnitMembers(leader);
+    unit.forEach(member => { member.acted = true; });
+    state.rolled = null; clearDiceDisplay();
+    if (reason === 'item-transfer') {
+      const party = getHeroParty(leader);
+      log(`⏹️ ${party ? partyDisplayName(party) : leader.name} · 아이템 전달로 이번 월드 턴 종료.`);
     }
-
-    const next = state.heroes.find(h => !h.acted && !h.down);
-    if (next) {
-      state.activeHeroId = next.id;
-    } else {
-      endRound();
-    }
+    if (state.gameOver) { renderAll(); return; }
+    const next = getNextReadyHero();
+    if (next) state.activeHeroId = next.id; else endRound();
     renderAll();
   }
+  function finishHeroTurn(hero) { finishWorldUnitTurn(hero); }
 
   function endRound() {
     state.threat += 1;
@@ -1897,8 +2245,9 @@
       h.acted = false;
     });
 
-    const firstReady = state.heroes.find(h => !h.down);
-    state.activeHeroId = firstReady?.id || state.heroes[0]?.id || null;
+    Object.keys(state.parties).forEach(cleanupParty);
+    const firstReady = getNextReadyHero();
+    state.activeHeroId = firstReady?.id || state.heroes.find(h => !h.down)?.id || state.heroes[0]?.id || null;
   }
 
 
@@ -1920,57 +2269,28 @@
     const attackBonus = equipmentStat(hero, 'attack');
     const damageBonus = equipmentStat(hero, 'damage');
     const pos = window.WORLD_NODES?.find?.(node => node.id === hero.position);
-    const stateText = hero.down ? 'DOWN' : hero.acted ? '이번 라운드 행동 완료' : '행동 가능';
+    const party = getHeroParty(hero);
+    const stateText = hero.down ? 'DOWN' : hero.acted ? '이번 라운드 행동 완료' : party ? `${partyDisplayName(party)} · ${party.leaderId === hero.id ? '리더' : '멤버'}` : '행동 가능';
+    const inv = heroInventory(hero);
+    const active = getActiveHero();
+    const canEquipNow = canUseWorldPrepActions() && getWorldUnitMembers(active).some(h => h.id === hero.id);
     modalContent.innerHTML = `
       <div class="hero-status-sheet">
-        <div class="hero-status-top">
-          <div class="hero-status-portrait">${heroSpriteHTML(hero, 'large')}</div>
-          <div class="hero-status-title">
-            <div class="status-kicker">CHARACTER STATUS</div>
-            <h3>${hero.icon} ${hero.name}</h3>
-            <p>${hero.role}</p>
-            <div class="status-now">${stateText}${pos ? ` · 📍 ${pos.name}` : ''}</div>
-          </div>
-        </div>
-
-        <div class="hero-status-bars">
-          <div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>
-          ${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/3</strong></div>` : ''}
-        </div>
-
-        <div class="hero-status-stats">
-          <div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div>
-          <div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div>
-          <div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div>
-          <div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div>
-          <div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div>
-          <div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div>
-          <div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div>
-        </div>
-
-        <div class="hero-status-section">
-          <h4>EQUIPMENT</h4>
-          <div class="equipment-list">
-            <div><span>⚔ 무기</span><strong>${equipmentName(hero, 'weapon')}</strong><small>${equipmentBonusText(hero, 'weapon')}</small></div>
-            <div><span>🛡 방어구</span><strong>${equipmentName(hero, 'armor')}</strong><small>${equipmentBonusText(hero, 'armor')}</small></div>
-            <div><span>💍 장신구</span><strong>${equipmentName(hero, 'accessory')}</strong><small>${equipmentBonusText(hero, 'accessory')}</small></div>
-          </div>
-        </div>
-
-        <div class="hero-status-section skill-status">
-          <h4>ABILITY</h4>
-          <p><strong>패시브</strong> ${hero.passive}</p>
-          <p><strong>고유기</strong> ${hero.skill}</p>
-        </div>
-      </div>
-    `;
-    modalCloseBtn.textContent = '닫기';
-    modal.classList.add('hero-status-modal');
-    modal.classList.remove('hidden');
+        <div class="hero-status-top"><div class="hero-status-portrait">${heroSpriteHTML(hero, 'large')}</div><div class="hero-status-title"><div class="status-kicker">CHARACTER STATUS</div><h3>${hero.icon} ${hero.name}</h3><p>${hero.role}</p><div class="status-now">${stateText}${pos ? ` · 📍 ${pos.name}` : ''}</div></div></div>
+        <div class="hero-status-bars"><div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/3</strong></div>` : ''}</div>
+        <div class="hero-status-stats"><div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div><div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div><div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div><div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div><div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div><div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div><div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div></div>
+        <div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list"><div><span>⚔ 무기</span><strong>${equipmentName(hero,'weapon')}</strong><small>${equipmentBonusText(hero,'weapon')}</small></div><div><span>🛡 방어구</span><strong>${equipmentName(hero,'armor')}</strong><small>${equipmentBonusText(hero,'armor')}</small></div><div><span>💍 장신구</span><strong>${equipmentName(hero,'accessory')}</strong><small>${equipmentBonusText(hero,'accessory')}</small></div></div></div>
+        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); return `<div class="personal-bag-row"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}</small></div>${item.type==='equipment' && canEquipNow ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">장착</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">전리품은 획득한 영웅의 개인 가방에 들어간다. 다른 영웅에게 주려면 자신의 월드 턴에 ‘아이템 전달’을 사용해야 해.</div></div>
+        <div class="hero-status-section skill-status"><h4>ABILITY</h4><p><strong>패시브</strong> ${hero.passive}</p><p><strong>고유기</strong> ${hero.skill}</p></div>
+      </div>`;
+    modalContent.querySelectorAll('[data-equip-index]').forEach(btn => btn.addEventListener('click',()=>{
+      if(!canUseWorldPrepActions())return; const activeUnit=getWorldUnitMembers(getActiveHero()); if(!activeUnit.some(h=>h.id===hero.id))return; const index=Number(btn.dataset.equipIndex); const itemId=heroInventory(hero)[index]; if(!itemId||!equipInventoryItem(hero,itemId,index))return; renderAll(); openHeroStatus(hero);
+    }));
+    modalCloseBtn.textContent='닫기'; modal.classList.remove('party-manage-modal','item-transfer-modal'); modal.classList.add('hero-status-modal'); modal.classList.remove('hidden');
   }
 
   function showModal(title, body) {
-    modal.classList.remove('hero-status-modal');
+    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal');
     modalCloseBtn.textContent = '확인';
     modalContent.innerHTML = `<h3>${title}</h3><p>${body}</p>`;
     modal.classList.remove('hidden');
@@ -1986,6 +2306,8 @@
     state.isRolling = false;
     state.isMoving = false;
     state.combat = null;
+    state.parties = {};
+    state.nextPartySerial = 1;
     state.defeatedBosses = new Set();
     clearDiceDisplay();
     combatOverlay?.classList.add('hidden');
@@ -2010,6 +2332,8 @@
   startGameBtn.addEventListener('click', startGame);
   rollBtn.addEventListener('click', rollD6);
   stayBtn.addEventListener('click', stayPut);
+  partyManageBtn?.addEventListener('click', openPartyManager);
+  itemTransferBtn?.addEventListener('click', openItemTransfer);
   combatAttackBtn?.addEventListener('click', heroBasicAttack);
   combatSkillBtn?.addEventListener('click', heroSkillAction);
   combatDefendBtn?.addEventListener('click', heroDefendAction);
@@ -2019,7 +2343,7 @@
   });
   $('#resetBtn').addEventListener('click', resetGame);
   $('#clearLogBtn').addEventListener('click', () => gameLog.innerHTML = '');
-  modalCloseBtn.addEventListener('click', () => { modal.classList.add('hidden'); modal.classList.remove('hero-status-modal'); modalCloseBtn.textContent = '확인'; });
+  modalCloseBtn.addEventListener('click', closeModalPanel);
 
   renderSetup();
 })();
