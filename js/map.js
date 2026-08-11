@@ -1,5 +1,5 @@
-// DRAGON BOARD V0.5.5.8
-// 4개 지역은 같은 7x7 토폴로지를 공유하지만, 새 게임마다 테마와 타일 내용/배치가 다시 섞인다.
+// DRAGON BOARD V0.5.5.12
+// 외곽 링은 유지하지만 내부 길 구조/테마/타일 배치는 지역마다, 새 게임마다 다시 생성된다.
 window.PARTY_SYSTEM_ENABLED = false;
 
 const AREA_IDS = ['A','B','C','D'];
@@ -51,12 +51,47 @@ const OUTER = [
   [6,7],[5,7],[4,7],[3,7],[2,7],[1,7],
   [1,6],[1,5],[1,4],[1,3],[1,2]
 ];
-const INNER = [
-  ['n1',4,2],['n2',4,3],['e1',6,4],['e2',5,4],
-  ['s1',4,6],['s2',4,5],['w1',2,4],['w2',3,4],['center',4,4]
-];
-const GATE_BY_DIR = { north:'o3', east:'o9', south:'o15', west:'o21' };
-const OPPOSITE = { north:'south', south:'north', east:'west', west:'east' };
+// V0.5.5.12: 내부 9칸의 모양은 더 이상 고정 십자가가 아니다.
+// 각 지역/새 게임마다 5x5 내부에서 연결된 9칸을 새로 생성한다.
+const INNER_CELLS = [];
+for (let y=2; y<=6; y++) {
+  for (let x=2; x<=6; x++) INNER_CELLS.push([x,y]);
+}
+
+function coordKey(x,y) { return `${x},${y}`; }
+
+function makeRandomInnerShape() {
+  for (let attempt=0; attempt<80; attempt++) {
+    const chosen = new Map();
+    chosen.set(coordKey(4,4), [4,4]);
+
+    while (chosen.size < 9) {
+      const existing = [...chosen.values()];
+      const base = existing[Math.floor(Math.random() * existing.length)];
+      const dirs = shuffle([[1,0],[-1,0],[0,1],[0,-1]]);
+      for (const [dx,dy] of dirs) {
+        const x = base[0] + dx;
+        const y = base[1] + dy;
+        if (x < 2 || x > 6 || y < 2 || y > 6) continue;
+        const key = coordKey(x,y);
+        if (chosen.has(key)) continue;
+        chosen.set(key,[x,y]);
+        break;
+      }
+    }
+
+    const cells = [...chosen.values()];
+    const edgeCount = cells.filter(([x,y]) => x===2 || x===6 || y===2 || y===6).length;
+    if (edgeCount >= 2) return cells;
+  }
+
+  return [[4,4],[4,3],[4,2],[5,2],[6,2],[5,4],[6,4],[4,5],[3,5]];
+}
+
+function outerNodeKeyAt(x,y) {
+  const index = OUTER.findIndex(([ox,oy]) => ox===x && oy===y);
+  return index >= 0 ? `o${index}` : null;
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -96,23 +131,44 @@ function localId(areaId, key) { return `${areaId.toLowerCase()}-${key}`; }
 function makeAreaBase(areaId) {
   const nodes = [];
   OUTER.forEach(([x,y],i) => nodes.push({ id:localId(areaId,`o${i}`), localKey:`o${i}`, x,y, links:[] }));
-  INNER.forEach(([key,x,y]) => nodes.push({ id:localId(areaId,key), localKey:key, x,y, links:[] }));
 
-  // 외곽 링
+  const innerShape = makeRandomInnerShape();
+  innerShape.forEach(([x,y],i) => nodes.push({
+    id:localId(areaId,`i${i}`), localKey:`i${i}`, x,y, links:[]
+  }));
+
+  // 외곽 링은 보드게임 느낌을 유지한다.
   for (let i=0;i<24;i++) {
     const prev = localId(areaId,`o${(i+23)%24}`);
     const next = localId(areaId,`o${(i+1)%24}`);
     nodes.find(n=>n.localKey===`o${i}`).links.push(prev,next);
   }
-  // 중앙 십자
-  const link = (a,b) => {
-    const na=nodes.find(n=>n.localKey===a), nb=nodes.find(n=>n.localKey===b);
-    na.links.push(nb.id); nb.links.push(na.id);
+
+  const addLink = (a,b) => {
+    if (!a || !b || a.id === b.id) return;
+    if (!a.links.includes(b.id)) a.links.push(b.id);
+    if (!b.links.includes(a.id)) b.links.push(a.id);
   };
-  link('o3','n1'); link('n1','n2'); link('n2','center');
-  link('o9','e1'); link('e1','e2'); link('e2','center');
-  link('o15','s1'); link('s1','s2'); link('s2','center');
-  link('o21','w1'); link('w1','w2'); link('w2','center');
+
+  const innerNodes = nodes.filter(n => n.localKey.startsWith('i'));
+  innerNodes.forEach(node => {
+    innerNodes.forEach(other => {
+      if (Math.abs(node.x-other.x) + Math.abs(node.y-other.y) === 1) addLink(node, other);
+    });
+  });
+
+  innerNodes.forEach(node => {
+    const candidates = [];
+    if (node.y === 2) candidates.push([node.x,1]);
+    if (node.y === 6) candidates.push([node.x,7]);
+    if (node.x === 2) candidates.push([1,node.y]);
+    if (node.x === 6) candidates.push([7,node.y]);
+    candidates.forEach(([x,y]) => {
+      const outerKey = outerNodeKeyAt(x,y);
+      addLink(node, nodes.find(n => n.localKey === outerKey));
+    });
+  });
+
   return nodes;
 }
 

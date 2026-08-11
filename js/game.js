@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.11
+// DRAGON BOARD V0.5.5.12
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -611,7 +611,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.11 — 탐험 시야 규칙.
+  // V0.5.5.12 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -732,7 +732,7 @@
     const party = getHeroParty(active);
     const unit = getWorldUnitMembers(active);
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
-    // V0.5.5.11: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
+    // V0.5.5.12: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
     rollBtn.disabled = state.rolled !== null || !canAct || state.isRolling || state.isMoving;
     rollBtn.textContent = '🎲 D6 굴리기';
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
@@ -1330,7 +1330,7 @@
     const unit = getWorldUnitMembers(hero);
     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    // V0.5.5.11: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+    // V0.5.5.12: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
     // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
     const node = WORLD_NODES.find(n => n.id === hero.position);
     for (const nextId of (node?.links || [])) {
@@ -2732,7 +2732,7 @@
       });
 
       addQuestProgress('combatWin', 1);
-      // V0.5.5.11: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
+      // V0.5.5.12: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
       if (!c.isBoss && c.node?.type === '전투' && !String(c.node.id || '').startsWith('event-')) {
         const boardNode = WORLD_NODES.find(n => n.id === c.node.id);
         if (boardNode) {
@@ -2842,6 +2842,87 @@
     });
   }
 
+
+  function askPortalTransition(hero, node) {
+    return new Promise(resolve => {
+      const target = WORLD_NODES.find(n => n.id === node.portalEntryId);
+      const targetMeta = target ? window.WORLD_AREAS?.[target.areaId] : null;
+      if (!target) { resolve(false); return; }
+
+      modalCloseAction = null;
+      modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal','shop-modal');
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `
+        <div class="event-sheet portal-choice-sheet">
+          <div class="status-kicker">REGION GATE</div>
+          <div class="event-card-head">
+            <span class="event-card-icon">🗺️</span>
+            <div>
+              <h3>${targetMeta?.themeLabel || '새로운 지역'}으로 이동할까?</h3>
+              <p>지역 입구를 밟았다. 이동하지 않으면 이 칸에 남아서 남은 이동을 계속해.</p>
+            </div>
+          </div>
+          <div class="equip-confirm-actions">
+            <button type="button" class="pixel-btn primary" data-portal-yes>이동한다</button>
+            <button type="button" class="pixel-btn" data-portal-no>지나간다</button>
+          </div>
+        </div>`;
+      modal.classList.remove('hidden');
+
+      const finish = choice => {
+        modal.classList.add('hidden');
+        modalCloseBtn.hidden = false;
+        modalCloseBtn.textContent = '확인';
+        resolve(choice);
+      };
+      modalContent.querySelector('[data-portal-yes]')?.addEventListener('click', () => finish(true), {once:true});
+      modalContent.querySelector('[data-portal-no]')?.addEventListener('click', () => finish(false), {once:true});
+    });
+  }
+
+  function clearPlannedMoveState() {
+    state.moveRemaining = 0;
+    state.moveStepsTaken = 0;
+    state.moveOriginNodeId = null;
+    state.rolled = null;
+    clearDiceDisplay();
+  }
+
+  async function handlePortalLanding(hero, node, unit) {
+    const go = await askPortalTransition(hero, node);
+
+    if (!go) {
+      if (state.moveRemaining <= 0) {
+        clearPlannedMoveState();
+        renderAll();
+        finishWorldUnitTurn(hero);
+        return true;
+      }
+      renderAll();
+      return false;
+    }
+
+    const target = WORLD_NODES.find(n => n.id === node.portalEntryId);
+    if (!target) return false;
+
+    unit.forEach(member => { member.position = target.id; });
+    state.viewAreaId = target.areaId;
+    revealFromNode(target.id);
+    const targetMeta = window.WORLD_AREAS?.[target.areaId];
+    log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${targetMeta?.themeLabel || '미지의 지역'}</strong> 진입`);
+    addQuestProgress('portal', 1);
+
+    if (state.moveRemaining > 0) {
+      renderAll();
+      return false;
+    }
+
+    clearPlannedMoveState();
+    renderAll();
+    finishWorldUnitTurn(hero);
+    return true;
+  }
+
   async function finalizePlannedMove(hero) {
     if (!hero || state.moveStepsTaken <= 0) return;
     const node = WORLD_NODES.find(n => n.id === hero.position);
@@ -2892,8 +2973,15 @@
     // 실제 사건/전투/상점 처리는 이동을 끝낸 최종 칸에서만 실행한다.
     await revealLandedNode(nodeId);
 
-    // 지역 입구는 이동을 이어갈 수 없는 특수 칸이므로 즉시 이동을 확정한다.
-    if (node.type === '입구' || state.moveRemaining <= 0) {
+    // V0.5.5.12: 입구에서는 자동 전환하지 않고 플레이어에게 선택권을 준다.
+    if (node.type === '입구') {
+      const ended = await handlePortalLanding(hero, node, unit);
+      if (ended) return;
+      renderAll();
+      return;
+    }
+
+    if (state.moveRemaining <= 0) {
       await finalizePlannedMove(hero);
       return;
     }
@@ -3274,21 +3362,12 @@
         showModal(`🏠 ${node.name}`, `${unitMembers.length > 1 ? '파티 전원' : hero.name}의 HP가 모두 회복되었다.${unitMembers.some(member => member.currentMana !== null) ? ' 마나도 회복.' : ''}`);
         return false;
 
-      case '입구': {
-        const target = WORLD_NODES.find(n => n.id === node.portalEntryId);
-        if (!target) return false;
-        unitMembers.forEach(member => { member.position = target.id; });
-        state.viewAreaId = target.areaId;
-        revealFromNode(target.id);
-        const targetMeta = window.WORLD_AREAS?.[target.areaId];
-        log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${targetMeta?.themeLabel || '미지의 지역'}</strong> 진입`);
-        addQuestProgress('portal', 1);
-        showModal(`🗺️ ${targetMeta?.themeLabel || '새로운 지역'} 진입`, `${targetMeta?.icon || '🗺️'} ${targetMeta?.themeLabel || '새로운 지역'}으로 이동했다.`);
+      case '입구':
+        // 정상 이동에서는 moveActiveHero()의 입구 선택창이 처리한다.
         return false;
-      }
 
       case '전투': {
-        // V0.5.5.11: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
+        // V0.5.5.12: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
         // 보스/사건 전투는 이 로직을 사용하지 않는다.
         if (node.combatCleared) {
           const roll = Math.random();
