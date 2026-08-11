@@ -1129,3 +1129,171 @@ h2 { font-size: 17px; margin: 0; }
   .loot-card { min-height:215px; }
   .loot-actions { grid-template-columns:1fr; }
 }
+
+
+/* V0.4.4 — Paper Doll 장비를 단순한 큰 사각형이 아니라 캐릭터 실루엣에 맞춰 정리. */
+.pixel-hero .armor-layer,
+.pixel-hero .armor-detail,
+.pixel-hero .weapon-layer,
+.pixel-hero .accessory-layer { pointer-events:none; }
+.pixel-hero .armor-layer,
+.pixel-hero .armor-detail { z-index:2; }
+.pixel-hero .arm, .pixel-hero .hand { z-index:3; }
+.pixel-hero .head, .pixel-hero .ear, .pixel-hero .hair, .pixel-hero .eye, .pixel-hero .nose { z-index:4; }
+.pixel-hero .weapon-layer, .pixel-hero .accessory-layer { z-index:5; }
+
+/* 기존 장비 박스형 표현 리셋 */
+.pixel-hero[data-armor] .armor-layer,
+.pixel-hero[data-armor] .armor-detail,
+.pixel-hero[data-weapon] .weapon-layer {
+  border:0;
+  box-shadow:none;
+}
+
+.pixel-hero[data-armor="leather"] .armor-layer {
+  left:calc(7 * var(--u)); top:calc(13 * var(--u));
+  width:calc(10 * var(--u)); height:calc(9 * var(--u));
+  background:#715033;
+  border-bottom:calc(2 * var(--u)) solid #3c291c;
+  clip-path:polygon(10% 0, 90% 0, 100% 22%, 88% 100%, 12% 100%, 0 22%);
+  box-shadow:inset calc(-1 * var(--u)) 0 #4a3322, inset 0 calc(1 * var(--u)) #9b7550;
+}
+.pixel-hero[data-armor="leather"] .armor-detail {
+  left:calc(9 * var(--u)); top:calc(15 * var(--u));
+  width:calc(6 * var(--u)); height:calc(1 * var(--u));
+  background:#b28a5e;
+  box-shadow:0 calc(4 * var(--u)) 0 #4b3323;
+}
+
+.pixel-hero[data-armor="plate"] .armor-layer {
+  left:calc(6 * var(--u)); top:calc(12 * var(--u));
+  width:calc(12 * var(--u)); height:calc(11 * var(--u));
+  background:#8f989b;
+  clip-path:polygon(16% 0,84% 0,100% 18%,88% 100%,12% 100%,0 18%);
+  box-shadow:inset calc(-2 * var(--u)) 0 #515b5f, inset 0 calc(2 * var(--u)) #b8bec0;
+}
+.pixel-hero[data-armor="plate"] .armor-detail {
+  left:calc(8 * var(--u)); top:calc(14 * var(--u));
+  width:calc(8 * var(--u)); height:calc(1 * var(--u));
+  background:#d1d4d3;
+  box-shadow:0 calc(5 * var(--u)) 0 #5b6466;
+}
+
+.pixel-hero[data-armor="robe"] .armor-layer {
+  left:calc(7 * var(--u)); top:calc(13 * var(--u));
+  width:calc(10 * var(--u)); height:calc(16 * var(--u));
+  background:#514879;
+  clip-path:polygon(12% 0,88% 0,100% 45%,90% 100%,10% 100%,0 45%);
+  box-shadow:inset calc(-2 * var(--u)) 0 #2f294b, inset 0 calc(1 * var(--u)) #71679b;
+}
+.pixel-hero[data-armor="robe"] .armor-detail {
+  left:calc(11 * var(--u)); top:calc(14 * var(--u));
+  width:calc(2 * var(--u)); height:calc(14 * var(--u));
+  background:#9a84c6;
+  opacity:.72;
+}
+
+/* 무기는 손 위치를 기준으로 붙이고 크기를 한 단계 줄인다. */
+.pixel-hero[data-weapon="sword"] .weapon-layer {
+  right:calc(2 * var(--u)); top:calc(9 * var(--u));
+  width:calc(2 * var(--u)); height:calc(14 * var(--u));
+  background:#c2c7c7;
+  transform:rotate(10deg); transform-origin:center bottom;
+  box-shadow:inset calc(-1 * var(--u)) 0 #747c7f, 0 calc(12 * var(--u)) 0 #76502d;
+}
+.pixel-hero[data-weapon="sword"] .weapon-layer::before {
+  content:''; position:absolute; left:calc(-2 * var(--u)); bottom:calc(1 * var(--u));
+  width:calc(6 * var(--u)); height:calc(1 * var(--u)); background:#aa7d40;
+}
+.pixel-hero[data-weapon="bow"] .weapon-layer {
+  right:calc(-1 * var(--u)); top:calc(10 * var(--u));
+  width:calc(7 * var(--u)); height:calc(16 * var(--u));
+  background:transparent;
+  border-right:calc(1 * var(--u)) solid #9a682f;
+  border-top:calc(1 * var(--u)) solid #9a682f;
+  border-bottom:calc(1 * var(--u)) solid #9a682f;
+  border-radius:0 80% 80% 0;
+}
+.pixel-hero[data-weapon="bow"] .weapon-layer::after {
+  content:''; position:absolute; left:calc(1 * var(--u)); top:0;
+  width:calc(1 * var(--u)); height:100%; background:#d1c49f;
+  transform:rotate(-9deg); transform-origin:center;
+}
+.pixel-hero[data-weapon="staff"] .weapon-layer {
+  right:calc(1 * var(--u)); top:calc(7 * var(--u));
+  width:calc(2 * var(--u)); height:calc(22 * var(--u));
+  background:#765331;
+  box-shadow:inset calc(-1 * var(--u)) 0 #4b321e;
+}
+.pixel-hero[data-weapon="staff"] .weapon-layer::before {
+  content:''; position:absolute; left:calc(-1 * var(--u)); top:calc(-2 * var(--u));
+  width:calc(4 * var(--u)); height:calc(4 * var(--u));
+  background:#856db1; box-shadow:0 0 calc(2 * var(--u)) #a992d6;
+}
+.pixel-hero[data-weapon="dagger"] .weapon-layer {
+  right:calc(2 * var(--u)); top:calc(17 * var(--u));
+  width:calc(2 * var(--u)); height:calc(8 * var(--u));
+  background:#c2c2ba;
+  transform:rotate(26deg); transform-origin:center bottom;
+  box-shadow:inset calc(-1 * var(--u)) 0 #76766f;
+}
+.pixel-hero[data-weapon="dagger"] .weapon-layer::before {
+  content:''; position:absolute; left:calc(-1 * var(--u)); bottom:0;
+  width:calc(4 * var(--u)); height:calc(1 * var(--u)); background:#825234;
+}
+
+.pixel-hero[data-accessory="ring"] .accessory-layer {
+  right:calc(4 * var(--u)); top:calc(21 * var(--u));
+  width:calc(2 * var(--u)); height:calc(2 * var(--u));
+  border:calc(1 * var(--u)) solid #e1bb53; border-radius:50%; background:transparent;
+}
+.pixel-hero[data-accessory="amulet"] .accessory-layer {
+  left:calc(11 * var(--u)); top:calc(15 * var(--u));
+  width:calc(2 * var(--u)); height:calc(2 * var(--u));
+  background:#d0a04c; transform:rotate(45deg);
+  box-shadow:0 calc(-2 * var(--u)) 0 calc(-1 * var(--u)) #ead48e;
+}
+
+/* 파티 카드의 상태창 진입 버튼 */
+.party-member .name-row { gap:6px; }
+.party-member .name-row strong { min-width:0; flex:1 1 auto; }
+.party-state { color:#a99572; font-size:7px; letter-spacing:.5px; }
+.party-status-btn {
+  flex:0 0 auto; padding:3px 5px; border:1px solid #715535; background:#19120e;
+  color:#cfbc90; font:inherit; font-size:7px; cursor:pointer; border-radius:0;
+}
+.party-status-btn:active { transform:translateY(1px); background:#2e2116; }
+
+/* 캐릭터 상세 상태창 */
+.modal.hero-status-modal { z-index:140; }
+.modal.hero-status-modal .modal-card { width:min(620px,100%); max-height:92dvh; overflow:auto; }
+.hero-status-sheet { color:#e7d8b4; }
+.hero-status-top { display:grid; grid-template-columns:120px 1fr; gap:14px; align-items:center; }
+.hero-status-portrait { min-height:145px; display:grid; place-items:center; background:rgba(255,255,255,.015); border-bottom:2px solid #4e3927; }
+.hero-status-title h3 { margin:3px 0 4px; font-size:22px; color:var(--gold); }
+.hero-status-title p { margin:0 0 8px; color:#b9a784; font-size:10px; }
+.status-kicker { font-size:7px; letter-spacing:1.7px; color:#75956f; }
+.status-now { font-size:9px; color:#d2bd8d; }
+.hero-status-bars { display:flex; gap:8px; margin:10px 0; }
+.hero-status-bars > div { flex:1; display:flex; justify-content:space-between; padding:7px 8px; background:#19120e; border:1px solid #57402b; font-size:9px; }
+.hero-status-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
+.hero-status-stats > div { display:flex; justify-content:space-between; gap:10px; padding:6px 8px; background:#1b140f; border-bottom:1px solid #4c3828; font-size:9px; }
+.hero-status-stats small { color:#9c8b6c; font-size:7px; }
+.hero-status-section { margin-top:12px; }
+.hero-status-section h4 { margin:0 0 6px; color:#8daa7f; letter-spacing:1.3px; font-size:9px; }
+.equipment-list { display:grid; gap:5px; }
+.equipment-list > div { display:grid; grid-template-columns:62px 1fr; gap:2px 8px; padding:7px 8px; background:#17110d; border:1px solid #4d3928; }
+.equipment-list > div > span { color:#a99572; font-size:8px; }
+.equipment-list > div > strong { color:#e4c989; font-size:9px; }
+.equipment-list > div > small { grid-column:2; color:#9e8d70; font-size:7px; line-height:1.35; }
+.skill-status p { margin:5px 0; padding:7px 8px; background:#17110d; border-left:2px solid #6d5434; font-size:8px; line-height:1.45; }
+.skill-status p strong { color:#d7b86d; }
+
+@media (max-width:700px) {
+  .hero-status-top { grid-template-columns:94px 1fr; gap:9px; }
+  .hero-status-portrait { min-height:120px; }
+  .hero-status-portrait .pixel-hero.large { --u:3px; }
+  .hero-status-title h3 { font-size:17px; }
+  .hero-status-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .party-status-btn { padding:3px 4px; }
+}
