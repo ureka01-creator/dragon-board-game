@@ -21,6 +21,8 @@
     dragonCastleNodeId: null,
     dragonCastleSpawned: false,
     dragonSpawnNoticePending: null,
+    eventDeck: [],
+    eventDiscard: [],
   };
 
   const titleScreen = $('#titleScreen');
@@ -197,6 +199,8 @@
     state.parties = {};
     state.nextPartySerial = 1;
     state.combat = null;
+    state.eventDeck = [];
+    state.eventDiscard = [];
     gameLog.innerHTML = '';
 
     showScreen(gameScreen);
@@ -616,6 +620,7 @@
     modal.classList.add('hidden');
     modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal');
     modalCloseBtn.textContent = '확인';
+    modalCloseBtn.hidden = false;
   }
 
   function openPartyManager() {
@@ -1315,6 +1320,9 @@
   }
 
   function chooseEncounter(node, participantCount) {
+    if (node?.monsterId && MONSTERS[node.monsterId]) {
+      return [cloneEnemy(node.monsterId, encounterScale(MONSTERS[node.monsterId].tier || 'normal', participantCount))];
+    }
     if (node.type === '보스') {
       const monsterId = node.bossMonsterId || BOSS_ENCOUNTERS[node.id] || 'demonKnight';
       const src = MONSTERS[monsterId];
@@ -2410,6 +2418,8 @@
     if (!c || c.ending) return;
     c.ending = true;
     c.busy = true;
+    // 전투 중 열린 소비 아이템/안내 모달이 월드까지 남지 않도록 즉시 정리한다.
+    closeModalPanel();
 
     if (result === 'victory') {
       setCombatMessage('VICTORY!', 'good');
@@ -2450,6 +2460,7 @@
     if (result === 'victory' && !state.gameOver) {
       await showCombatLoot(c);
     }
+    closeModalPanel();
     const ids = [...c.participantIds];
     const resolver = c.resolve;
     combatOverlay.classList.add('hidden');
@@ -2551,6 +2562,219 @@
   }
 
 
+  function shuffleArray(values) {
+    const arr = [...values];
+    for (let i = arr.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function drawEventCard() {
+    if (!Array.isArray(state.eventDeck) || !state.eventDeck.length) {
+      const source = Array.isArray(window.EVENT_CARDS) ? window.EVENT_CARDS : [];
+      state.eventDeck = shuffleArray(source.map(card => card.id));
+      state.eventDiscard = [];
+    }
+    const id = state.eventDeck.shift();
+    const card = (window.EVENT_CARDS || []).find(entry => entry.id === id) || null;
+    if (card) state.eventDiscard.push(card.id);
+    return card;
+  }
+
+  function heroEventStat(hero, stat) {
+    const value = Number(hero?.[stat] || 0);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function eventStatLabel(stat) {
+    return ({ str:'⚔ 힘', dex:'🏹 민첩', magic:'✨ 마력', luck:'🍀 행운' })[stat] || stat;
+  }
+
+  function weightedEventOutcome(list) {
+    const entries = Array.isArray(list) ? list : [];
+    const total = entries.reduce((sum, e) => sum + Math.max(0, Number(e.weight || 0)), 0);
+    if (!entries.length) return null;
+    if (total <= 0) return entries[0];
+    let roll = Math.random() * total;
+    for (const entry of entries) {
+      roll -= Math.max(0, Number(entry.weight || 0));
+      if (roll <= 0) return entry;
+    }
+    return entries[entries.length - 1];
+  }
+
+  function rollEventD20(finalValue) {
+    return new Promise(resolve => {
+      const valueEl = modalContent.querySelector('[data-event-d20-value]');
+      const dieEl = modalContent.querySelector('.event-d20');
+      if (!valueEl || !dieEl) { resolve(); return; }
+      dieEl.classList.add('rolling');
+      let ticks = 0;
+      const timer = setInterval(() => {
+        ticks += 1;
+        valueEl.textContent = String(Math.floor(Math.random() * 20) + 1);
+        if (ticks >= 10) {
+          clearInterval(timer);
+          valueEl.textContent = String(finalValue);
+          dieEl.classList.remove('rolling');
+          dieEl.classList.add(finalValue === 1 ? 'bad' : finalValue === 20 ? 'good' : 'settled');
+          setTimeout(resolve, 430);
+        }
+      }, 62);
+    });
+  }
+
+  async function applyEventEffects(hero, effects, context = {}) {
+    let turnHandled = false;
+    for (const effect of (effects || [])) {
+      if (!effect) continue;
+      if (effect.type === 'heal') {
+        const before = hero.currentHp;
+        hero.currentHp = Math.min(hero.hp, hero.currentHp + Number(effect.value || 0));
+        log(`❤️ ${hero.name} HP +${hero.currentHp - before}`);
+      } else if (effect.type === 'mana') {
+        if (hero.currentMana !== null) {
+          const before = hero.currentMana;
+          hero.currentMana = Math.min(maxMana(hero), hero.currentMana + Number(effect.value || 0));
+          log(`🔵 ${hero.name} MANA +${hero.currentMana - before}`);
+        }
+      } else if (effect.type === 'damage') {
+        const damage = Math.max(0, Number(effect.value || 0));
+        hero.currentHp = Math.max(0, hero.currentHp - damage);
+        log(`💥 ${hero.name} 사건 피해 ${damage}`);
+        if (hero.currentHp <= 0) {
+          const deathAreaId = getNodeAreaId(hero.position);
+          hero.down = true;
+          hero.reviveRound = state.round + 1;
+          hero.reviveAreaId = deathAreaId;
+          hero.position = getAreaCenterNodeId(deathAreaId);
+          state.threat = Math.min(12, state.threat + 1);
+          checkDragonCastleSpawn('threat');
+          log(`💀 ${hero.name} 쓰러짐 → ${deathAreaId} 지역 마을 귀환 / THREAT +1`);
+        }
+      } else if (effect.type === 'gold') {
+        const delta = Number(effect.value || 0);
+        if (delta >= 0) {
+          state.gold += delta;
+          log(`💰 골드 +${delta}`);
+        } else {
+          const lost = Math.min(state.gold, Math.abs(delta));
+          state.gold -= lost;
+          log(`💸 골드 -${lost}`);
+        }
+      } else if (effect.type === 'threat') {
+        const delta = Number(effect.value || 0);
+        state.threat = Math.max(0, Math.min(12, state.threat + delta));
+        log(`🔥 사건으로 THREAT ${delta >= 0 ? '+' : ''}${delta} → ${state.threat}/12`);
+        checkDragonCastleSpawn('threat');
+      } else if (effect.type === 'loot') {
+        closeModalPanel();
+        await showTreasureLoot(hero);
+      } else if (effect.type === 'combat') {
+        closeModalPanel();
+        const monster = window.MONSTERS?.[effect.monsterId];
+        const eventNode = {
+          id:`event-${effect.monsterId}-${Date.now()}`,
+          type:'전투', icon:monster?.icon || '👹', name:`사건 전투 · ${monster?.name || '마물'}`,
+          region: context.node?.region || 'road', areaId:getNodeAreaId(hero.position), eventMonsterId:effect.monsterId
+        };
+        const originalChoose = chooseEncounter;
+        // startCombat 내부 encounter 선택을 우회할 수 있도록 임시 monster id를 node에 싣는다.
+        eventNode.monsterId = effect.monsterId;
+        await startCombat(hero, eventNode, context.originNodeId || hero.position);
+        turnHandled = true;
+      }
+    }
+    renderAll();
+    return turnHandled;
+  }
+
+  async function resolveEventCard(hero, node, originNodeId) {
+    const card = drawEventCard();
+    if (!card) {
+      showModal('❓ 사건', '이벤트 카드를 불러오지 못했다.');
+      return false;
+    }
+
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = async (effects = [], extraText = '') => {
+        if (settled) return;
+        settled = true;
+        if (extraText) log(`${card.icon} <strong>${card.name}</strong> · ${extraText}`);
+        const handled = await applyEventEffects(hero, effects, { node, originNodeId });
+        closeModalPanel();
+        resolve(handled);
+      };
+
+      modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal');
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `<div class="event-sheet">
+        <div class="status-kicker">EVENT CARD · ${state.eventDiscard.length}/20</div>
+        <div class="event-card-head"><span class="event-card-icon">${card.icon}</span><div><h3>${card.name}</h3><p>${card.text}</p></div></div>
+        <div class="event-body"></div>
+      </div>`;
+      modal.classList.remove('hidden');
+      const body = modalContent.querySelector('.event-body');
+
+      if (card.kind === 'simple') {
+        body.innerHTML = `<button type="button" class="pixel-btn primary event-main-btn">확인</button>`;
+        body.querySelector('button').addEventListener('click', () => finish(card.effects, card.text), {once:true});
+        return;
+      }
+
+      if (card.kind === 'check') {
+        body.innerHTML = `<div class="event-check-box"><div class="event-check-label">${eventStatLabel(card.stat)} 판정 · DC ${card.dc}</div><div class="event-d20"><span data-event-d20-value>20</span></div><div class="event-check-result" data-event-result>주사위를 굴려 결과를 확인해.</div></div><button type="button" class="pixel-btn primary event-main-btn">🎲 D20 굴리기</button>`;
+        const btn = body.querySelector('button');
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const roll = Math.floor(Math.random() * 20) + 1;
+          await rollEventD20(roll);
+          const bonus = heroEventStat(hero, card.stat);
+          const total = roll + bonus;
+          const success = roll === 20 || (roll !== 1 && total >= Number(card.dc || 10));
+          const branch = success ? card.success : card.fail;
+          const resultEl = body.querySelector('[data-event-result]');
+          resultEl.innerHTML = `${success ? '✅ 성공' : '❌ 실패'} · D20 ${roll} ${bonus >= 0 ? '+' : '-'} ${Math.abs(bonus)} = <strong>${total}</strong><br>${branch?.text || ''}`;
+          btn.textContent = '계속';
+          btn.disabled = false;
+          btn.addEventListener('click', () => finish(branch?.effects || [], branch?.text || ''), {once:true});
+        }, {once:true});
+        return;
+      }
+
+      if (card.kind === 'choice') {
+        body.innerHTML = `<div class="event-choice-grid">${(card.options || []).map((opt,index)=>`<button type="button" class="event-choice-btn" data-event-choice="${index}"><strong>${opt.label}</strong><small>${opt.desc || ''}</small></button>`).join('')}</div>`;
+        body.querySelectorAll('[data-event-choice]').forEach(btn => btn.addEventListener('click', async () => {
+          const opt = card.options[Number(btn.dataset.eventChoice)];
+          if (!opt) return;
+          if (Number(opt.costGold || 0) > state.gold) {
+            btn.classList.add('denied');
+            const old = btn.querySelector('small')?.textContent || '';
+            if (btn.querySelector('small')) btn.querySelector('small').textContent = `골드가 부족해. 필요 ${opt.costGold}.`;
+            setTimeout(() => { if (btn.querySelector('small')) btn.querySelector('small').textContent = old; btn.classList.remove('denied'); }, 900);
+            return;
+          }
+          if (Number(opt.requireHp || 0) > hero.currentHp) {
+            btn.classList.add('denied');
+            return;
+          }
+          if (opt.costGold) { state.gold -= Number(opt.costGold); log(`💰 ${hero.name} 골드 -${opt.costGold}`); }
+          let chosen = opt;
+          if (Array.isArray(opt.random)) chosen = weightedEventOutcome(opt.random) || opt;
+          await finish(chosen.effects || [], chosen.text || opt.label);
+        }));
+        return;
+      }
+
+      body.innerHTML = `<button type="button" class="pixel-btn primary event-main-btn">계속</button>`;
+      body.querySelector('button').addEventListener('click', () => finish([], card.text), {once:true});
+    });
+  }
+
+
   async function resolveNode(hero, node, originNodeId, unitMembers = getWorldUnitMembers(hero)) {
     switch (node.type) {
       case '마을':
@@ -2592,8 +2816,7 @@
         return false;
 
       case '사건':
-        showModal('❓ 사건 발생', `${node.name}에서 랜덤 사건이 발생한다. 이벤트 카드 시스템은 이후 연결한다.`);
-        return false;
+        return await resolveEventCard(hero, node, originNodeId);
 
       case '상점':
         showModal('🏪 상점', `${node.name}에서 물품을 사고팔 수 있다. 상점/골드는 카드 시스템과 함께 연결한다.`);
@@ -2756,6 +2979,8 @@
     state.isRolling = false;
     state.isMoving = false;
     state.combat = null;
+    state.eventDeck = [];
+    state.eventDiscard = [];
     state.parties = {};
     state.nextPartySerial = 1;
     state.defeatedBosses = new Set();
