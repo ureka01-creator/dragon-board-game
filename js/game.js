@@ -24,6 +24,8 @@
     eventDeck: [],
     eventDiscard: [],
     acquiredEquipmentIds: new Set(),
+    sealQuests: [],
+    questProgress: {},
   };
 
   const titleScreen = $('#titleScreen');
@@ -92,6 +94,55 @@
   const modalCloseBtn = $('#modalCloseBtn');
 
   const BAG_LIMIT = 3;
+
+  // V0.5.4.0 — 매 판 봉인석 획득 조건 3개를 무작위로 고른다.
+  const SEAL_QUEST_DEFS = [
+    { id:'bossHunter', type:'boss', icon:'👑', name:'지역 지배자 토벌', desc:'지역 보스를 1회 처치', target:1 },
+    { id:'battleHunter', type:'combatWin', icon:'⚔️', name:'마물 사냥', desc:'전투에서 3회 승리', target:3 },
+    { id:'treasureHunter', type:'treasure', icon:'🎁', name:'봉인의 단서', desc:'새 보물 상자를 2개 개봉', target:2 },
+    { id:'eventHunter', type:'event', icon:'❓', name:'운명의 시험', desc:'이벤트 카드 2개 해결', target:2 },
+    { id:'roadHunter', type:'portal', icon:'🗺️', name:'경계 너머', desc:'지역 경계를 2회 통과', target:2 },
+  ];
+
+  function setupSealQuests() {
+    const pool = [...SEAL_QUEST_DEFS];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    state.sealQuests = pool.slice(0, 3).map(q => ({ ...q, complete:false }));
+    state.questProgress = {};
+    state.sealQuests.forEach(q => { state.questProgress[q.type] = 0; });
+  }
+
+  function addQuestProgress(type, amount = 1) {
+    if (!state.sealQuests?.length || state.seals >= 3) return;
+    const quest = state.sealQuests.find(q => q.type === type && !q.complete);
+    if (!quest) return;
+    const next = Math.min(quest.target, Number(state.questProgress[type] || 0) + amount);
+    state.questProgress[type] = next;
+    if (next < quest.target) {
+      log(`${quest.icon} 봉인 목표 · <strong>${quest.name}</strong> ${next}/${quest.target}`);
+      return;
+    }
+    quest.complete = true;
+    state.seals = Math.min(3, state.seals + 1);
+    log(`🗿 봉인 목표 완료 · <strong>${quest.name}</strong> → 봉인석 ${state.seals}/3`);
+    resourceSummary?.classList.add('seal-earned');
+    setTimeout(() => resourceSummary?.classList.remove('seal-earned'), 900);
+    checkDragonCastleSpawn('seal');
+  }
+
+  function showSealQuestModal() {
+    const rows = (state.sealQuests || []).map(q => {
+      const current = Math.min(q.target, Number(state.questProgress[q.type] || 0));
+      return `<div class="seal-quest-row ${q.complete ? 'complete' : ''}"><span class="seal-quest-icon">${q.complete ? '🗿' : q.icon}</span><div><strong>${q.name}</strong><small>${q.desc}</small></div><b>${q.complete ? '완료' : `${current}/${q.target}`}</b></div>`;
+    }).join('');
+    modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal');
+    modalCloseBtn.hidden = false;
+    modalContent.innerHTML = `<div class="event-sheet"><div class="status-kicker">SEAL OBJECTIVES</div><div class="event-card-head"><span class="event-card-icon">🗿</span><div><h3>이번 게임의 봉인 목표</h3><p>세 목표를 완료하면 봉인석 3개가 모여 용의 성이 출현한다.</p></div></div><div class="seal-quest-list">${rows}</div></div>`;
+    modal.classList.remove('hidden');
+  }
 
   function showScreen(screen) {
     [titleScreen, setupScreen, gameScreen].forEach(el => el.classList.remove('active'));
@@ -206,6 +257,7 @@
     state.eventDeck = [];
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
+    setupSealQuests();
     gameLog.innerHTML = '';
 
     showScreen(gameScreen);
@@ -215,6 +267,7 @@
     log(`🎲 시작 위치 랜덤 · ${state.heroes.map(h => `${h.icon}${h.name}:${getNodeAreaId(h.position)}지역 마을`).join(' · ')}`);
     log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
     log(`🔁 월드 턴은 <strong>${state.heroes.map(h => h.name).join(' → ')}</strong> 고정 순서로 진행된다.`);
+    log(`🗿 이번 게임 봉인 목표 · ${state.sealQuests.map(q => q.icon + q.name).join(' · ')}`);
     renderAll();
     // 인게임 진입 시 스크롤 위치를 강제로 보드 중앙에 맞추지 않는다.
     // 화면 전환 직후 최상단을 한 번만 유지해 iOS Safari의 자동 재정렬/점프를 막는다.
@@ -457,7 +510,12 @@
       : '';
     const totalBag = state.heroes.reduce((sum, h) => sum + heroInventory(h).length, 0);
     const dragonArea = state.dragonCastleNodeId ? getNodeAreaId(state.dragonCastleNodeId) : null;
-    if (resourceSummary) resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}${dragonArea ? ` · 🐉 ${dragonArea}` : ''}`;
+    if (resourceSummary) {
+      resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}${dragonArea ? ` · 🐉 ${dragonArea}` : ''}`;
+      resourceSummary.title = '눌러서 이번 게임의 봉인 목표 보기';
+      resourceSummary.setAttribute('role','button');
+      resourceSummary.setAttribute('tabindex','0');
+    }
   }
 
   function getNodeAreaId(nodeId) {
@@ -2532,14 +2590,10 @@
         if (hero?.id === 'mage' && !hero.down) hero.currentMana = Math.min(maxMana(hero), (hero.currentMana ?? 0) + 1 + equipmentEffect(hero, 'endBattleManaBonus'));
       });
 
+      addQuestProgress('combatWin', 1);
       if (c.isBoss && !state.defeatedBosses.has(c.node.id)) {
         state.defeatedBosses.add(c.node.id);
-        if (state.seals < 3) {
-          state.seals += 1;
-          combatLogEntry(`🗿 용의 봉인석 획득! ${state.seals}/3`);
-          log(`🗿 지역 보스 처치 → <strong>봉인석 ${state.seals}/3</strong>`);
-          checkDragonCastleSpawn('seal');
-        }
+        addQuestProgress('boss', 1);
       }
     } else if (result === 'escaped') {
       setCombatMessage('ESCAPED!', 'good');
@@ -2808,6 +2862,7 @@
       const finish = async (effects = [], extraText = '') => {
         if (settled) return;
         settled = true;
+        addQuestProgress('event', 1);
         if (extraText) log(`${card.icon} <strong>${card.name}</strong> · ${extraText}`);
 
         const before = {
@@ -2940,6 +2995,7 @@
         state.viewAreaId = target.areaId;
         const targetMeta = window.WORLD_AREAS?.[target.areaId];
         log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${target.areaId} 지역</strong> 진입 (${targetMeta?.themeLabel || ''})`);
+        addQuestProgress('portal', 1);
         showModal(`🗺️ ${target.areaId} 지역 진입`, `${targetMeta?.icon || ''} ${targetMeta?.themeLabel || target.areaId + ' 지역'}으로 이동했다.`);
         return false;
       }
@@ -2959,6 +3015,7 @@
         node.short = '빈상자';
         node.name = '비어 있는 상자';
         log(`🎁 ${hero.icon} <strong>${hero.name}</strong>이 보물 상자를 열었다. 이 칸의 보물은 이번 게임에서 소진.`);
+        addQuestProgress('treasure', 1);
         await showTreasureLoot(hero);
         return false;
 
@@ -3183,6 +3240,9 @@
   $('#resetBtn').addEventListener('click', resetGame);
   $('#clearLogBtn').addEventListener('click', () => gameLog.innerHTML = '');
   modalCloseBtn.addEventListener('click', closeModalPanel);
+
+  resourceSummary?.addEventListener('click', showSealQuestModal);
+  resourceSummary?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSealQuestModal(); } });
 
   renderSetup();
 })();
