@@ -1627,8 +1627,59 @@ h2 { font-size: 17px; margin: 0; }
 /* V0.5.2.2: movement dice stays below modal overlays. */
 \n\n/* V0.5.2.3: equipment comparison before replacement */\n.equip-compare-wrap { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0; }\n.equip-compare-card { min-width:0; padding:9px; border:2px solid #5b4630; background:#17110d; text-align:left; }\n.equip-compare-card.current { border-color:#665947; }\n.equip-compare-card.new { border-color:#b78a3d; box-shadow:inset 0 0 14px rgba(219,173,80,.10); }\n.equip-compare-label { margin-bottom:7px; color:#a99470; font-size:7px; letter-spacing:.08em; }\n.equip-compare-card.new .equip-compare-label { color:#e0bd6f; }\n.equip-compare-main { display:grid; grid-template-columns:34px 1fr; gap:7px; align-items:start; }\n.equip-compare-main>span { font-size:26px; line-height:1; text-align:center; }\n.equip-compare-main strong { display:block; color:#e4c989; font-size:8px; margin-bottom:4px; }\n.equip-compare-main small { display:block; color:#a99778; font-size:6px; line-height:1.45; }\n.equip-compare-empty { min-height:52px; display:grid; place-items:center; color:#746a59; font-size:7px; }\n.equip-confirm-sheet>p { margin:4px 0 8px; }\n.equip-confirm-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }\n.equip-confirm-actions .pixel-btn { margin-top:0; }\n.loot-equip-compare { grid-column:1/-1; width:100%; }\n.loot-equip-compare .equip-compare-wrap { margin:2px 0 5px; }\n@media (max-width:420px) {\n  .equip-compare-wrap { grid-template-columns:1fr; }\n  .equip-confirm-actions { grid-template-columns:1fr; }\n}\n
 
-/* V0.5.2.4 — combat item modal must sit above combat overlay */
+/* V0.5.2.5 — combat item modal must sit above combat overlay */
 .modal.combat-item-modal { z-index: 165; }
 .modal.combat-item-modal .modal-card { width:min(560px,100%); max-height:92dvh; overflow:auto; }
 .combat-item-empty { padding:12px; border:2px solid #5b4630; background:#17110d; color:#b9a98a; font-size:7px; line-height:1.7; }
 #combatItemBtn.no-consumable:not(:disabled) { opacity:.72; }
+
+
+/* V0.5.2.5: cleaner loot equipment UI */
+.loot-card-wrap { position:relative; }
+.loot-card-wrap .loot-card { width:100%; }
+.loot-new-badge {
+  position:absolute;
+  top:10px;
+  left:12px;
+  z-index:2;
+  color:#ffd82f;
+  font-size:14px;
+  font-weight:900;
+  letter-spacing:.12em;
+  transform:rotate(-8deg);
+  text-shadow:2px 2px 0 #3c2600, 0 0 8px rgba(255,216,47,.35);
+  pointer-events:none;
+}
+.loot-new-badge.hidden { display:none; }
+.loot-current-info {
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:3;
+  width:30px;
+  height:30px;
+  border:2px solid #a77a3d;
+  background:#17110d;
+  color:#f0cf79;
+  font:inherit;
+  font-size:16px;
+  font-weight:900;
+  line-height:1;
+  cursor:pointer;
+  box-shadow:2px 2px 0 #070504;
+}
+.loot-current-info.hidden { display:none; }
+.loot-current-info[aria-expanded="true"] { background:#4d3922; box-shadow:0 0 10px rgba(230,185,94,.25); }
+.loot-current-detail {
+  margin:8px 0 4px;
+  padding:9px 10px;
+  border:2px solid #5e472f;
+  background:#17110d;
+  text-align:left;
+}
+.loot-current-detail.hidden { display:none; }
+.loot-current-detail-label { color:#a99470; font-size:7px; letter-spacing:.08em; margin-bottom:6px; }
+.loot-current-detail-main { display:grid; grid-template-columns:36px 1fr; gap:8px; align-items:start; }
+.loot-current-detail-main>span { font-size:28px; text-align:center; line-height:1; }
+.loot-current-detail-main strong { display:block; color:#e4c989; font-size:9px; margin-bottom:4px; }
+.loot-current-detail-main small { display:block; color:#a99778; font-size:6.5px; line-height:1.45; }
