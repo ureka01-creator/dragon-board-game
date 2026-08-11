@@ -166,9 +166,65 @@ h2 { font-size: 17px; margin: 0; }
 }
 @keyframes reachablePulse { 50% { filter: brightness(1.18); } }
 
-.move-controls { display: grid; grid-template-columns: 1fr 90px 1fr; gap: 10px; align-items: stretch; margin-top: 12px; }
-.dice-box { border: 3px solid #5d4930; background: #1d1710; display: grid; place-items: center; align-content: center; }
+.move-controls { position: relative; display: grid; grid-template-columns: 1fr 90px 1fr; gap: 10px; align-items: stretch; margin-top: 12px; overflow: visible; }
+.dice-box { border: 3px solid #5d4930; background: #1d1710; display: grid; place-items: center; align-content: center; position: relative; overflow: hidden; }
 .dice-value { font-size: 28px; color: var(--gold); }
+
+/* 이동 주사위: 버튼 옆에서 또르륵 굴러와 MOVE 칸에 착지한다. */
+.dice-roller {
+  --die-size: 44px;
+  --dice-start-x: 0px;
+  --dice-x24: 24%;
+  --dice-x45: 45%;
+  --dice-x66: 66%;
+  --dice-x82: 82%;
+  --dice-x92: 92%;
+  --dice-end-x: 50%;
+  --dice-base-y: 0px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--die-size);
+  height: var(--die-size);
+  display: none;
+  place-items: center;
+  z-index: 12;
+  pointer-events: none;
+  font-size: calc(var(--die-size) * .88);
+  line-height: 1;
+  color: #f6e7bd;
+  background: #efe1bb;
+  border: 2px solid #59462f;
+  border-radius: 7px;
+  box-shadow: 3px 5px 0 rgba(0,0,0,.45), inset -3px -3px 0 rgba(90,60,30,.22);
+  text-shadow: none;
+  transform-origin: center;
+}
+.dice-roller.rolling {
+  display: grid;
+  animation: diceTumble .88s cubic-bezier(.16,.72,.19,1) both;
+}
+.dice-roller.landed { filter: brightness(1.13); }
+.dice-box.dice-impact { animation: diceImpact .22s steps(2,end); }
+
+@keyframes diceTumble {
+  0%   { transform: translate3d(var(--dice-start-x), calc(var(--dice-base-y) - 4px), 0) rotate(-25deg) scale(.78); }
+  16%  { transform: translate3d(var(--dice-x24), calc(var(--dice-base-y) - 24px), 0) rotate(155deg) scale(.92); }
+  34%  { transform: translate3d(var(--dice-x45), calc(var(--dice-base-y) + 3px), 0) rotate(335deg) scale(.95); }
+  53%  { transform: translate3d(var(--dice-x66), calc(var(--dice-base-y) - 15px), 0) rotate(520deg) scale(1); }
+  70%  { transform: translate3d(var(--dice-x82), calc(var(--dice-base-y) + 1px), 0) rotate(690deg) scale(.98); }
+  84%  { transform: translate3d(var(--dice-x92), calc(var(--dice-base-y) - 7px), 0) rotate(805deg) scale(1); }
+  100% { transform: translate3d(var(--dice-end-x), var(--dice-base-y), 0) rotate(900deg) scale(1); }
+}
+@keyframes diceImpact {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dice-roller.rolling { animation-duration: .18s; }
+  .dice-box.dice-impact { animation: none; }
+}
 
 .game-log { height: 575px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; font-size: 11px; line-height: 1.45; }
 .log-entry { border-bottom: 1px dashed #4a3826; padding-bottom: 7px; color: #dfd0a8; }
