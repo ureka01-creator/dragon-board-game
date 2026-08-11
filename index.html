@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120f0c" />
   <title>Dragon Board Prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=042" />
+  <link rel="stylesheet" href="css/style.css?v=043" />
 </head>
 <body>
   <main class="app-shell">
@@ -22,7 +22,7 @@
           <h1>DRAGON<br>BOARD</h1>
           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
-          <div class="version-label">PROTOTYPE V0.4.1</div>
+          <div class="version-label">PROTOTYPE V0.4.3</div>
         </div>
       </div>
     </section>
@@ -64,6 +64,7 @@
       <section class="game-grid">
         <aside class="pixel-panel party-panel">
           <div class="section-head"><h2>파티</h2><span id="activeHeroLabel"></span></div>
+          <div id="resourceSummary" class="resource-summary">🗿 0/3 · 💰 0 · 🎒 0</div>
           <div id="partyList" class="party-list"></div>
           <div class="turn-order-hint">이번 라운드에 아직 행동하지 않은 영웅을 선택해서 진행.</div>
         </aside>
@@ -121,17 +122,14 @@
         <div class="combat-stage-ground"></div>
 
         <div class="stage-party-wrap">
-          <div class="stage-side-label">HEROES</div>
           <div id="combatHeroes" class="combat-heroes stage-heroes"></div>
         </div>
 
         <div class="stage-enemy-wrap">
-          <div class="stage-side-label enemy">ENEMIES</div>
           <div id="combatEnemies" class="combat-enemies stage-enemies"></div>
         </div>
 
         <div class="combat-stage-center-ui">
-          <div id="combatTargetHint" class="combat-target-hint">대상을 선택</div>
           <div class="combat-dice-wrap" aria-live="polite">
             <div id="combatDiceLabel" class="combat-dice-label">D20</div>
             <div id="combatD20" class="combat-d20"><span id="combatD20Value">20</span></div>
@@ -164,6 +162,21 @@
     </div>
   </section>
 
+
+  <section id="lootOverlay" class="loot-overlay hidden" aria-label="전리품 화면">
+    <div class="loot-shell pixel-panel">
+      <div class="eyebrow">VICTORY REWARD</div>
+      <h2>전리품</h2>
+      <p id="lootGuide" class="loot-guide">상자를 열어 보상을 확인해.</p>
+      <button id="lootCard" class="loot-card face-down" type="button" aria-label="전리품 카드 열기">
+        <span id="lootCardIcon" class="loot-card-icon">📦</span>
+        <strong id="lootCardName">?</strong>
+        <span id="lootCardDesc">카드를 터치해서 열기</span>
+      </button>
+      <div id="lootActions" class="loot-actions"></div>
+    </div>
+  </section>
+
   <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card pixel-panel">
       <div id="modalContent"></div>
@@ -171,10 +184,11 @@
     </div>
   </div>
 
-  <script src="js/heroes.js?v=042"></script>
-  <script src="js/sprites.js?v=042"></script>
-  <script src="js/map.js?v=042"></script>
-  <script src="js/monsters.js?v=042"></script>
-  <script src="js/game.js?v=042"></script>
+  <script src="js/heroes.js?v=043"></script>
+  <script src="js/items.js?v=043"></script>
+  <script src="js/sprites.js?v=043"></script>
+  <script src="js/map.js?v=043"></script>
+  <script src="js/monsters.js?v=043"></script>
+  <script src="js/game.js?v=043"></script>
 </body>
 </html>
