@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.8
+// DRAGON BOARD V0.5.5.9
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -611,7 +611,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.8 — 탐험 시야 규칙.
+  // V0.5.5.9 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -1332,7 +1332,7 @@
     const unit = getWorldUnitMembers(hero);
     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    // V0.5.5.8: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+    // V0.5.5.9: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
     // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
     const node = WORLD_NODES.find(n => n.id === hero.position);
     for (const nextId of (node?.links || [])) {
@@ -2734,6 +2734,14 @@
       });
 
       addQuestProgress('combatWin', 1);
+      // V0.5.5.9: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
+      if (!c.isBoss && c.node?.type === '전투' && !String(c.node.id || '').startsWith('event-')) {
+        const boardNode = nodeById(c.node.id);
+        if (boardNode) {
+          boardNode.combatCleared = true;
+          boardNode.lastDefeatedMonsterId = c.enemies?.[0]?.id || null;
+        }
+      }
       if (c.isBoss && !state.defeatedBosses.has(c.node.id)) {
         state.defeatedBosses.add(c.node.id);
         addQuestProgress('boss', 1);
@@ -3289,9 +3297,66 @@
         return false;
       }
 
-      case '전투':
+      case '전투': {
+        // V0.5.5.9: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
+        // 보스/사건 전투는 이 로직을 사용하지 않는다.
+        if (node.combatCleared) {
+          const roll = Math.random();
+          if (roll < 0.45) {
+            showModal('🌫️ 고요한 위험 지역', `${node.name}. 전에 마물을 쓰러뜨린 흔적만 남아 있다. 이번에는 아무 일도 일어나지 않았다.`);
+            log(`🌫️ <strong>${node.name}</strong> 재방문 · 아무 일도 없음.`);
+            return false;
+          }
+
+          const pool = node.encounterPool || NODE_ENCOUNTERS[node.id] || (
+            node.region === 'grave' ? ['skeleton','ghost','slime'] :
+            node.region === 'war' ? ['goblin','orc','ogre','darkKnight'] :
+            node.region === 'forest' ? ['wolf','spider','goblin'] :
+            node.region === 'mine' ? ['orc','ogre','minotaur'] :
+            node.region === 'volcano' ? ['fireImp','minotaur','wyvern'] :
+            ['goblin','skeleton','wolf']
+          );
+
+          if (roll < 0.80) {
+            // 35%: 지역 일반 몬스터 랜덤
+            const normals = pool.filter(id => MONSTERS[id]?.tier === 'normal');
+            const pickPool = normals.length ? normals : pool;
+            node.nextEncounterMonsterId = pickPool[Math.floor(Math.random() * pickPool.length)];
+            const tempNode = { ...node, monsterId: node.nextEncounterMonsterId };
+            log(`⚔️ <strong>${node.name}</strong> 재방문 · 새로운 마물의 기척!`);
+            await startCombat(hero, tempNode, originNodeId);
+            return true;
+          }
+
+          if (roll < 0.95) {
+            // 15%: 정예 몬스터. 지역 풀에 없으면 전체 정예 중 랜덤.
+            let elites = pool.filter(id => MONSTERS[id]?.tier === 'elite');
+            if (!elites.length) elites = Object.keys(MONSTERS).filter(id => MONSTERS[id]?.tier === 'elite');
+            const eliteId = elites[Math.floor(Math.random() * elites.length)];
+            const tempNode = { ...node, monsterId: eliteId };
+            log(`⚠️ <strong>${node.name}</strong> 재방문 · 정예 마물 출현!`);
+            await startCombat(hero, tempNode, originNodeId);
+            return true;
+          }
+
+          // 5%: 작은 발견. 전투 없이 골드 또는 회복.
+          if (Math.random() < 0.5) {
+            const foundGold = 2 + Math.floor(Math.random() * 4);
+            state.gold += foundGold;
+            showModal('✨ 뜻밖의 발견', `${node.name}을 다시 조사하다 버려진 주머니를 발견했다. 💰 ${foundGold}G 획득.`);
+            log(`✨ <strong>${node.name}</strong> 재방문 · 💰 ${foundGold}G 발견.`);
+          } else {
+            const heal = Math.min(5, Math.max(0, hero.hp - hero.currentHp));
+            hero.currentHp += heal;
+            showModal('🌿 뜻밖의 발견', heal > 0 ? `${node.name}에서 약초를 발견했다. ❤️ HP +${heal}` : `${node.name}에서 약초를 발견했지만 이미 체력이 가득하다.`);
+            log(`🌿 <strong>${node.name}</strong> 재방문 · ${heal > 0 ? `HP +${heal}` : '약초 발견'}.`);
+          }
+          return false;
+        }
+
         await startCombat(hero, node, originNodeId);
         return true;
+      }
 
       case '보물':
         if (node.consumed) {
