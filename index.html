@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120f0c" />
   <title>Dragon Board Prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=031" />
+  <link rel="stylesheet" href="css/style.css?v=032" />
 </head>
 <body>
   <main class="app-shell">
@@ -22,7 +22,7 @@
           <h1>DRAGON<br>BOARD</h1>
           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
-          <div class="version-label">PROTOTYPE V0.3.1</div>
+          <div class="version-label">PROTOTYPE V0.3.2</div>
         </div>
       </div>
     </section>
@@ -77,10 +77,11 @@
 
           <div class="move-controls">
             <button id="rollBtn" class="pixel-btn primary">🎲 D6 굴리기</button>
-            <div class="dice-box">
+            <div id="diceBox" class="dice-box">
               <div class="hud-label">MOVE</div>
               <div id="diceValue" class="dice-value">-</div>
             </div>
+            <div id="diceRoller" class="dice-roller" aria-hidden="true">⚀</div>
             <button id="stayBtn" class="pixel-btn" disabled>이동 안 함</button>
           </div>
         </section>
@@ -100,9 +101,9 @@
     </div>
   </div>
 
-  <script src="js/heroes.js?v=031"></script>
-  <script src="js/sprites.js?v=031"></script>
-  <script src="js/map.js?v=031"></script>
-  <script src="js/game.js?v=031"></script>
+  <script src="js/heroes.js?v=032"></script>
+  <script src="js/sprites.js?v=032"></script>
+  <script src="js/map.js?v=032"></script>
+  <script src="js/game.js?v=032"></script>
 </body>
 </html>
