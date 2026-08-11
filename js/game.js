@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.6
+// DRAGON BOARD V0.5.5.7
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -202,16 +202,19 @@
     renderSetup();
   }
 
-  function getAreaCenterNodeId(areaId) {
-    const id = `${String(areaId || 'A').toLowerCase()}-center`;
-    return WORLD_NODES.some(n => n.id === id) ? id : (window.WORLD_START_NODE_ID || 'a-center');
+  function getAreaVillageNodeId(areaId) {
+    const normalized = String(areaId || 'A');
+    const mapped = window.WORLD_VILLAGE_NODE_IDS?.[normalized];
+    if (mapped && WORLD_NODES.some(n => n.id === mapped && n.type === '마을')) return mapped;
+    const village = WORLD_NODES.find(n => n.areaId === normalized && n.type === '마을');
+    return village?.id || window.WORLD_START_NODE_ID || WORLD_NODES[0]?.id;
   }
 
   function getRandomStartNodeId() {
     const areaIds = Object.keys(window.WORLD_AREAS || {});
     const pool = areaIds.length ? areaIds : ['A','B','C','D'];
     const areaId = pool[Math.floor(Math.random() * pool.length)];
-    return getAreaCenterNodeId(areaId);
+    return getAreaVillageNodeId(areaId);
   }
 
   function startGame() {
@@ -221,7 +224,7 @@
     state.dragonCastleSpawned = false;
     state.dragonSpawnNoticePending = null;
     // V0.4.9: 월드 턴 순서는 직업 고정 순서(기사→궁수→마법사→도적)를 따른다.
-    // 각 영웅의 시작 위치는 새 게임마다 A~D 지역의 중앙 마을 중 하나로 독립 랜덤 배정한다.
+    // 각 영웅의 시작 위치는 새 게임마다 무작위 지역의 무작위 배치된 마을로 독립 랜덤 배정한다.
     // 따라서 같은 마을에서 시작할 수도, 서로 다른 지역에서 시작할 수도 있다.
     const selectedSet = new Set(state.selectedHeroIds);
     state.heroes = HEROES.filter(src => selectedSet.has(src.id)).map(src => {
@@ -602,7 +605,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.6 — 탐험 시야 규칙.
+  // V0.5.5.7 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -2015,13 +2018,13 @@
 
   function knockOutHero(hero, sourceName) {
     if (hero.down) return;
-    // V0.4.9: 쓰러진 순간의 지역을 기억한다. 다음 라운드에는 그 지역 중앙 마을에서 부활한다.
+    // 쓰러진 순간의 지역을 기억한다. 다음 라운드에는 그 지역에 이번 판 생성된 마을에서 부활한다.
     const deathAreaId = getNodeAreaId(hero.position);
     hero.down = true;
     hero.currentHp = 0;
     removeHeroFromParty(hero);
     hero.reviveAreaId = deathAreaId;
-    hero.position = getAreaCenterNodeId(deathAreaId);
+    hero.position = getAreaVillageNodeId(deathAreaId);
     hero.acted = true;
     hero.reviveRound = state.round + 1;
     state.threat = Math.min(12, state.threat + 1);
@@ -2743,8 +2746,8 @@
       log(`💨 ${c.node.name} 전투에서 도주 → 이전 칸으로 후퇴.`);
     } else {
       setCombatMessage(state.gameOver ? 'KINGDOM FALLS' : 'DEFEAT', 'danger');
-      combatLogEntry('☠️ 전투 패배. 쓰러진 영웅은 해당 지역의 중앙 마을로 귀환한다.');
-      log('☠️ 전투 패배. 살아남지 못한 영웅은 다음 라운드에 쓰러졌던 지역의 중앙 마을에서 부활한다.');
+      combatLogEntry('☠️ 전투 패배. 쓰러진 영웅은 해당 지역의 마을로 귀환한다.');
+      log('☠️ 전투 패배. 살아남지 못한 영웅은 다음 라운드에 쓰러졌던 지역의 마을에서 부활한다.');
     }
 
     renderCombat();
@@ -2951,7 +2954,7 @@
           hero.down = true;
           hero.reviveRound = state.round + 1;
           hero.reviveAreaId = deathAreaId;
-          hero.position = getAreaCenterNodeId(deathAreaId);
+          hero.position = getAreaVillageNodeId(deathAreaId);
           state.threat = Math.min(12, state.threat + 1);
           checkDragonCastleSpawn('threat');
           log(`💀 ${hero.name} 쓰러짐 → ${getAreaDisplayName(deathAreaId)} 마을 귀환 / THREAT +1`);
@@ -3358,7 +3361,7 @@
         h.down = false;
         h.currentHp = h.hp;
         h.reviveRound = null;
-        h.position = getAreaCenterNodeId(reviveAreaId);
+        h.position = getAreaVillageNodeId(reviveAreaId);
         revealFromNode(h.position);
         h.reviveAreaId = null;
         h.attackPenalty = 0;

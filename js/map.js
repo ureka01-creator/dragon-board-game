@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.6
+// DRAGON BOARD V0.5.5.7
 // 4개 지역은 같은 7x7 토폴로지를 공유하지만, 새 게임마다 테마와 타일 내용/배치가 다시 섞인다.
 window.PARTY_SYSTEM_ENABLED = false;
 
@@ -149,18 +149,24 @@ function generateWorld() {
     portals.push({fromArea,fromKey,toArea,toKey});
   });
 
+  const villageNodeIds = {};
+
   AREA_IDS.forEach(areaId => {
     const {theme, areaNodes, gateKeys} = areaData[areaId];
-    const center = areaNodes.find(n=>n.localKey==='center');
 
-    center.name = `${theme.label} 마을`;
-    center.short = '마을';
-    center.icon = '🏠';
-    center.type = '마을';
-    center.region = 'village';
-    center.areaId = areaId;
+    // 마을도 중앙 고정이 아니다. 각 지역의 입구 칸을 제외한 모든 칸 중 한 곳을
+    // 새 게임마다 무작위로 골라 마을로 만든다. 따라서 같은 테마라도 매 판 위치가 달라진다.
+    const villageCandidates = shuffle(areaNodes.filter(n => !gateKeys.has(n.localKey)));
+    const village = villageCandidates[0];
+    village.name = `${theme.label} 마을`;
+    village.short = '마을';
+    village.icon = '🏠';
+    village.type = '마을';
+    village.region = 'village';
+    village.areaId = areaId;
+    villageNodeIds[areaId] = village.id;
 
-    const fillable = areaNodes.filter(n => n.localKey !== 'center' && !gateKeys.has(n.localKey));
+    const fillable = areaNodes.filter(n => n.id !== village.id && !gateKeys.has(n.localKey));
     const deck = buildTileDeck(theme);
     fillable.forEach((node,i) => Object.assign(node, deck[i % deck.length]));
 
@@ -199,13 +205,14 @@ function generateWorld() {
     nodes.push(...areaNodes);
   });
 
-  return { nodes, areas, startNodeId:'a-center' };
+  return { nodes, areas, villageNodeIds, startNodeId:villageNodeIds.A || nodes[0]?.id };
 }
 
 window.resetWorldMap = function resetWorldMap() {
   const generated = generateWorld();
   window.WORLD_NODES = generated.nodes;
   window.WORLD_AREAS = generated.areas;
+  window.WORLD_VILLAGE_NODE_IDS = generated.villageNodeIds;
   window.WORLD_START_NODE_ID = generated.startNodeId;
   return generated;
 };
