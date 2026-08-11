@@ -8,6 +8,7 @@
     seals: 0,
     activeHeroId: null,
     rolled: null,
+    isRolling: false,
     gameOver: false,
   };
 
@@ -26,6 +27,8 @@
   const rollBtn = $('#rollBtn');
   const stayBtn = $('#stayBtn');
   const diceValue = $('#diceValue');
+  const diceBox = $('#diceBox');
+  const diceRoller = $('#diceRoller');
   const moveHint = $('#moveHint');
   const threatValue = $('#threatValue');
   const threatFill = $('#threatFill');
@@ -106,6 +109,7 @@
     state.seals = 0;
     state.activeHeroId = state.heroes[0].id;
     state.rolled = null;
+    state.isRolling = false;
     state.gameOver = false;
     gameLog.innerHTML = '';
 
@@ -179,16 +183,88 @@
   function renderControls() {
     const active = getActiveHero();
     const canAct = active && !active.acted && !state.gameOver;
-    rollBtn.disabled = !canAct || state.rolled !== null;
-    stayBtn.disabled = !canAct || state.rolled === null;
-    diceValue.textContent = state.rolled ?? '-';
-    moveHint.textContent = state.rolled === null ? '주사위를 굴려 이동' : `0~${state.rolled}칸 이동 가능`;
+    rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling;
+    stayBtn.disabled = !canAct || state.rolled === null || state.isRolling;
+    diceValue.textContent = state.isRolling ? '…' : (state.rolled ?? '-');
+    if (state.isRolling) {
+      moveHint.textContent = '주사위 굴리는 중…';
+    } else {
+      moveHint.textContent = state.rolled === null ? '주사위를 굴려 이동' : `0~${state.rolled}칸 이동 가능`;
+    }
   }
 
-  function rollD6() {
-    if (state.rolled !== null || state.gameOver) return;
-    state.rolled = Math.floor(Math.random() * 6) + 1;
+  const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
+  function playDiceRollAnimation(finalValue) {
+    return new Promise(resolve => {
+      if (!diceRoller || !diceBox) {
+        resolve();
+        return;
+      }
+
+      const controls = diceBox.parentElement.getBoundingClientRect();
+      const target = diceBox.getBoundingClientRect();
+      const dieSize = Math.max(36, Math.min(52, target.height * 0.62));
+      const startX = Math.max(4, target.left - controls.left - dieSize - 72);
+      const endX = target.left - controls.left + (target.width - dieSize) / 2;
+      const baseY = target.top - controls.top + (target.height - dieSize) / 2;
+
+      diceRoller.style.setProperty('--die-size', `${dieSize}px`);
+      diceRoller.style.setProperty('--dice-start-x', `${startX}px`);
+      diceRoller.style.setProperty('--dice-x24', `${startX * .76 + endX * .24}px`);
+      diceRoller.style.setProperty('--dice-x45', `${startX * .55 + endX * .45}px`);
+      diceRoller.style.setProperty('--dice-x66', `${startX * .34 + endX * .66}px`);
+      diceRoller.style.setProperty('--dice-x82', `${startX * .18 + endX * .82}px`);
+      diceRoller.style.setProperty('--dice-x92', `${startX * .08 + endX * .92}px`);
+      diceRoller.style.setProperty('--dice-end-x', `${endX}px`);
+      diceRoller.style.setProperty('--dice-base-y', `${baseY}px`);
+      diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+      diceRoller.classList.remove('rolling');
+      void diceRoller.offsetWidth;
+      diceRoller.classList.add('rolling');
+
+      let ticks = 0;
+      const faceTimer = setInterval(() => {
+        diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+        ticks += 1;
+        if (ticks > 11) clearInterval(faceTimer);
+      }, 65);
+
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearInterval(faceTimer);
+        diceRoller.textContent = DICE_FACES[finalValue - 1];
+        diceRoller.classList.add('landed');
+        diceBox.classList.remove('dice-impact');
+        void diceBox.offsetWidth;
+        diceBox.classList.add('dice-impact');
+        setTimeout(() => {
+          diceRoller.classList.remove('rolling', 'landed');
+          resolve();
+        }, 180);
+      };
+
+      diceRoller.addEventListener('animationend', finish, { once: true });
+      // Safari에서 animationend가 누락되는 극단적 상황을 위한 안전장치.
+      setTimeout(() => {
+        if (diceRoller.classList.contains('rolling')) finish();
+      }, 1050);
+    });
+  }
+
+  async function rollD6() {
+    if (state.rolled !== null || state.isRolling || state.gameOver) return;
     const hero = getActiveHero();
+    const result = Math.floor(Math.random() * 6) + 1;
+    state.isRolling = true;
+    renderControls();
+
+    await playDiceRollAnimation(result);
+
+    state.rolled = result;
+    state.isRolling = false;
     log(`${hero.icon} <strong>${hero.name}</strong> 이동 주사위 → 🎲 <strong>${state.rolled}</strong>`);
     renderAll();
   }
@@ -343,6 +419,9 @@
     if (!confirm('프로토타입을 처음부터 다시 시작할까?')) return;
     state.selectedHeroIds = [];
     state.heroes = [];
+    state.rolled = null;
+    state.isRolling = false;
+    diceRoller?.classList.remove('rolling', 'landed');
     state.gameOver = false;
     modal.classList.add('hidden');
     showScreen(titleScreen);
