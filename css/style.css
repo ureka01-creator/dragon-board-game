@@ -208,3 +208,170 @@ h2 { font-size: 17px; margin: 0; }
   .move-controls { grid-template-columns: 1fr 70px; }
   #stayBtn { grid-column: span 2; }
 }
+
+/* ─────────────────────────────────────────────
+   V0.3 TITLE SCREEN
+   ───────────────────────────────────────────── */
+.title-screen { min-height: calc(100dvh - 32px); }
+.title-start-area {
+  min-height: calc(100dvh - 32px);
+  position: relative;
+  overflow: hidden;
+  border: 4px solid #513a27;
+  box-shadow: 0 0 0 4px #090705, 8px 8px 0 #090705;
+  background:
+    linear-gradient(#131323 0 56%, #21160f 56% 100%);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+.title-start-area:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+.title-sky { position: absolute; inset: 0; overflow: hidden; z-index: -1; }
+.title-sky::before {
+  content: '';
+  position: absolute; inset: 0 0 44% 0;
+  background-image:
+    radial-gradient(circle at 9% 17%, #d8cf9f 0 1px, transparent 2px),
+    radial-gradient(circle at 22% 28%, #d8cf9f 0 1px, transparent 2px),
+    radial-gradient(circle at 36% 12%, #d8cf9f 0 1px, transparent 2px),
+    radial-gradient(circle at 58% 24%, #d8cf9f 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 14%, #d8cf9f 0 1px, transparent 2px),
+    radial-gradient(circle at 91% 31%, #d8cf9f 0 1px, transparent 2px);
+  image-rendering: pixelated;
+  opacity: .75;
+}
+.pixel-moon {
+  position: absolute; right: 13%; top: 10%; width: 74px; height: 74px;
+  background: #d4c68f; box-shadow: 8px 8px 0 #88794f; border-radius: 50%;
+  filter: blur(.1px);
+}
+.castle-silhouette {
+  position: absolute; left: 50%; bottom: 27%; transform: translateX(-50%);
+  width: 310px; height: 175px; background: #09090e;
+  clip-path: polygon(0 100%,0 58%,10% 58%,10% 34%,19% 34%,19% 54%,34% 54%,34% 15%,42% 15%,42% 0,49% 0,49% 15%,58% 15%,58% 54%,72% 54%,72% 28%,82% 28%,82% 55%,100% 55%,100% 100%);
+  box-shadow: 0 -10px 0 rgba(0,0,0,.18);
+}
+.dragon-shadow {
+  position: absolute; left: 50%; bottom: 35%; transform: translateX(-50%) rotate(45deg);
+  font-size: 58px; color: #451818; text-shadow: 12px 12px 0 #13090a; opacity: .95;
+}
+.title-copy { text-align: center; padding: 24px; margin-top: -7vh; }
+.title-copy h1 {
+  margin: 10px 0 14px;
+  color: #d9a748;
+  font-size: clamp(54px, 12vw, 112px);
+  line-height: .82;
+  letter-spacing: 5px;
+  text-shadow: 4px 0 #69411e, 0 4px #69411e, 4px 4px #21130a;
+}
+.title-sub { color: #c8b588; max-width: 620px; margin: 0 auto; line-height: 1.6; font-size: 13px; }
+.tap-start {
+  margin: 34px auto 0; padding: 13px 18px; width: fit-content;
+  color: #f4dc8f; border: 2px solid #7f6434; background: rgba(25,18,12,.76);
+  animation: tapBlink 1s steps(2,end) infinite;
+}
+.version-label { margin-top: 12px; font-size: 10px; color: #75664e; letter-spacing: 2px; }
+@keyframes tapBlink { 50% { opacity: .48; } }
+
+.compact-title { position: relative; padding: 18px 60px; }
+.compact-title h1 { font-size: clamp(26px, 6vw, 46px); }
+.back-btn { position: absolute; left: 14px; top: 14px; }
+.hero-select-panel { padding: 18px; }
+.start-adventure-btn { width: 100%; font-size: 16px; }
+
+/* ─────────────────────────────────────────────
+   V0.3 PIXEL HERO / PAPER DOLL
+   Base body = underclothes only. Equipment overlays prepared.
+   ───────────────────────────────────────────── */
+.hero-card { overflow: hidden; }
+.hero-portrait-wrap {
+  height: 154px; display: grid; place-items: end center; margin: -4px -4px 8px;
+  background:
+    linear-gradient(180deg, #1d2021 0 62%, #292015 62% 100%);
+  border: 2px solid #4d3a27;
+  position: relative;
+}
+.hero-portrait-wrap::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+.equip-status { font-size: 9px; color: #8f8063; margin: 5px 0 9px; }
+
+.pixel-hero {
+  --u: 3px;
+  position: relative; width: calc(24 * var(--u)); height: calc(34 * var(--u));
+  image-rendering: pixelated; transform-origin: center bottom; flex: 0 0 auto;
+}
+.pixel-hero.large { --u: 4px; }
+.pixel-hero.medium { --u: 2.25px; }
+.pixel-hero.mini { --u: 1.25px; }
+.pixel-hero .px { position: absolute; display: block; image-rendering: pixelated; }
+.pixel-hero .shadow { left: calc(5 * var(--u)); bottom: 0; width: calc(15 * var(--u)); height: calc(2 * var(--u)); background: rgba(0,0,0,.45); }
+.pixel-hero .leg { top: calc(22 * var(--u)); width: calc(4 * var(--u)); height: calc(9 * var(--u)); background: var(--skin); box-shadow: inset calc(-1 * var(--u)) 0 rgba(60,31,24,.18); }
+.pixel-hero .leg-l { left: calc(8 * var(--u)); }
+.pixel-hero .leg-r { left: calc(13 * var(--u)); }
+.pixel-hero .foot { top: calc(30 * var(--u)); width: calc(5 * var(--u)); height: calc(2 * var(--u)); background: #6e432e; }
+.pixel-hero .foot-l { left: calc(7 * var(--u)); }
+.pixel-hero .foot-r { left: calc(13 * var(--u)); }
+.pixel-hero .torso { left: calc(7 * var(--u)); top: calc(12 * var(--u)); width: calc(10 * var(--u)); height: calc(11 * var(--u)); background: var(--skin); box-shadow: inset calc(-1 * var(--u)) 0 rgba(63,31,25,.18); }
+.body-broad .torso { left: calc(6 * var(--u)); width: calc(12 * var(--u)); }
+.body-slim .torso { left: calc(8 * var(--u)); width: calc(8 * var(--u)); }
+.body-compact .torso { top: calc(13 * var(--u)); height: calc(10 * var(--u)); }
+.pixel-hero .underwear-top { left: calc(7 * var(--u)); top: calc(13 * var(--u)); width: calc(10 * var(--u)); height: calc(3 * var(--u)); background: #dad2bd; border-bottom: var(--u) solid #9e9585; }
+.body-broad .underwear-top { left: calc(6 * var(--u)); width: calc(12 * var(--u)); }
+.body-slim .underwear-top { left: calc(8 * var(--u)); width: calc(8 * var(--u)); }
+.pixel-hero .underwear-bottom { left: calc(8 * var(--u)); top: calc(21 * var(--u)); width: calc(8 * var(--u)); height: calc(4 * var(--u)); background: #c9c1ac; box-shadow: inset 0 calc(-1 * var(--u)) #8e8576; }
+.pixel-hero .arm { top: calc(13 * var(--u)); width: calc(3 * var(--u)); height: calc(9 * var(--u)); background: var(--skin); }
+.pixel-hero .arm-l { left: calc(4 * var(--u)); }
+.pixel-hero .arm-r { left: calc(17 * var(--u)); }
+.pixel-hero .hand { top: calc(21 * var(--u)); width: calc(3 * var(--u)); height: calc(3 * var(--u)); background: var(--skin); }
+.pixel-hero .hand-l { left: calc(4 * var(--u)); }
+.pixel-hero .hand-r { left: calc(17 * var(--u)); }
+.pixel-hero .head { left: calc(8 * var(--u)); top: calc(4 * var(--u)); width: calc(8 * var(--u)); height: calc(9 * var(--u)); background: var(--skin); box-shadow: inset calc(-1 * var(--u)) 0 rgba(55,26,22,.18); }
+.pixel-hero .ear { top: calc(7 * var(--u)); width: calc(1 * var(--u)); height: calc(3 * var(--u)); background: var(--skin); }
+.pixel-hero .ear-l { left: calc(7 * var(--u)); } .pixel-hero .ear-r { left: calc(16 * var(--u)); }
+.pixel-hero .hair-main { left: calc(7 * var(--u)); top: calc(2 * var(--u)); width: calc(10 * var(--u)); height: calc(5 * var(--u)); background: var(--hair); box-shadow: inset 0 calc(-1 * var(--u)) var(--hair2); }
+.pixel-hero .hair-extra { background: var(--hair2); }
+.hero-knight .hair-extra { left: calc(7 * var(--u)); top: calc(6 * var(--u)); width: calc(2 * var(--u)); height: calc(5 * var(--u)); }
+.hero-archer .hair-extra { left: calc(15 * var(--u)); top: calc(5 * var(--u)); width: calc(4 * var(--u)); height: calc(9 * var(--u)); box-shadow: calc(2 * var(--u)) calc(5 * var(--u)) 0 var(--hair); }
+.hero-mage .hair-main { left: calc(6 * var(--u)); width: calc(12 * var(--u)); height: calc(6 * var(--u)); }
+.hero-mage .hair-extra { left: calc(6 * var(--u)); top: calc(6 * var(--u)); width: calc(2 * var(--u)); height: calc(11 * var(--u)); box-shadow: calc(10 * var(--u)) 0 0 var(--hair2); }
+.hero-rogue .hair-main { left: calc(7 * var(--u)); top: calc(2 * var(--u)); width: calc(10 * var(--u)); height: calc(4 * var(--u)); }
+.hero-rogue .hair-extra { left: calc(6 * var(--u)); top: calc(5 * var(--u)); width: calc(3 * var(--u)); height: calc(4 * var(--u)); }
+.pixel-hero .eye { top: calc(8 * var(--u)); width: var(--u); height: var(--u); background: var(--eye); box-shadow: 0 var(--u) 0 #332118; }
+.pixel-hero .eye-l { left: calc(10 * var(--u)); } .pixel-hero .eye-r { left: calc(14 * var(--u)); }
+.pixel-hero .nose { left: calc(12 * var(--u)); top: calc(10 * var(--u)); width: var(--u); height: var(--u); background: rgba(95,52,39,.45); }
+.pixel-hero .class-mark { width: calc(2 * var(--u)); height: calc(2 * var(--u)); top: calc(17 * var(--u)); left: calc(11 * var(--u)); }
+.hero-knight .class-mark { background: #9b7041; }
+.hero-archer .class-mark { background: #5f873d; }
+.hero-mage .class-mark { background: #67558b; }
+.hero-rogue .class-mark { background: #7f463a; }
+
+/* Equipment layers: these are deliberately dormant at V0.3. Add data values later. */
+.pixel-hero[data-armor="leather"] .armor-layer { left: calc(7 * var(--u)); top: calc(13 * var(--u)); width: calc(10 * var(--u)); height: calc(10 * var(--u)); background:#6c4527; border-bottom: calc(2 * var(--u)) solid #3d291b; }
+.pixel-hero[data-armor="plate"] .armor-layer { left: calc(6 * var(--u)); top: calc(12 * var(--u)); width: calc(12 * var(--u)); height: calc(12 * var(--u)); background:#7c8486; box-shadow: inset calc(-2 * var(--u)) 0 #4d5558, inset 0 calc(2 * var(--u)) #a6abad; }
+.pixel-hero[data-armor="robe"] .armor-layer { left: calc(7 * var(--u)); top: calc(13 * var(--u)); width: calc(10 * var(--u)); height: calc(16 * var(--u)); background:#463f72; box-shadow: inset calc(-2 * var(--u)) 0 #282443; }
+.pixel-hero[data-weapon="sword"] .weapon-layer { right: calc(1 * var(--u)); top: calc(13 * var(--u)); width: calc(2 * var(--u)); height: calc(14 * var(--u)); background:#a8abad; box-shadow: 0 calc(10 * var(--u)) 0 calc(1 * var(--u)) #704b26; transform: rotate(12deg); }
+.pixel-hero[data-weapon="bow"] .weapon-layer { right: 0; top: calc(10 * var(--u)); width: calc(2 * var(--u)); height: calc(17 * var(--u)); border: var(--u) solid #8d5c28; border-left: 0; background: transparent; }
+.pixel-hero[data-weapon="staff"] .weapon-layer { right: 0; top: calc(8 * var(--u)); width: calc(2 * var(--u)); height: calc(21 * var(--u)); background:#765331; box-shadow: 0 calc(-2 * var(--u)) 0 calc(1 * var(--u)) #7e65a6; }
+.pixel-hero[data-weapon="dagger"] .weapon-layer { right: calc(1 * var(--u)); top: calc(19 * var(--u)); width: calc(2 * var(--u)); height: calc(8 * var(--u)); background:#b1b1a8; transform: rotate(28deg); }
+
+.party-member { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
+.party-member .party-info { min-width: 0; }
+.party-member .pixel-hero { margin-inline: 2px; }
+.map-token-stack { position:absolute; right:1px; bottom:0; display:flex; align-items:flex-end; gap:0; transform: scale(.78); transform-origin: right bottom; }
+.map-token-stack .pixel-hero { margin-left: calc(-6 * var(--u)); }
+.map-token-stack .pixel-hero:first-child { margin-left:0; }
+
+@media (max-width: 700px) {
+  .title-start-area { min-height: calc(100dvh - 16px); }
+  .title-copy { margin-top: -12vh; }
+  .title-sub { font-size: 11px; }
+  .tap-start { margin-top: 24px; font-size: 12px; }
+  .pixel-moon { width: 48px; height: 48px; }
+  .castle-silhouette { width: 240px; height: 140px; bottom: 27%; }
+  .hero-portrait-wrap { height: 132px; }
+  .pixel-hero.large { --u: 3.35px; }
+}
