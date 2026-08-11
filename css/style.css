@@ -444,12 +444,51 @@ h2 { font-size: 17px; margin: 0; }
 .party-member { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
 .party-member .party-info { min-width: 0; }
 .party-member .pixel-hero { margin-inline: 2px; }
-.map-token-stack { position:absolute; right:1px; bottom:0; display:flex; align-items:flex-end; gap:0; transform: scale(.78); transform-origin: right bottom; }
-.map-token-stack .pixel-hero { margin-left: calc(-6 * var(--u)); }
-.map-token-stack .pixel-hero:first-child { margin-left:0; }
+/* V0.3.7 — 맵 위에서는 풀 캐릭터 대신 작고 단순한 직업 토큰을 사용한다. */
+.map-token-grid {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: min(52%, 34px);
+  height: min(52%, 34px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  align-content: end;
+  justify-content: end;
+  z-index: 4;
+  pointer-events: none;
+}
+.map-token-grid.count-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; width: min(34%, 24px); height: min(34%, 24px); }
+.map-token-grid.count-2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: 1fr; width: min(52%, 34px); height: min(28%, 22px); }
+.map-hero-token {
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 1px solid rgba(235,213,166,.72);
+  background: rgba(22,17,12,.92);
+  display: grid;
+  place-items: center;
+  font-size: clamp(8px, 1.15vw, 13px);
+  line-height: 1;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: 0 1px 2px rgba(0,0,0,.65), inset 0 0 0 1px rgba(255,255,255,.045);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.map-hero-token.active {
+  border-color: #f0bd4f;
+  box-shadow: 0 0 0 1px rgba(240,189,79,.55), 0 1px 2px rgba(0,0,0,.7);
+}
+.map-hero-token.token-knight { background: #313840; }
+.map-hero-token.token-archer { background: #243526; }
+.map-hero-token.token-mage { background: #302943; }
+.map-hero-token.token-rogue { background: #3a2926; }
 
-
-/* V0.3.6 — 보드게임 말을 한 칸씩 집어 옮기는 듯한 짧은 홉 이동 */
+/* V0.3.7 — 직업 토큰이 한 칸씩 톡톡 점프하며 이동 */
 .movement-source-hidden { visibility: hidden !important; }
 .world-map.movement-lock .map-node.reachable { pointer-events: none; }
 .hero-hop-mover {
@@ -462,16 +501,19 @@ h2 { font-size: 17px; margin: 0; }
   pointer-events: none;
   will-change: transform;
 }
-.hero-hop-mover .pixel-hero {
+.hero-hop-mover .map-hero-token {
   position: absolute;
   left: 0;
   top: 0;
+  width: clamp(18px, 3.7vw, 26px);
+  height: clamp(18px, 3.7vw, 26px);
+  font-size: clamp(11px, 2vw, 16px);
   margin: 0;
-  transform: translate(-50%, -100%);
-  filter: drop-shadow(0 2px 1px rgba(0,0,0,.22));
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 2px 1px rgba(0,0,0,.28));
   will-change: transform;
+  z-index: 36;
 }
-.hero-hop-mover .pixel-hero .shadow { opacity: 0; }
 .hero-hop-shadow {
   position: absolute;
   left: 0;
@@ -498,6 +540,14 @@ h2 { font-size: 17px; margin: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .map-node.hero-step-land { animation: none; }
+}
+
+
+@media (max-width: 700px) {
+  .map-token-grid { right: 1px; bottom: 1px; width: 48%; height: 48%; gap: 0; }
+  .map-token-grid.count-1 { width: 34%; height: 34%; }
+  .map-token-grid.count-2 { width: 50%; height: 28%; }
+  .map-hero-token { font-size: 8px; border-width: 1px; }
 }
 
 @media (max-width: 700px) {
