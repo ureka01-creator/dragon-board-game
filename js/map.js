@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.0
+// DRAGON BOARD V0.5.5.6
 // 4개 지역은 같은 7x7 토폴로지를 공유하지만, 새 게임마다 테마와 타일 내용/배치가 다시 섞인다.
 window.PARTY_SYSTEM_ENABLED = false;
 
@@ -120,41 +120,72 @@ function generateWorld() {
   const themeKeys = shuffle(Object.keys(THEMES));
   const areas = {};
   const nodes = [];
+  const areaData = {};
 
+  // 먼저 모든 지역의 테마를 확정한다. 화면에는 A/B/C/D 대신 실제 지역명만 사용한다.
   AREA_IDS.forEach((areaId,index) => {
     const themeKey = themeKeys[index % themeKeys.length];
     const theme = THEMES[themeKey];
     const areaNodes = makeAreaBase(areaId);
-    const neighborMap = AREA_NEIGHBORS[areaId];
-    const gatewayKeys = new Set(Object.keys(neighborMap).map(dir => GATE_BY_DIR[dir]));
+    areas[areaId] = { id:areaId, name:theme.label, themeKey, themeLabel:theme.label, icon:theme.icon };
+    areaData[areaId] = { themeKey, theme, areaNodes, gateKeys:new Set() };
+  });
+
+  // 지역 간 연결 입구는 매 게임마다 외곽의 서로 다른 칸에 랜덤 배치한다.
+  // 내부 식별자는 A/B/C/D를 유지하지만 플레이어에게는 지역명만 노출한다.
+  const connections = [['A','B'],['A','C'],['B','D'],['C','D']];
+  const outerKeys = Array.from({length:24}, (_,i)=>`o${i}`);
+  const pickGateKey = areaId => {
+    const used = areaData[areaId].gateKeys;
+    const candidates = shuffle(outerKeys.filter(key => !used.has(key)));
+    const key = candidates[0];
+    used.add(key);
+    return key;
+  };
+  const portals = [];
+  connections.forEach(([fromArea,toArea]) => {
+    const fromKey = pickGateKey(fromArea);
+    const toKey = pickGateKey(toArea);
+    portals.push({fromArea,fromKey,toArea,toKey});
+  });
+
+  AREA_IDS.forEach(areaId => {
+    const {theme, areaNodes, gateKeys} = areaData[areaId];
     const center = areaNodes.find(n=>n.localKey==='center');
 
-    areas[areaId] = { id:areaId, name:`${areaId} 지역`, themeKey, themeLabel:theme.label, icon:theme.icon };
-
-    // V0.4.9: 모든 확장 지역의 중앙 칸은 해당 지역의 '마을'이다.
-    // 영웅은 새 게임 시작 시 A~D 지역 중앙 마을 중 하나에서 랜덤 시작하고,
-    // 쓰러지면 쓰러졌던 지역의 중앙 마을에서 다음 라운드에 부활한다.
-    center.name = areaId === 'A' ? '왕국 마을' : `${theme.label} 마을`;
+    center.name = `${theme.label} 마을`;
     center.short = '마을';
     center.icon = '🏠';
     center.type = '마을';
     center.region = 'village';
     center.areaId = areaId;
 
-    const fillable = areaNodes.filter(n => n.localKey !== 'center' && !gatewayKeys.has(n.localKey));
+    const fillable = areaNodes.filter(n => n.localKey !== 'center' && !gateKeys.has(n.localKey));
     const deck = buildTileDeck(theme);
-    fillable.forEach((node,i) => Object.assign(node, deck[i]));
+    fillable.forEach((node,i) => Object.assign(node, deck[i % deck.length]));
 
-    Object.entries(neighborMap).forEach(([dir,targetArea]) => {
-      const key = GATE_BY_DIR[dir];
-      const gate = areaNodes.find(n=>n.localKey===key);
-      gate.name = `${targetArea} 지역 입구`;
-      gate.short = `${targetArea}입구`;
-      gate.icon = dir === 'north' ? '⬆️' : dir === 'south' ? '⬇️' : dir === 'east' ? '➡️' : '⬅️';
+    portals.forEach(link => {
+      let gate = null;
+      let targetArea = null;
+      let targetKey = null;
+      if (link.fromArea === areaId) {
+        gate = areaNodes.find(n=>n.localKey===link.fromKey);
+        targetArea = link.toArea;
+        targetKey = link.toKey;
+      } else if (link.toArea === areaId) {
+        gate = areaNodes.find(n=>n.localKey===link.toKey);
+        targetArea = link.fromArea;
+        targetKey = link.fromKey;
+      }
+      if (!gate || !targetArea || !targetKey) return;
+      const targetMeta = areas[targetArea];
+      gate.name = `${targetMeta.themeLabel} 입구`;
+      gate.short = '지역입구';
+      gate.icon = '🗺️';
       gate.type = '입구';
       gate.region = 'road';
       gate.portalTo = targetArea;
-      gate.portalEntryId = localId(targetArea, GATE_BY_DIR[OPPOSITE[dir]]);
+      gate.portalEntryId = localId(targetArea, targetKey);
     });
 
     areaNodes.forEach(node => {

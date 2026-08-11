@@ -1,3 +1,4 @@
+// DRAGON BOARD V0.5.5.6
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -261,6 +262,7 @@
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
     state.shopStocks = {};
+    modalCloseAction = null;
     state.discoveredNodeIds = new Set();
     setupSealQuests();
     revealAroundAllHeroes();
@@ -270,7 +272,7 @@
     log(`<strong>모험 시작!</strong> ${state.heroes.map(h => h.icon + h.name).join(', ')} 출발.`);
     log('👕 모든 영웅은 기본 장비가 없는 상태다. 이후 얻은 장비가 캐릭터 외형에 표시된다.');
     log('🗺️ 4개 지역의 타일 내용과 테마가 이번 게임용으로 새롭게 생성되었다.');
-    log(`🎲 시작 위치 랜덤 · ${state.heroes.map(h => `${h.icon}${h.name}:${getNodeAreaId(h.position)}지역 마을`).join(' · ')}`);
+    log(`🎲 시작 위치 랜덤 · ${state.heroes.map(h => `${h.icon}${h.name}:${getAreaDisplayName(getNodeAreaId(h.position))} 마을`).join(' · ')}`);
     log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
     log(`🔁 월드 턴은 <strong>${state.heroes.map(h => h.name).join(' → ')}</strong> 고정 순서로 진행된다.`);
     log(`🗿 이번 게임 봉인 목표 · ${state.sealQuests.map(q => q.icon + q.name).join(' · ')}`);
@@ -479,7 +481,7 @@
           <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/${maxMana(hero)}` : ''} · 🎒 ${bagCount}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${hero.currentHp/hero.hp*100}%"></div></div>
           ${party ? `<div class="party-link-note">🤝 ${partyDisplayName(party)}${isLeader ? ' · 리더' : ''}</div>` : ''}
-          ${hero.down ? `<div class="down-note">다음 라운드 ${hero.reviveAreaId || getNodeAreaId(hero.position)} 지역 마을에서 부활</div>` : ''}
+          ${hero.down ? `<div class="down-note">다음 라운드 ${getAreaDisplayName(hero.reviveAreaId || getNodeAreaId(hero.position))} 마을에서 부활</div>` : ''}
         </div>
       `;
       el.querySelector('.party-status-btn')?.addEventListener('click', (e) => {
@@ -517,7 +519,7 @@
     const totalBag = state.heroes.reduce((sum, h) => sum + heroInventory(h).length, 0);
     const dragonArea = state.dragonCastleNodeId ? getNodeAreaId(state.dragonCastleNodeId) : null;
     if (resourceSummary) {
-      resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}${dragonArea ? ` · 🐉 ${dragonArea}` : ''}`;
+      resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}${dragonArea ? ` · 🐉 ${getAreaDisplayName(dragonArea)}` : ''}`;
       resourceSummary.title = '눌러서 이번 게임의 봉인 목표 보기';
       resourceSummary.setAttribute('role','button');
       resourceSummary.setAttribute('tabindex','0');
@@ -528,8 +530,13 @@
     return WORLD_NODES.find(n => n.id === nodeId)?.areaId || 'A';
   }
 
+  function getAreaDisplayName(areaId) {
+    const meta = window.WORLD_AREAS?.[areaId];
+    return meta?.themeLabel || meta?.name || '미지의 지역';
+  }
+
   function flushDragonCastleNotice() {
-    if (!state.dragonSpawnNoticePending || state.combat) return;
+    if (!state.dragonSpawnNoticePending || state.combat || !modal.classList.contains('hidden')) return;
     const message = state.dragonSpawnNoticePending;
     state.dragonSpawnNoticePending = null;
     showModal('🐉 용의 성 출현', message);
@@ -561,10 +568,10 @@
     state.dragonCastleSpawned = true;
     const areaMeta = window.WORLD_AREAS?.[node.areaId];
     const reason = state.seals >= 3 ? '봉인석 3개가 모였다.' : 'DRAGON THREAT가 12에 도달했다.';
-    const message = `${reason} ${node.areaId} 지역 · ${areaMeta?.themeLabel || ''}에 드래곤의 성이 나타났다!`;
+    const message = `${reason} ${areaMeta?.themeLabel || '미지의 지역'}에 드래곤의 성이 나타났다!`;
     state.dragonSpawnNoticePending = message;
-    log(`🐉 <strong>용의 성 출현!</strong> ${node.areaId} 지역 · ${node.name}`);
-    if (state.combat) combatLogEntry?.(`🐉 ${reason} 용의 성이 ${node.areaId} 지역에 출현!`);
+    log(`🐉 <strong>용의 성 출현!</strong> ${areaMeta?.themeLabel || '미지의 지역'} · ${node.name}`);
+    if (state.combat) combatLogEntry?.(`🐉 ${reason} 용의 성이 ${areaMeta?.themeLabel || '미지의 지역'}에 출현!`);
     flushDragonCastleNotice();
     renderRegionNavigator();
     return true;
@@ -576,13 +583,13 @@
     const active = getActiveHero();
     const activeArea = active ? getNodeAreaId(active.position) : 'A';
     ['A','B','C','D'].forEach(areaId => {
-      const meta = window.WORLD_AREAS?.[areaId] || { id:areaId, name:`${areaId} 지역`, themeLabel:'미지의 땅', icon:'🗺️' };
+      const meta = window.WORLD_AREAS?.[areaId] || { id:areaId, name:'미지의 지역', themeLabel:'미지의 지역', icon:'🗺️' };
       const heroesInArea = state.heroes.filter(h => getNodeAreaId(h.position) === areaId && !h.down);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `region-nav-btn ${state.viewAreaId === areaId ? 'active' : ''} ${activeArea === areaId ? 'hero-area' : ''}`;
       const dragonHere = state.dragonCastleNodeId && getNodeAreaId(state.dragonCastleNodeId) === areaId;
-      btn.innerHTML = `<span class="region-code">${areaId}</span><span class="region-icon">${dragonHere ? '🐉' : meta.icon}</span><small>${heroesInArea.map(h=>h.icon).join('') || meta.themeLabel}</small>`;
+      btn.innerHTML = `<span class="region-icon">${dragonHere ? '🐉' : meta.icon}</span><small>${meta.themeLabel}${heroesInArea.length ? ` · ${heroesInArea.map(h=>h.icon).join('')}` : ''}</small>`;
       btn.addEventListener('click', () => {
         if (state.isRolling || state.isMoving || state.combat || state.rolled !== null) return;
         state.viewAreaId = areaId;
@@ -592,12 +599,12 @@
       regionNavigator.appendChild(btn);
     });
     const meta = window.WORLD_AREAS?.[state.viewAreaId];
-    if (regionTitle) regionTitle.textContent = `${state.viewAreaId} 지역 · ${meta?.themeLabel || '미지의 땅'}`;
+    if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.4 — 긴장감을 위한 탐험 시야.
+  // V0.5.5.6 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
-  // 현재 위치의 상/하/좌/우 한 칸은 위치만 보이고 내용은 ??? 상태로 유지한다.
+  // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
     if (!startNodeId) return;
     if (!(state.discoveredNodeIds instanceof Set)) state.discoveredNodeIds = new Set(state.discoveredNodeIds || []);
@@ -608,19 +615,48 @@
     state.heroes.filter(h => !h.down).forEach(h => revealFromNode(h.position));
   }
 
-  function getVisibleNodeIds(areaId, reachable = new Set()) {
+  function getVisibleNodeIds(areaId) {
     const visible = new Set();
-    state.heroes.filter(h => !h.down && getNodeAreaId(h.position) === areaId).forEach(hero => {
-      visible.add(hero.position);
-      const node = WORLD_NODES.find(n => n.id === hero.position);
-      (node?.links || []).forEach(nextId => {
-        const next = WORLD_NODES.find(n => n.id === nextId);
-        if (next?.areaId === areaId) visible.add(nextId);
-      });
+    const hero = getActiveHero();
+    if (!hero || hero.down || getNodeAreaId(hero.position) !== areaId) return visible;
+
+    visible.add(hero.position);
+    const node = WORLD_NODES.find(n => n.id === hero.position);
+    // 현재 위치에서 실제로 연결된 상/하/좌/우 한 칸만 '타일 뒷면'으로 보인다.
+    // 주사위를 굴려도 이 시야는 늘어나지 않는다.
+    (node?.links || []).forEach(nextId => {
+      const next = WORLD_NODES.find(n => n.id === nextId);
+      if (next?.areaId === areaId) visible.add(nextId);
     });
-    // 주사위를 굴린 뒤에는 선택 가능한 목적지만 형태를 보여준다. 정체는 여전히 숨긴다.
-    reachable.forEach(id => visible.add(id));
     return visible;
+  }
+
+  const waitMs = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  async function revealLandedNode(nodeId) {
+    if (!nodeId || state.discoveredNodeIds?.has(nodeId)) return;
+
+    // 1) 도착 직후에는 아직 타일 뒷면이다.
+    renderMap();
+    let tile = worldMap.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!tile) {
+      revealFromNode(nodeId);
+      renderMap();
+      return;
+    }
+
+    // 2) 타일이 옆으로 접히며 뒤집힌다.
+    tile.classList.add('tile-flip-out');
+    await waitMs(230);
+
+    // 3) 정확히 중간 지점에서 실제 칸 정보를 공개하고 앞면을 펼친다.
+    revealFromNode(nodeId);
+    renderMap();
+    tile = worldMap.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!tile) return;
+    tile.classList.add('tile-flip-in');
+    await waitMs(340);
+    tile.classList.remove('tile-flip-in');
   }
 
   function renderCurrentObjective() {
@@ -633,9 +669,9 @@
     if (state.seals >= 3 || state.dragonCastleSpawned) {
       currentObjective.innerHTML = `<strong>🐉 현재 목표</strong><span>출현한 용의 성을 찾아가자.</span>`;
     } else if (incomplete) {
-      currentObjective.innerHTML = `<strong>🗿 현재 목표</strong><span>${incomplete.icon} ${incomplete.name} ${progress}/${incomplete.target} · ${state.viewAreaId}지역 탐험 ${discovered}/${areaNodes.length}</span>`;
+      currentObjective.innerHTML = `<strong>🗿 현재 목표</strong><span>${incomplete.icon} ${incomplete.name} ${progress}/${incomplete.target} · ${getAreaDisplayName(state.viewAreaId)} 탐험 ${discovered}/${areaNodes.length}</span>`;
     } else {
-      currentObjective.innerHTML = `<strong>🧭 현재 목표</strong><span>미탐험 지역을 조사하자 · ${state.viewAreaId}지역 ${discovered}/${areaNodes.length}</span>`;
+      currentObjective.innerHTML = `<strong>🧭 현재 목표</strong><span>미탐험 지역을 조사하자 · ${getAreaDisplayName(state.viewAreaId)} ${discovered}/${areaNodes.length}</span>`;
     }
   }
 
@@ -646,25 +682,25 @@
     if (state.rolled !== null && activeArea !== state.viewAreaId) state.viewAreaId = activeArea;
     renderRegionNavigator();
     const areaMeta = window.WORLD_AREAS?.[state.viewAreaId];
-    if (boardTitle) boardTitle.textContent = areaMeta?.themeLabel || `${state.viewAreaId} 지역`;
+    if (boardTitle) boardTitle.textContent = areaMeta?.themeLabel || '미지의 지역';
     renderCurrentObjective();
     worldMap.dataset.areaId = state.viewAreaId;
     worldMap.dataset.theme = areaMeta?.themeKey || '';
 
     const watermark = document.createElement('div');
     watermark.className = 'area-watermark';
-    watermark.innerHTML = `<span>${state.viewAreaId} 지역</span><small>${areaMeta?.icon || '🗺️'} ${areaMeta?.themeLabel || ''}</small>`;
+    watermark.innerHTML = `<span>${areaMeta?.themeLabel || '미지의 지역'}</span><small>${areaMeta?.icon || '🗺️'} 탐험 중</small>`;
     worldMap.appendChild(watermark);
 
     const reachable = getReachableNodeIds();
-    const visibleNow = getVisibleNodeIds(state.viewAreaId, reachable);
+    const visibleNow = getVisibleNodeIds(state.viewAreaId);
     WORLD_NODES.filter(node => node.areaId === state.viewAreaId).forEach(node => {
       const el = document.createElement('div');
       const heroesHere = state.heroes.filter(h => h.position === node.id);
       const activeUnit = getWorldUnitMembers(activeHero);
       const isCurrent = activeUnit.some(h => h.position === node.id);
       const isDragon = node.type === '드래곤성';
-      const visited = Boolean(state.discoveredNodeIds?.has(node.id)) || isCurrent;
+      const visited = Boolean(state.discoveredNodeIds?.has(node.id));
       const visible = visited || visibleNow.has(node.id);
       const fogClass = visited ? 'discovered' : (visible ? 'fogged' : 'deep-fog');
       el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon && visited ? 'dragon-spawned' : ''} ${fogClass}`;
@@ -672,8 +708,8 @@
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
       el.innerHTML = `
-        <div class="node-icon">${visited ? node.icon : (visible ? '❔' : '')}</div>
-        <div class="node-name">${visited ? (node.short || node.name) : (visible ? '???' : '')}</div>
+        <div class="node-icon">${visited ? node.icon : ''}</div>
+        <div class="node-name">${visited ? (node.short || node.name) : ''}</div>
         <div class="node-type">${visited ? node.type : ''}</div>
         ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
@@ -768,11 +804,17 @@
   new MutationObserver(syncModalViewportLock).observe(modal, { attributes:true, attributeFilter:['class'] });
   syncModalViewportLock();
 
+  let modalCloseAction = null;
+
   function closeModalPanel() {
     modal.classList.add('hidden');
     modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal', 'shop-modal');
     modalCloseBtn.textContent = '확인';
     modalCloseBtn.hidden = false;
+    const action = modalCloseAction;
+    modalCloseAction = null;
+    if (typeof action === 'function') action();
+    requestAnimationFrame(() => flushDragonCastleNotice());
   }
 
   function openPartyManager() {
@@ -1983,8 +2025,8 @@
     hero.acted = true;
     hero.reviveRound = state.round + 1;
     state.threat = Math.min(12, state.threat + 1);
-    combatLogEntry(`💀 <strong>${hero.name}</strong> 쓰러짐 → ${deathAreaId} 지역 마을 귀환 / THREAT +1`);
-    log(`💀 ${hero.icon} <strong>${hero.name}</strong> 쓰러짐 (${sourceName}) → ${deathAreaId} 지역 마을 귀환 / 🔥 THREAT +1`);
+    combatLogEntry(`💀 <strong>${hero.name}</strong> 쓰러짐 → ${getAreaDisplayName(deathAreaId)} 마을 귀환 / THREAT +1`);
+    log(`💀 ${hero.icon} <strong>${hero.name}</strong> 쓰러짐 (${sourceName}) → ${getAreaDisplayName(deathAreaId)} 마을 귀환 / 🔥 THREAT +1`);
     checkDragonCastleSpawn('threat');
   }
 
@@ -2805,14 +2847,18 @@
     state.isMoving = true; renderControls();
     await Promise.all(unit.map((member,index) => animateHeroHop(member,path,index,unit.length)));
     unit.forEach(member => { member.position = nodeId; });
-    revealFromNode(nodeId);
     state.isMoving = false;
+
+    // 이동 결과 주사위는 목적지 선택까지만 보여준다.
+    clearDiceDisplay();
+
+    // 처음 밟는 칸은 팝업/전투보다 먼저 '타일 뒤집기 → 정체 공개' 연출을 끝낸다.
+    await revealLandedNode(nodeId);
+
     const party = getHeroParty(hero);
     if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
     else log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
-    // 이동 결과 주사위는 목적지 선택까지만 보여준다. 이동이 끝난 뒤에는
-    // 사건/보상/상점 등의 모달보다 앞에 남지 않도록 즉시 정리한다.
-    clearDiceDisplay();
+
     const turnHandled = await resolveNode(hero,node,originNodeId,unit);
     if (!turnHandled) finishWorldUnitTurn(hero);
   }
@@ -2908,7 +2954,7 @@
           hero.position = getAreaCenterNodeId(deathAreaId);
           state.threat = Math.min(12, state.threat + 1);
           checkDragonCastleSpawn('threat');
-          log(`💀 ${hero.name} 쓰러짐 → ${deathAreaId} 지역 마을 귀환 / THREAT +1`);
+          log(`💀 ${hero.name} 쓰러짐 → ${getAreaDisplayName(deathAreaId)} 마을 귀환 / THREAT +1`);
         }
       } else if (effect.type === 'gold') {
         const delta = Number(effect.value || 0);
@@ -3130,6 +3176,10 @@
 
   function openShop(hero, node) {
     if (!hero || !node) return;
+    // 상점은 타일 해결 자체다. 상점에서 나갈 때 비로소 이 영웅의 월드 턴을 종료한다.
+    // 이렇게 해야 마지막 영웅이 상점에 도착한 순간 THREAT 12가 되어도
+    // 용의 성 알림이 상점 모달을 덮어쓰지 않는다.
+    modalCloseAction = () => finishWorldUnitTurn(hero, 'shop-exit');
     const stock = getShopStock(node);
     modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal','equip-compare-modal');
     modal.classList.add('shop-modal');
@@ -3183,7 +3233,7 @@
     switch (node.type) {
       case '마을':
         unitMembers.forEach(member => { member.currentHp=member.hp; member.down=false; member.reviveRound=null; if (member.currentMana !== null) member.currentMana=maxMana(member); });
-        showModal('🏠 왕국 마을', `${unitMembers.length > 1 ? '파티 전원' : hero.name}의 HP가 모두 회복되었다.${unitMembers.some(member => member.currentMana !== null) ? ' 마나도 회복.' : ''}`);
+        showModal(`🏠 ${node.name}`, `${unitMembers.length > 1 ? '파티 전원' : hero.name}의 HP가 모두 회복되었다.${unitMembers.some(member => member.currentMana !== null) ? ' 마나도 회복.' : ''}`);
         return false;
 
       case '입구': {
@@ -3193,9 +3243,9 @@
         state.viewAreaId = target.areaId;
         revealFromNode(target.id);
         const targetMeta = window.WORLD_AREAS?.[target.areaId];
-        log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${target.areaId} 지역</strong> 진입 (${targetMeta?.themeLabel || ''})`);
+        log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${targetMeta?.themeLabel || '미지의 지역'}</strong> 진입`);
         addQuestProgress('portal', 1);
-        showModal(`🗺️ ${target.areaId} 지역 진입`, `${targetMeta?.icon || ''} ${targetMeta?.themeLabel || target.areaId + ' 지역'}으로 이동했다.`);
+        showModal(`🗺️ ${targetMeta?.themeLabel || '새로운 지역'} 진입`, `${targetMeta?.icon || '🗺️'} ${targetMeta?.themeLabel || '새로운 지역'}으로 이동했다.`);
         return false;
       }
 
@@ -3227,7 +3277,7 @@
 
       case '상점':
         openShop(hero, node);
-        return false;
+        return true;
 
       case '휴식':
         unitMembers.forEach(member => { member.currentHp=Math.min(member.hp,member.currentHp+Math.ceil(member.hp*.3)); if (member.currentMana !== null) member.currentMana=Math.min(maxMana(member),member.currentMana+1); });
@@ -3314,7 +3364,7 @@
         h.attackPenalty = 0;
         h.acPenalty = 0;
         if (h.currentMana !== null) h.currentMana = maxMana(h);
-        log(`✨ ${h.icon} <strong>${h.name}</strong>이 ${reviveAreaId} 지역 마을에서 부활했다.`);
+        log(`✨ ${h.icon} <strong>${h.name}</strong>이 ${getAreaDisplayName(reviveAreaId)} 마을에서 부활했다.`);
       }
       h.acted = false;
       if (!window.PARTY_SYSTEM_ENABLED) h.partyId = null;
@@ -3391,6 +3441,7 @@
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
     state.shopStocks = {};
+    modalCloseAction = null;
     state.parties = {};
     state.nextPartySerial = 1;
     state.defeatedBosses = new Set();
