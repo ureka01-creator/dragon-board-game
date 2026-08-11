@@ -15,6 +15,7 @@
   const setupScreen = $('#setupScreen');
   const gameScreen = $('#gameScreen');
   const titleStartArea = $('#titleStartArea');
+  const titleStartBtn = $('#titleStartBtn');
   const backToTitleBtn = $('#backToTitleBtn');
   const heroGrid = $('#heroGrid');
   const heroCount = $('#heroCount');
@@ -37,7 +38,7 @@
   function showScreen(screen) {
     [titleScreen, setupScreen, gameScreen].forEach(el => el.classList.remove('active'));
     screen.classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo(0, 0);
   }
 
   function goToHeroSelect() {
@@ -347,8 +348,13 @@
     showScreen(titleScreen);
   }
 
-  titleStartArea.addEventListener('click', goToHeroSelect);
-  titleStartArea.addEventListener('keydown', (e) => {
+  // iPhone/Safari에서도 확실히 시작되도록 실제 button + 전체 타이틀 영역을 둘 다 연결한다.
+  titleStartBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToHeroSelect();
+  });
+  titleStartArea?.addEventListener('click', goToHeroSelect);
+  titleStartArea?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       goToHeroSelect();
