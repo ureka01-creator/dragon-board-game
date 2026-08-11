@@ -26,6 +26,7 @@
     acquiredEquipmentIds: new Set(),
     sealQuests: [],
     questProgress: {},
+    shopStocks: {},
   };
 
   const titleScreen = $('#titleScreen');
@@ -257,6 +258,7 @@
     state.eventDeck = [];
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
+    state.shopStocks = {};
     setupSealQuests();
     gameLog.innerHTML = '';
 
@@ -715,7 +717,7 @@
 
   function closeModalPanel() {
     modal.classList.add('hidden');
-    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal');
+    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal', 'shop-modal');
     modalCloseBtn.textContent = '확인';
     modalCloseBtn.hidden = false;
   }
@@ -3022,6 +3024,107 @@
   }
 
 
+
+  // ── V0.5.5.0 SHOP ──────────────────────────────────────────
+  // 상점별 4칸 재고. 3라운드마다 새 재고가 들어오며 구매한 칸은 그때까지 SOLD OUT.
+  function shopBuyPrice(item) {
+    if (!item) return 0;
+    if (item.type === 'consumable') return item.rarity === 'rare' ? 7 : 3;
+    if (item.type === 'equipment') return item.rarity === 'rare' ? 12 : 6;
+    return 0;
+  }
+
+  function shopSellPrice(item) {
+    return Math.max(1, Math.floor(shopBuyPrice(item) / 2));
+  }
+
+  function drawShopItem() {
+    const all = (window.ITEM_CARDS || []).filter(item => item.rarity !== 'legendary');
+    const common = all.filter(item => item.rarity === 'common');
+    const rare = all.filter(item => item.rarity === 'rare');
+    const pool = Math.random() < .25 && rare.length ? rare : common.length ? common : all;
+    return pool[Math.floor(Math.random() * pool.length)] || null;
+  }
+
+  function getShopStock(node) {
+    if (!state.shopStocks) state.shopStocks = {};
+    const cycle = Math.floor((state.round - 1) / 3);
+    let stock = state.shopStocks[node.id];
+    if (!stock || stock.cycle !== cycle) {
+      const used = new Set();
+      const slots = [];
+      let guard = 0;
+      while (slots.length < 4 && guard++ < 100) {
+        const item = drawShopItem();
+        if (!item || used.has(item.id)) continue;
+        used.add(item.id);
+        slots.push({ itemId:item.id, sold:false });
+      }
+      stock = { cycle, restockRound:cycle * 3 + 4, slots };
+      state.shopStocks[node.id] = stock;
+      log(`🏪 <strong>${node.name}</strong> 새 상품 입고 · 다음 재입고 R${stock.restockRound}`);
+    }
+    return stock;
+  }
+
+  function shopItemCardHTML(item, extra='') {
+    if (!item) return '';
+    const stat = itemStatsText(item);
+    const rarity = item.rarity === 'rare' ? 'RARE' : 'COMMON';
+    return `<span class="shop-item-icon">${item.icon || '🎁'}</span><span class="shop-item-copy"><strong>${item.name}</strong><small>${rarity} · ${item.desc}${stat ? ` · ${stat}` : ''}</small></span>${extra}`;
+  }
+
+  function openShop(hero, node) {
+    if (!hero || !node) return;
+    const stock = getShopStock(node);
+    modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal','equip-compare-modal');
+    modal.classList.add('shop-modal');
+    modalCloseBtn.textContent = '상점 나가기';
+    modalCloseBtn.hidden = false;
+
+    const inv = heroInventory(hero);
+    const sellEntries = ownedItemEntries(hero);
+    modalContent.innerHTML = `
+      <div class="shop-sheet">
+        <div class="status-kicker">TRADING POST</div>
+        <div class="shop-head"><div><h3>🏪 ${node.name}</h3><p>${hero.icon} ${hero.name} · 가방 ${inv.length}/${BAG_LIMIT}</p></div><strong class="shop-gold">💰 ${state.gold}G</strong></div>
+        <div class="shop-restock">상품 4개 고정 · 구매하면 SOLD OUT · ${stock.restockRound}라운드에 재입고</div>
+        <section class="shop-section"><h4>BUY</h4><div class="shop-grid">
+          ${stock.slots.map((slot,index)=>{
+            const item=getItemCard?.(slot.itemId);
+            if(slot.sold) return `<div class="shop-product sold"><div class="shop-sold">SOLD OUT</div></div>`;
+            const price=shopBuyPrice(item);
+            const blocked=!bagHasSpace(hero) || state.gold < price;
+            return `<div class="shop-product">${shopItemCardHTML(item)}<button type="button" class="pixel-btn ${blocked?'':'primary'}" data-shop-buy="${index}" ${blocked?'disabled':''}>${!bagHasSpace(hero)?'가방 가득':state.gold<price?'골드 부족':`구매 · ${price}G`}</button></div>`;
+          }).join('')}
+        </div></section>
+        <section class="shop-section"><h4>SELL · 판매가는 구매가의 50%</h4><div class="shop-sell-list">
+          ${sellEntries.length ? sellEntries.map((entry,index)=>{const item=getItemCard?.(entry.id); if(!item || item.rarity==='legendary') return ''; const equipped=entry.source==='equipment'; return `<div class="shop-sell-row">${shopItemCardHTML(item, equipped?'<em>장착 중</em>':'')}<button type="button" class="text-btn" data-shop-sell="${index}">판매 ${shopSellPrice(item)}G</button></div>`;}).join('') : '<div class="personal-bag-empty">판매할 아이템이 없어.</div>'}
+        </div><div class="shop-rule-note">전설 장비는 상점에서 거래하지 않아. 구매한 아이템은 현재 영웅의 가방으로 들어간다.</div></section>
+      </div>`;
+
+    modal.classList.remove('hidden');
+    modalContent.querySelectorAll('[data-shop-buy]').forEach(btn => btn.addEventListener('click',()=>{
+      const index=Number(btn.dataset.shopBuy); const slot=stock.slots[index]; const item=getItemCard?.(slot?.itemId);
+      if(!slot || slot.sold || !item) return;
+      const price=shopBuyPrice(item);
+      if(state.gold < price || !bagHasSpace(hero)) { openShop(hero,node); return; }
+      state.gold -= price; slot.sold=true; heroInventory(hero).push(item.id);
+      if(item.type==='equipment') state.acquiredEquipmentIds.add(item.id);
+      log(`🏪 ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 구매 (-${price}G)`);
+      renderAll(); openShop(hero,node);
+    }));
+    modalContent.querySelectorAll('[data-shop-sell]').forEach(btn => btn.addEventListener('click',()=>{
+      const index=Number(btn.dataset.shopSell); const current=ownedItemEntries(hero); const entry=current[index]; const item=getItemCard?.(entry?.id);
+      if(!entry || !item || item.rarity==='legendary') return;
+      const price=shopSellPrice(item);
+      if(!removeOwnedItem(hero,entry)) return;
+      state.gold += price;
+      log(`🏪 ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 판매 (+${price}G)`);
+      renderAll(); openShop(hero,node);
+    }));
+  }
+
   async function resolveNode(hero, node, originNodeId, unitMembers = getWorldUnitMembers(hero)) {
     switch (node.type) {
       case '마을':
@@ -3068,7 +3171,7 @@
         return await resolveEventCard(hero, node, originNodeId);
 
       case '상점':
-        showModal('🏪 상점', `${node.name}에서 물품을 사고팔 수 있다. 상점/골드는 카드 시스템과 함께 연결한다.`);
+        openShop(hero, node);
         return false;
 
       case '휴식':
@@ -3212,7 +3315,7 @@
   }
 
   function showModal(title, body) {
-    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal');
+    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal', 'shop-modal');
     modalCloseBtn.textContent = '확인';
     modalContent.innerHTML = `<h3>${title}</h3><p>${body}</p>`;
     modal.classList.remove('hidden');
@@ -3231,6 +3334,7 @@
     state.eventDeck = [];
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
+    state.shopStocks = {};
     state.parties = {};
     state.nextPartySerial = 1;
     state.defeatedBosses = new Set();
