@@ -1147,10 +1147,12 @@
 
     c.busy = true;
     renderCombat();
-    setCombatMessage(`${hero.name}이(가) 공격한다!`, '');
-    await animateActorWindup(heroActorElement(hero.id));
+    setCombatMessage(`${hero.name} 공격 판정!`, '');
     const roll = Math.floor(Math.random() * 20) + 1;
     await animateCombatD20(roll, `${hero.icon} ${hero.name} 공격`);
+    // 주사위 결과를 먼저 확실히 보여준 뒤, 실제 공격 애니메이션을 재생한다.
+    await sleep(150);
+    await animateActorWindup(heroActorElement(hero.id));
     const damageSpec = heroBasicDamage(hero);
     const result = resolveHeroHit(hero, enemy, roll, heroMainStat(hero), damageSpec);
     setCombatMessage(result.hit ? `${enemy.name}에게 ${result.damage} 피해!` : 'MISS!', result.hit ? 'good' : 'danger');
@@ -1180,9 +1182,10 @@
     c.busy = true;
     renderCombat();
     setCombatMessage(`${hero.name} · ${skillName(hero)}!`, '');
-    await animateActorWindup(heroActorElement(hero.id));
 
     if (hero.id === 'mage') {
+      // 마력 폭발은 명중 판정이 없으므로 주문 시전 동작부터 보여준다.
+      await animateActorWindup(heroActorElement(hero.id));
       hero.currentMana -= 2;
       hs.skillUsedBattle = true;
       const spell = rollDice(3, 6);
@@ -1195,6 +1198,9 @@
     } else {
       const roll = Math.floor(Math.random() * 20) + 1;
       await animateCombatD20(roll, `${hero.icon} ${skillName(hero)}`);
+      // 스킬도 D20 결과가 멈춘 다음 캐릭터가 공격한다.
+      await sleep(150);
+      await animateActorWindup(heroActorElement(hero.id));
       let result = null;
       let mode = 'melee';
       if (hero.id === 'knight') {
@@ -1273,10 +1279,12 @@
     attackBonus -= enemy.nextAttackPenalty || 0;
     enemy.nextAttackPenalty = 0;
 
-    setCombatMessage(`${enemy.name}이(가) ${target.name}을 노린다!`, 'danger');
-    await animateActorWindup(enemyActorElement(enemy.uid));
+    setCombatMessage(`${enemy.name} 공격 판정!`, 'danger');
     const roll = Math.floor(Math.random() * 20) + 1;
     await animateCombatD20(roll, `${enemy.icon} ${enemy.name} 공격`);
+    // 몬스터도 주사위 결과가 먼저 확정되고 나서 공격 모션을 시작한다.
+    await sleep(150);
+    await animateActorWindup(enemyActorElement(enemy.uid));
     const ac = effectiveHeroAc(target);
     const total = roll + attackBonus;
     const hit = roll !== 1 && (roll === 20 || total >= ac);
