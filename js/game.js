@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.7
+// DRAGON BOARD V0.5.5.8
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -29,6 +29,9 @@
     questProgress: {},
     shopStocks: {},
     discoveredNodeIds: new Set(),
+    moveRemaining: 0,
+    moveStepsTaken: 0,
+    moveOriginNodeId: null,
   };
 
   const titleScreen = $('#titleScreen');
@@ -254,6 +257,9 @@
     state.rolled = null;
     state.isRolling = false;
     state.isMoving = false;
+    state.moveRemaining = 0;
+    state.moveStepsTaken = 0;
+    state.moveOriginNodeId = null;
     state.gameOver = false;
     state.defeatedBosses = new Set();
     state.gold = 0;
@@ -605,7 +611,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.7 — 탐험 시야 규칙.
+  // V0.5.5.8 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -726,7 +732,11 @@
     const party = getHeroParty(active);
     const unit = getWorldUnitMembers(active);
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
-    rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling || state.isMoving;
+    const canStopMove = Boolean(canAct && state.rolled !== null && state.moveStepsTaken > 0 && state.moveRemaining > 0 && !state.isRolling && !state.isMoving);
+    rollBtn.disabled = state.rolled === null
+      ? (!canAct || state.isRolling || state.isMoving)
+      : !canStopMove;
+    rollBtn.textContent = canStopMove ? '⏹ 이동 종료' : '🎲 D6 굴리기';
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
     const turnLabel = active ? `${active.icon} ${active.name} 턴` : '턴 없음';
     if (state.gameOver) {
@@ -1285,6 +1295,9 @@
     }
 
     state.rolled = result;
+    state.moveRemaining = result;
+    state.moveStepsTaken = 0;
+    state.moveOriginNodeId = hero.position;
     state.isRolling = false;
     const party = getHeroParty(hero);
     log(`${party ? '🤝 <strong>' + partyDisplayName(party) + '</strong>' : hero.icon + ' <strong>' + hero.name + '</strong>'} 이동 주사위 → 🎲 <strong>${state.rolled}</strong>`);
@@ -1317,27 +1330,15 @@
     const result = new Set();
     const hero = getWorldUnitLeader(getActiveHero());
     const unit = getWorldUnitMembers(hero);
-    if (state.combat || !hero || hero.down || state.rolled === null || hero.acted || unit.some(h => h.acted || h.down)) return result;
+    if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    const maxDepth = state.rolled;
-    const queue = [{ id: hero.position, depth: 0 }];
-    const visited = new Map([[hero.position, 0]]);
-
-    while (queue.length) {
-      const { id, depth } = queue.shift();
-      if (depth > 0) result.add(id);
-      if (depth >= maxDepth) continue;
-      const node = WORLD_NODES.find(n => n.id === id);
-      for (const next of node.links) {
-        const nextNode = WORLD_NODES.find(n => n.id === next);
-        const locked = nextNode.locked && state.seals < 3 && state.threat < 9;
-        if (locked) continue;
-        const nd = depth + 1;
-        if (!visited.has(next) || visited.get(next) > nd) {
-          visited.set(next, nd);
-          queue.push({ id: next, depth: nd });
-        }
-      }
+    // V0.5.5.8: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+    // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
+    const node = WORLD_NODES.find(n => n.id === hero.position);
+    for (const nextId of (node?.links || [])) {
+      const nextNode = WORLD_NODES.find(n => n.id === nextId);
+      if (!nextNode || nodeIsLocked(nextNode)) continue;
+      result.add(nextId);
     }
     return result;
   }
@@ -2693,6 +2694,7 @@
       if (hero) hero.acted = true;
     });
     state.rolled = null;
+    state.moveRemaining = 0; state.moveStepsTaken = 0; state.moveOriginNodeId = null;
     clearDiceDisplay();
 
     if (state.gameOver) {
@@ -2834,6 +2836,29 @@
     });
   }
 
+  async function finalizePlannedMove(hero) {
+    if (!hero || state.moveStepsTaken <= 0) return;
+    const node = WORLD_NODES.find(n => n.id === hero.position);
+    if (!node) return;
+    const originNodeId = state.moveOriginNodeId || hero.position;
+    const unit = getWorldUnitMembers(hero);
+    const steps = state.moveStepsTaken;
+
+    state.moveRemaining = 0;
+    state.moveStepsTaken = 0;
+    state.moveOriginNodeId = null;
+    state.rolled = null;
+    clearDiceDisplay();
+    renderControls();
+
+    const party = getHeroParty(hero);
+    if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${steps}칸)</span>`);
+    else log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${steps}칸)</span>`);
+
+    const turnHandled = await resolveNode(hero,node,originNodeId,unit);
+    if (!turnHandled) finishWorldUnitTurn(hero);
+  }
+
   async function moveActiveHero(nodeId) {
     if (state.isMoving || state.isRolling || state.gameOver || state.combat) return;
     const reachable = getReachableNodeIds();
@@ -2842,29 +2867,41 @@
     if (!hero || hero.down) return;
     const unit = getWorldUnitMembers(hero);
     if (!unit.length || unit.some(h => h.acted || h.down)) return;
-    const originNodeId = hero.position;
-    const path = getShortestPath(hero.position, nodeId, state.rolled ?? 0);
-    if (!path) return;
+
+    const fromId = hero.position;
     const node = WORLD_NODES.find(n => n.id === nodeId);
+    if (!node) return;
+    const path = [fromId, nodeId];
+
     state.activeHeroId = hero.id;
-    state.isMoving = true; renderControls();
+    state.isMoving = true;
+    renderControls();
     await Promise.all(unit.map((member,index) => animateHeroHop(member,path,index,unit.length)));
     unit.forEach(member => { member.position = nodeId; });
     state.isMoving = false;
+    state.moveStepsTaken += 1;
+    state.moveRemaining = Math.max(0, Number(state.moveRemaining || 0) - 1);
 
-    // 이동 결과 주사위는 목적지 선택까지만 보여준다.
-    clearDiceDisplay();
-
-    // 처음 밟는 칸은 팝업/전투보다 먼저 '타일 뒤집기 → 정체 공개' 연출을 끝낸다.
+    // 한 칸씩 전진할 때 처음 밟은 타일은 그 자리에서 뒤집어 정체만 공개한다.
+    // 실제 사건/전투/상점 처리는 이동을 끝낸 최종 칸에서만 실행한다.
     await revealLandedNode(nodeId);
 
-    const party = getHeroParty(hero);
-    if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
-    else log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
+    // 지역 입구는 이동을 이어갈 수 없는 특수 칸이므로 즉시 이동을 확정한다.
+    if (node.type === '입구' || state.moveRemaining <= 0) {
+      await finalizePlannedMove(hero);
+      return;
+    }
 
-    const turnHandled = await resolveNode(hero,node,originNodeId,unit);
-    if (!turnHandled) finishWorldUnitTurn(hero);
+    renderAll();
   }
+
+  async function stopPlannedMove() {
+    if (state.rolled === null || state.moveStepsTaken <= 0 || state.isMoving || state.isRolling || state.combat || state.gameOver) return;
+    const hero = getWorldUnitLeader(getActiveHero());
+    if (!hero || hero.down || hero.acted) return;
+    await finalizePlannedMove(hero);
+  }
+
 
 
   function shuffleArray(values) {
@@ -3333,7 +3370,7 @@
     const leader = getWorldUnitLeader(hero) || hero;
     const unit = getWorldUnitMembers(leader);
     unit.forEach(member => { member.acted = true; });
-    state.rolled = null; clearDiceDisplay();
+    state.rolled = null; state.moveRemaining = 0; state.moveStepsTaken = 0; state.moveOriginNodeId = null; clearDiceDisplay();
     if (reason === 'item-transfer') {
       const party = getHeroParty(leader);
       log(`⏹️ ${party ? partyDisplayName(party) : leader.name} · 아이템 전달로 이번 월드 턴 종료.`);
@@ -3469,7 +3506,10 @@
   });
   backToTitleBtn.addEventListener('click', () => showScreen(titleScreen));
   startGameBtn.addEventListener('click', startGame);
-  rollBtn.addEventListener('click', rollD6);
+  rollBtn.addEventListener('click', () => {
+    if (state.rolled !== null && state.moveStepsTaken > 0) stopPlannedMove();
+    else rollD6();
+  });
   partyManageBtn?.addEventListener('click', openPartyManager);
   moveHint?.addEventListener('click', (event) => {
     if (event.target.closest('#itemTransferBtn')) return;
