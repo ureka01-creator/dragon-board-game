@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.13
+// DRAGON BOARD V0.5.5.15
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -32,6 +32,7 @@
     moveRemaining: 0,
     moveStepsTaken: 0,
     moveOriginNodeId: null,
+    moveVisitedNodeIds: new Set(),
   };
 
   const titleScreen = $('#titleScreen');
@@ -260,6 +261,7 @@
     state.moveRemaining = 0;
     state.moveStepsTaken = 0;
     state.moveOriginNodeId = null;
+    state.moveVisitedNodeIds = new Set();
     state.gameOver = false;
     state.defeatedBosses = new Set();
     state.gold = 0;
@@ -611,7 +613,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.13 — 탐험 시야 규칙.
+  // V0.5.5.15 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -732,7 +734,7 @@
     const party = getHeroParty(active);
     const unit = getWorldUnitMembers(active);
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
-    // V0.5.5.13: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
+    // V0.5.5.15: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
     rollBtn.disabled = state.rolled !== null || !canAct || state.isRolling || state.isMoving;
     rollBtn.textContent = '🎲 D6 굴리기';
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
@@ -1296,6 +1298,7 @@
     state.moveRemaining = result;
     state.moveStepsTaken = 0;
     state.moveOriginNodeId = hero.position;
+    state.moveVisitedNodeIds = new Set([hero.position]);
     state.isRolling = false;
     const party = getHeroParty(hero);
     log(`${party ? '🤝 <strong>' + partyDisplayName(party) + '</strong>' : hero.icon + ' <strong>' + hero.name + '</strong>'} 이동 주사위 → 🎲 <strong>${state.rolled}</strong>`);
@@ -1330,12 +1333,18 @@
     const unit = getWorldUnitMembers(hero);
     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    // V0.5.5.13: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+    // V0.5.5.15: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
     // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
     const node = WORLD_NODES.find(n => n.id === hero.position);
+    const visitedThisMove = state.moveVisitedNodeIds instanceof Set
+      ? state.moveVisitedNodeIds
+      : new Set(state.moveVisitedNodeIds || []);
+
     for (const nextId of (node?.links || [])) {
       const nextNode = WORLD_NODES.find(n => n.id === nextId);
       if (!nextNode || nodeIsLocked(nextNode)) continue;
+      // V0.5.5.15: 한 번의 주사위 이동에서 이미 지나간 칸은 다시 밟을 수 없다.
+      if (visitedThisMove.has(nextId)) continue;
       result.add(nextId);
     }
     return result;
@@ -2692,7 +2701,7 @@
       if (hero) hero.acted = true;
     });
     state.rolled = null;
-    state.moveRemaining = 0; state.moveStepsTaken = 0; state.moveOriginNodeId = null;
+    state.moveRemaining = 0; state.moveStepsTaken = 0; state.moveOriginNodeId = null; state.moveVisitedNodeIds = new Set();
     clearDiceDisplay();
 
     if (state.gameOver) {
@@ -2732,7 +2741,7 @@
       });
 
       addQuestProgress('combatWin', 1);
-      // V0.5.5.13: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
+      // V0.5.5.15: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
       if (!c.isBoss && c.node?.type === '전투' && !String(c.node.id || '').startsWith('event-')) {
         const boardNode = WORLD_NODES.find(n => n.id === c.node.id);
         if (boardNode) {
@@ -2884,6 +2893,7 @@
     state.moveRemaining = 0;
     state.moveStepsTaken = 0;
     state.moveOriginNodeId = null;
+    state.moveVisitedNodeIds = new Set();
     state.rolled = null;
     clearDiceDisplay();
   }
@@ -2906,6 +2916,8 @@
     if (!target) return false;
 
     unit.forEach(member => { member.position = target.id; });
+    if (!(state.moveVisitedNodeIds instanceof Set)) state.moveVisitedNodeIds = new Set(state.moveVisitedNodeIds || []);
+    state.moveVisitedNodeIds.add(target.id);
     state.viewAreaId = target.areaId;
     revealFromNode(target.id);
     const targetMeta = window.WORLD_AREAS?.[target.areaId];
@@ -2934,6 +2946,7 @@
     state.moveRemaining = 0;
     state.moveStepsTaken = 0;
     state.moveOriginNodeId = null;
+    state.moveVisitedNodeIds = new Set();
     state.rolled = null;
     clearDiceDisplay();
     renderControls();
@@ -2944,6 +2957,25 @@
 
     const turnHandled = await resolveNode(hero,node,originNodeId,unit);
     if (!turnHandled) finishWorldUnitTurn(hero);
+  }
+
+
+  function isMovementDeadEnd(node) {
+    if (!node) return false;
+
+    const visitedThisMove = state.moveVisitedNodeIds instanceof Set
+      ? state.moveVisitedNodeIds
+      : new Set(state.moveVisitedNodeIds || []);
+
+    // 이미 이번 이동에서 밟은 모든 칸은 다시 갈 수 없다.
+    // 따라서 미방문 + 잠기지 않은 연결 칸이 하나도 없으면 이동 종료.
+    const forwardLinks = (node.links || []).filter(nextId => {
+      if (visitedThisMove.has(nextId)) return false;
+      const next = WORLD_NODES.find(n => n.id === nextId);
+      return next && !nodeIsLocked(next);
+    });
+
+    return forwardLinks.length === 0;
   }
 
   async function moveActiveHero(nodeId) {
@@ -2968,22 +3000,39 @@
     state.isMoving = false;
     state.moveStepsTaken += 1;
     state.moveRemaining = Math.max(0, Number(state.moveRemaining || 0) - 1);
+    if (!(state.moveVisitedNodeIds instanceof Set)) state.moveVisitedNodeIds = new Set(state.moveVisitedNodeIds || []);
+    state.moveVisitedNodeIds.add(nodeId);
 
-    // V0.5.5.13: 주사위가 3이면 1·2번째 경유 칸은 절대 공개하지 않는다.
-    // 캐릭터만 지나가며, 정확히 마지막(3번째) 도착 칸에서만 타일을 뒤집는다.
+    // V0.5.5.15:
+    // 주사위가 6이어도 이동 도중 막다른 길에 도달하면 즉시 정지한다.
+    // 방금 지나온 칸을 제외하고 갈 곳이 없을 때만 막다른 길로 판정한다.
+    const hitDeadEnd = state.moveRemaining > 0 && isMovementDeadEnd(node);
+    if (hitDeadEnd) {
+      const lostSteps = state.moveRemaining;
+      state.moveRemaining = 0;
+      log(`🧱 <strong>${node.name || '막다른 길'}</strong>에 도착 · 남은 이동 ${lostSteps}칸 소멸.`);
+    }
+
+    // 경유 중이고 막다른 길도 아니라면 정체를 공개하지 않고 계속 이동한다.
     if (state.moveRemaining > 0) {
       renderAll();
       return;
     }
 
-    // 최종 도착칸만 뒤집어서 정체 공개.
+    // 주사위 이동을 전부 썼거나 막다른 길에 걸렸을 때만 최종 도착칸을 뒤집는다.
     await revealLandedNode(nodeId);
 
-    // 지역 입구도 '최종 도착칸'일 때만 이동 여부를 묻는다.
+    if (hitDeadEnd) {
+      showModal(
+        '🧱 막다른 길',
+        `더 이상 앞으로 갈 수 없다. 남은 이동 ${lostSteps}칸은 사라졌다.`
+      );
+    }
+
+    // 지역 입구가 최종 도착칸이라면 이동 여부를 묻는다.
     if (node.type === '입구') {
       const ended = await handlePortalLanding(hero, node, unit);
       if (ended) return;
-      // 남은 이동력이 0인 최종칸이므로 지나가기를 선택하면 턴 종료.
       clearPlannedMoveState();
       renderAll();
       finishWorldUnitTurn(hero);
@@ -3371,7 +3420,7 @@
         return false;
 
       case '전투': {
-        // V0.5.5.13: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
+        // V0.5.5.15: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
         // 보스/사건 전투는 이 로직을 사용하지 않는다.
         if (node.combatCleared) {
           const roll = Math.random();
@@ -3508,7 +3557,7 @@
     const leader = getWorldUnitLeader(hero) || hero;
     const unit = getWorldUnitMembers(leader);
     unit.forEach(member => { member.acted = true; });
-    state.rolled = null; state.moveRemaining = 0; state.moveStepsTaken = 0; state.moveOriginNodeId = null; clearDiceDisplay();
+    state.rolled = null; state.moveRemaining = 0; state.moveStepsTaken = 0; state.moveOriginNodeId = null; state.moveVisitedNodeIds = new Set(); clearDiceDisplay();
     if (reason === 'item-transfer') {
       const party = getHeroParty(leader);
       log(`⏹️ ${party ? partyDisplayName(party) : leader.name} · 아이템 전달로 이번 월드 턴 종료.`);
