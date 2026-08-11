@@ -1,6 +1,6 @@
-# DRAGON BOARD — Web Prototype V0.5.5.2
+# DRAGON BOARD — Web Prototype V0.5.5.3
 
-## V0.5.5.2
+## V0.5.5.3
 
 - 탐험형 Fog of War: 영웅 주변 2칸만 타일 정체 공개, 발견한 칸은 영구 기록
 - 미탐험 칸은 길/위치는 보이되 `???`로 표시
