@@ -263,7 +263,7 @@
     state.shopStocks = {};
     state.discoveredNodeIds = new Set();
     setupSealQuests();
-    revealAroundAllHeroes(2);
+    revealAroundAllHeroes();
     gameLog.innerHTML = '';
 
     showScreen(gameScreen);
@@ -595,27 +595,32 @@
     if (regionTitle) regionTitle.textContent = `${state.viewAreaId} 지역 · ${meta?.themeLabel || '미지의 땅'}`;
   }
 
-  // V0.5.5.3 — 탐험형 Fog of War. 보드의 길/칸 위치는 보이지만,
-  // 영웅이 가까이 가기 전에는 타일의 정체를 ???로 숨긴다. 발견 정보는 게임 동안 유지된다.
-  function revealFromNode(startNodeId, radius = 2) {
+  // V0.5.5.4 — 긴장감을 위한 탐험 시야.
+  // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
+  // 현재 위치의 상/하/좌/우 한 칸은 위치만 보이고 내용은 ??? 상태로 유지한다.
+  function revealFromNode(startNodeId) {
     if (!startNodeId) return;
     if (!(state.discoveredNodeIds instanceof Set)) state.discoveredNodeIds = new Set(state.discoveredNodeIds || []);
-    const queue = [[startNodeId, 0]];
-    const seen = new Set([startNodeId]);
-    while (queue.length) {
-      const [id, dist] = queue.shift();
-      state.discoveredNodeIds.add(id);
-      if (dist >= radius) continue;
-      const node = WORLD_NODES.find(n => n.id === id);
-      for (const next of (node?.links || [])) {
-        if (seen.has(next)) continue;
-        seen.add(next); queue.push([next, dist + 1]);
-      }
-    }
+    state.discoveredNodeIds.add(startNodeId);
   }
 
-  function revealAroundAllHeroes(radius = 2) {
-    state.heroes.filter(h => !h.down).forEach(h => revealFromNode(h.position, radius));
+  function revealAroundAllHeroes() {
+    state.heroes.filter(h => !h.down).forEach(h => revealFromNode(h.position));
+  }
+
+  function getVisibleNodeIds(areaId, reachable = new Set()) {
+    const visible = new Set();
+    state.heroes.filter(h => !h.down && getNodeAreaId(h.position) === areaId).forEach(hero => {
+      visible.add(hero.position);
+      const node = WORLD_NODES.find(n => n.id === hero.position);
+      (node?.links || []).forEach(nextId => {
+        const next = WORLD_NODES.find(n => n.id === nextId);
+        if (next?.areaId === areaId) visible.add(nextId);
+      });
+    });
+    // 주사위를 굴린 뒤에는 선택 가능한 목적지만 형태를 보여준다. 정체는 여전히 숨긴다.
+    reachable.forEach(id => visible.add(id));
+    return visible;
   }
 
   function renderCurrentObjective() {
@@ -652,21 +657,24 @@
     worldMap.appendChild(watermark);
 
     const reachable = getReachableNodeIds();
+    const visibleNow = getVisibleNodeIds(state.viewAreaId, reachable);
     WORLD_NODES.filter(node => node.areaId === state.viewAreaId).forEach(node => {
       const el = document.createElement('div');
       const heroesHere = state.heroes.filter(h => h.position === node.id);
       const activeUnit = getWorldUnitMembers(activeHero);
       const isCurrent = activeUnit.some(h => h.position === node.id);
       const isDragon = node.type === '드래곤성';
-      const discovered = Boolean(state.discoveredNodeIds?.has(node.id)) || isCurrent;
-      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon && discovered ? 'dragon-spawned' : ''} ${discovered ? 'discovered' : 'fogged'}`;
+      const visited = Boolean(state.discoveredNodeIds?.has(node.id)) || isCurrent;
+      const visible = visited || visibleNow.has(node.id);
+      const fogClass = visited ? 'discovered' : (visible ? 'fogged' : 'deep-fog');
+      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon && visited ? 'dragon-spawned' : ''} ${fogClass}`;
       el.dataset.nodeId = node.id;
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
       el.innerHTML = `
-        <div class="node-icon">${discovered ? node.icon : '❔'}</div>
-        <div class="node-name">${discovered ? (node.short || node.name) : '???'}</div>
-        <div class="node-type">${discovered ? node.type : '미탐험'}</div>
+        <div class="node-icon">${visited ? node.icon : (visible ? '❔' : '')}</div>
+        <div class="node-name">${visited ? (node.short || node.name) : (visible ? '???' : '')}</div>
+        <div class="node-type">${visited ? node.type : ''}</div>
         ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
       if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
@@ -2797,7 +2805,7 @@
     state.isMoving = true; renderControls();
     await Promise.all(unit.map((member,index) => animateHeroHop(member,path,index,unit.length)));
     unit.forEach(member => { member.position = nodeId; });
-    revealFromNode(nodeId, 2);
+    revealFromNode(nodeId);
     state.isMoving = false;
     const party = getHeroParty(hero);
     if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
@@ -3183,7 +3191,7 @@
         if (!target) return false;
         unitMembers.forEach(member => { member.position = target.id; });
         state.viewAreaId = target.areaId;
-        revealFromNode(target.id, 2);
+        revealFromNode(target.id);
         const targetMeta = window.WORLD_AREAS?.[target.areaId];
         log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${target.areaId} 지역</strong> 진입 (${targetMeta?.themeLabel || ''})`);
         addQuestProgress('portal', 1);
@@ -3301,7 +3309,7 @@
         h.currentHp = h.hp;
         h.reviveRound = null;
         h.position = getAreaCenterNodeId(reviveAreaId);
-        revealFromNode(h.position, 2);
+        revealFromNode(h.position);
         h.reviveAreaId = null;
         h.attackPenalty = 0;
         h.acPenalty = 0;
