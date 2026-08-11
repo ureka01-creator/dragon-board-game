@@ -213,12 +213,20 @@
       el.innerHTML = `
         ${heroSpriteHTML(hero, 'medium')}
         <div class="party-info">
-          <div class="name-row"><strong>${hero.icon} ${hero.name}</strong><span>${status}</span></div>
+          <div class="name-row">
+            <strong>${hero.icon} ${hero.name}</strong>
+            <span class="party-state">${status}</span>
+            <button type="button" class="party-status-btn" aria-label="${hero.name} 상태 보기">상태</button>
+          </div>
           <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${hero.currentHp/hero.hp*100}%"></div></div>
           ${hero.down ? `<div class="down-note">다음 라운드 마을에서 부활</div>` : ''}
         </div>
       `;
+      el.querySelector('.party-status-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openHeroStatus(hero);
+      });
       el.addEventListener('click', () => {
         if (!hero.down && !hero.acted && state.rolled === null && !state.gameOver && !state.combat) {
           state.activeHeroId = hero.id;
@@ -1893,7 +1901,77 @@
     state.activeHeroId = firstReady?.id || state.heroes[0]?.id || null;
   }
 
+
+  function equipmentName(hero, slot) {
+    const item = getItemCard?.(hero?.equipment?.[slot]);
+    return item ? `${item.icon || ''} ${item.name}`.trim() : '장비 없음';
+  }
+
+  function equipmentBonusText(hero, slot) {
+    const item = getItemCard?.(hero?.equipment?.[slot]);
+    if (!item) return '—';
+    const text = itemStatsText(item);
+    return text || item.desc || '효과 없음';
+  }
+
+  function openHeroStatus(hero) {
+    if (!hero) return;
+    const totalAc = Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0));
+    const attackBonus = equipmentStat(hero, 'attack');
+    const damageBonus = equipmentStat(hero, 'damage');
+    const pos = window.WORLD_NODES?.find?.(node => node.id === hero.position);
+    const stateText = hero.down ? 'DOWN' : hero.acted ? '이번 라운드 행동 완료' : '행동 가능';
+    modalContent.innerHTML = `
+      <div class="hero-status-sheet">
+        <div class="hero-status-top">
+          <div class="hero-status-portrait">${heroSpriteHTML(hero, 'large')}</div>
+          <div class="hero-status-title">
+            <div class="status-kicker">CHARACTER STATUS</div>
+            <h3>${hero.icon} ${hero.name}</h3>
+            <p>${hero.role}</p>
+            <div class="status-now">${stateText}${pos ? ` · 📍 ${pos.name}` : ''}</div>
+          </div>
+        </div>
+
+        <div class="hero-status-bars">
+          <div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>
+          ${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/3</strong></div>` : ''}
+        </div>
+
+        <div class="hero-status-stats">
+          <div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div>
+          <div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div>
+          <div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div>
+          <div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div>
+          <div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div>
+          <div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div>
+          <div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div>
+        </div>
+
+        <div class="hero-status-section">
+          <h4>EQUIPMENT</h4>
+          <div class="equipment-list">
+            <div><span>⚔ 무기</span><strong>${equipmentName(hero, 'weapon')}</strong><small>${equipmentBonusText(hero, 'weapon')}</small></div>
+            <div><span>🛡 방어구</span><strong>${equipmentName(hero, 'armor')}</strong><small>${equipmentBonusText(hero, 'armor')}</small></div>
+            <div><span>💍 장신구</span><strong>${equipmentName(hero, 'accessory')}</strong><small>${equipmentBonusText(hero, 'accessory')}</small></div>
+          </div>
+        </div>
+
+        <div class="hero-status-section skill-status">
+          <h4>ABILITY</h4>
+          <p><strong>패시브</strong> ${hero.passive}</p>
+          <p><strong>고유기</strong> ${hero.skill}</p>
+        </div>
+      </div>
+    `;
+    modalCloseBtn.textContent = '닫기';
+    modal.classList.add('hero-status-modal');
+    modal.classList.remove('hidden');
+  }
+
   function showModal(title, body) {
+    modal.classList.remove('hero-status-modal');
+    modalCloseBtn.textContent = '확인';
     modalContent.innerHTML = `<h3>${title}</h3><p>${body}</p>`;
     modal.classList.remove('hidden');
   }
@@ -1941,7 +2019,7 @@
   });
   $('#resetBtn').addEventListener('click', resetGame);
   $('#clearLogBtn').addEventListener('click', () => gameLog.innerHTML = '');
-  modalCloseBtn.addEventListener('click', () => modal.classList.add('hidden'));
+  modalCloseBtn.addEventListener('click', () => { modal.classList.add('hidden'); modal.classList.remove('hero-status-modal'); modalCloseBtn.textContent = '확인'; });
 
   renderSetup();
 })();

@@ -34,6 +34,7 @@
         <span class="px nose"></span>
         <span class="px class-mark"></span>
         <span class="px equip armor-layer"></span>
+        <span class="px equip armor-detail"></span>
         <span class="px equip weapon-layer"></span>
         <span class="px equip accessory-layer"></span>
       </div>`;
