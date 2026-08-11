@@ -25,6 +25,8 @@
   const partyList = $('#partyList');
   const activeHeroLabel = $('#activeHeroLabel');
   const worldMap = $('#worldMap');
+  const currentTurnBanner = $('#currentTurnBanner');
+  const currentTurnName = $('#currentTurnName');
   const rollBtn = $('#rollBtn');
   const stayBtn = $('#stayBtn');
   const diceValue = $('#diceValue');
@@ -132,6 +134,29 @@
     roundValue.textContent = state.round;
     threatValue.textContent = `${state.threat} / 12`;
     threatFill.style.width = `${Math.min(100, state.threat / 12 * 100)}%`;
+
+    const active = getActiveHero();
+    if (currentTurnBanner && currentTurnName) {
+      currentTurnBanner.classList.toggle('game-over', state.gameOver);
+      currentTurnBanner.dataset.hero = active?.id || '';
+      currentTurnName.textContent = state.gameOver
+        ? '☠ GAME OVER'
+        : active
+          ? `${active.icon} ${active.name} 턴`
+          : '-';
+      const guide = currentTurnBanner.querySelector('.turn-guide');
+      if (guide) {
+        guide.textContent = state.gameOver
+          ? '왕국의 운명이 끝났다'
+          : state.isMoving
+            ? '이동 중…'
+            : state.isRolling
+              ? '주사위 굴리는 중…'
+              : state.rolled === null
+                ? '주사위를 굴려 행동해'
+                : `최대 ${state.rolled}칸 이동할 곳을 선택해`;
+      }
+    }
   }
 
   function renderParty() {
