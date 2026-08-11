@@ -140,12 +140,12 @@
       const heroesHere = state.heroes.filter(h => h.position === node.id);
       const isCurrent = getActiveHero()?.position === node.id;
       const locked = node.locked && state.seals < 3 && state.threat < 9;
-      el.className = `map-node ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${locked ? 'locked' : ''}`;
+      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${locked ? 'locked' : ''}`;
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
       el.innerHTML = `
         <div class="node-icon">${node.icon}</div>
-        <div class="node-name">${node.name}</div>
+        <div class="node-name">${node.short || node.name}</div>
         <div class="node-type">${locked ? '🔒 잠김' : node.type}</div>
         <div class="token-row">${heroesHere.map(h => h.icon).join('')}</div>
       `;
@@ -231,7 +231,24 @@
         showModal('🏠 왕국 마을', `${hero.name}의 HP가 모두 회복되었다.${hero.currentMana !== null ? ' 마나도 3/3 회복.' : ''}`);
         break;
       case '전투':
-        showModal(`${node.icon} 전투 발생`, `프로토 V0.1에서는 전투 UI 연결 전 단계야. 다음 코드 작업에서 D20 명중/피해/몬스터 반격을 여기에 붙인다.`);
+        showModal(`${node.icon} 전투 발생`, `이 지역에서 몬스터와 조우했다. 다음 코드 작업에서 D20 명중/피해/몬스터 반격을 이 칸에 연결한다.`);
+        break;
+      case '보물':
+        showModal('🎁 보물 발견', `${node.name}에서 보물을 발견했다. 카드 덱은 전투 다음 단계에서 연결한다.`);
+        break;
+      case '사건':
+        showModal('❓ 사건 발생', `${node.name}에서 랜덤 사건이 발생한다. 이벤트 카드 시스템은 이후 연결한다.`);
+        break;
+      case '상점':
+        showModal('🏪 상점', `${node.name}에서 물품을 사고팔 수 있다. 상점/골드는 카드 시스템과 함께 연결한다.`);
+        break;
+      case '휴식':
+        hero.currentHp = Math.min(hero.hp, hero.currentHp + Math.ceil(hero.hp * 0.3));
+        if (hero.currentMana !== null) hero.currentMana = Math.min(3, hero.currentMana + 1);
+        showModal('❤️ 휴식', `${hero.name}이 휴식했다. HP 일부 회복${hero.currentMana !== null ? ' / MANA +1' : ''}.`);
+        break;
+      case '길':
+        showModal('🛤 길', `${node.name}. 안전한 지름길이다.`);
         break;
       case '보스':
         showModal('👹 지역 보스', `${node.name}에 강력한 존재가 있다. 다음 단계에서 보스 전투와 봉인석 보상을 연결한다.`);
