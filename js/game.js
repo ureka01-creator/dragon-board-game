@@ -11,6 +11,8 @@
     isRolling: false,
     isMoving: false,
     gameOver: false,
+    defeatedBosses: new Set(),
+    combat: null,
   };
 
   const titleScreen = $('#titleScreen');
@@ -37,6 +39,22 @@
   const threatFill = $('#threatFill');
   const roundValue = $('#roundValue');
   const gameLog = $('#gameLog');
+  const combatOverlay = $('#combatOverlay');
+  const combatTitle = $('#combatTitle');
+  const combatRoundLabel = $('#combatRoundLabel');
+  const combatHeroTurn = $('#combatHeroTurn');
+  const combatHeroes = $('#combatHeroes');
+  const combatEnemies = $('#combatEnemies');
+  const combatMessage = $('#combatMessage');
+  const combatLog = $('#combatLog');
+  const combatTargetHint = $('#combatTargetHint');
+  const combatAttackBtn = $('#combatAttackBtn');
+  const combatSkillBtn = $('#combatSkillBtn');
+  const combatDefendBtn = $('#combatDefendBtn');
+  const combatD20 = $('#combatD20');
+  const combatD20Value = $('#combatD20Value');
+  const combatDiceLabel = $('#combatDiceLabel');
+
   const modal = $('#modal');
   const modalContent = $('#modalContent');
   const modalCloseBtn = $('#modalCloseBtn');
@@ -104,6 +122,10 @@
         currentMana: src.mana ?? null,
         position: 'village',
         acted: false,
+        down: false,
+        reviveRound: null,
+        attackPenalty: 0,
+        acPenalty: 0,
         equipment: { armor: null, weapon: null, accessory: null },
       };
     });
@@ -115,6 +137,8 @@
     state.isRolling = false;
     state.isMoving = false;
     state.gameOver = false;
+    state.defeatedBosses = new Set();
+    state.combat = null;
     gameLog.innerHTML = '';
 
     showScreen(gameScreen);
@@ -141,20 +165,24 @@
       currentTurnBanner.dataset.hero = active?.id || '';
       currentTurnName.textContent = state.gameOver
         ? '☠ GAME OVER'
-        : active
-          ? `${active.icon} ${active.name} 턴`
-          : '-';
+        : state.combat
+          ? '⚔ 전투 진행 중'
+          : active
+            ? `${active.icon} ${active.name} 턴`
+            : '-';
       const guide = currentTurnBanner.querySelector('.turn-guide');
       if (guide) {
         guide.textContent = state.gameOver
           ? '왕국의 운명이 끝났다'
-          : state.isMoving
-            ? '이동 중…'
-            : state.isRolling
-              ? '주사위 굴리는 중…'
-              : state.rolled === null
-                ? '주사위를 굴려 행동해'
-                : `최대 ${state.rolled}칸 이동할 곳을 선택해`;
+          : state.combat
+            ? '전투를 먼저 해결해'
+            : state.isMoving
+              ? '이동 중…'
+              : state.isRolling
+                ? '주사위 굴리는 중…'
+                : state.rolled === null
+                  ? '주사위를 굴려 행동해'
+                  : `최대 ${state.rolled}칸 이동할 곳을 선택해`;
       }
     }
   }
@@ -164,17 +192,19 @@
     state.heroes.forEach(hero => {
       const el = document.createElement('div');
       const isActive = hero.id === state.activeHeroId;
-      el.className = `party-member ${isActive ? 'active' : ''} ${hero.acted ? 'done' : ''}`;
+      el.className = `party-member ${isActive ? 'active' : ''} ${hero.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
+      const status = hero.down ? 'DOWN' : (hero.acted ? 'DONE' : 'READY');
       el.innerHTML = `
         ${heroSpriteHTML(hero, 'medium')}
         <div class="party-info">
-          <div class="name-row"><strong>${hero.icon} ${hero.name}</strong><span>${hero.acted ? 'DONE' : 'READY'}</span></div>
-          <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${hero.ac}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''}</div>
+          <div class="name-row"><strong>${hero.icon} ${hero.name}</strong><span>${status}</span></div>
+          <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${hero.currentHp/hero.hp*100}%"></div></div>
+          ${hero.down ? `<div class="down-note">다음 라운드 마을에서 부활</div>` : ''}
         </div>
       `;
       el.addEventListener('click', () => {
-        if (!hero.acted && state.rolled === null && !state.gameOver) {
+        if (!hero.down && !hero.acted && state.rolled === null && !state.gameOver && !state.combat) {
           state.activeHeroId = hero.id;
           renderAll();
         }
@@ -210,7 +240,7 @@
 
   function renderControls() {
     const active = getActiveHero();
-    const canAct = active && !active.acted && !state.gameOver;
+    const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat;
     rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling || state.isMoving;
     stayBtn.disabled = !canAct || state.rolled === null || state.isRolling || state.isMoving;
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
@@ -431,7 +461,7 @@
   function getReachableNodeIds() {
     const result = new Set();
     const hero = getActiveHero();
-    if (!hero || state.rolled === null || hero.acted) return result;
+    if (state.combat || !hero || hero.down || state.rolled === null || hero.acted) return result;
 
     const maxDepth = state.rolled;
     const queue = [{ id: hero.position, depth: 0 }];
@@ -627,12 +657,749 @@
     });
   }
 
+
+  // ─────────────────────────────────────────────
+  // D20 COMBAT PROTOTYPE V0.4
+  // ─────────────────────────────────────────────
+  function rollDice(count, sides) {
+    let total = 0;
+    const rolls = [];
+    for (let i = 0; i < count; i += 1) {
+      const value = Math.floor(Math.random() * sides) + 1;
+      rolls.push(value);
+      total += value;
+    }
+    return { total, rolls };
+  }
+
+  function cloneEnemy(monsterId, scale = 1, suffix = '') {
+    const src = MONSTERS[monsterId];
+    const maxHp = Math.max(1, Math.round(src.hp * scale));
+    return {
+      ...src,
+      uid: `${monsterId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}${suffix}`,
+      maxHp,
+      currentHp: maxHp,
+      firstDamageTaken: false,
+      nextAttackPenalty: 0,
+      chargeUsed: false,
+      summoned: false,
+    };
+  }
+
+  function encounterScale(tier, count) {
+    if (count <= 1) return tier === 'boss' ? 0.65 : 0.75;
+    if (count === 2) return 1;
+    if (count === 3) return 1.25;
+    if (tier === 'boss') return 1.35;
+    if (tier === 'elite') return 1.25;
+    return 1;
+  }
+
+  function chooseEncounter(node, participantCount) {
+    if (node.type === '보스') {
+      const monsterId = BOSS_ENCOUNTERS[node.id];
+      const src = MONSTERS[monsterId];
+      return [cloneEnemy(monsterId, encounterScale(src.tier, participantCount))];
+    }
+
+    const pool = NODE_ENCOUNTERS[node.id] || (
+      node.region === 'grave' ? ['skeleton','ghost','slime'] :
+      node.region === 'war' ? ['goblin','orc'] :
+      node.region === 'forest' ? ['wolf','spider','goblin'] :
+      node.region === 'mine' ? ['orc','ogre','minotaur'] :
+      node.region === 'volcano' ? ['fireImp','minotaur','wyvern'] :
+      ['goblin']
+    );
+
+    const firstId = pool[Math.floor(Math.random() * pool.length)];
+    const first = MONSTERS[firstId];
+    const scale = encounterScale(first.tier, participantCount);
+    const enemies = [cloneEnemy(firstId, scale, '-a')];
+
+    // 4명이 한곳에 모인 일반 전투는 HP 뻥튀기 대신 적 2체로 압박한다.
+    if (participantCount >= 4 && first.tier === 'normal') {
+      const secondId = pool[Math.floor(Math.random() * pool.length)];
+      enemies.push(cloneEnemy(secondId, 1, '-b'));
+    }
+    return enemies;
+  }
+
+  function getCombatHero() {
+    if (!state.combat) return null;
+    return state.heroes.find(h => h.id === state.combat.currentHeroId) || null;
+  }
+
+  function combatHeroState(heroId) {
+    return state.combat?.heroStates?.[heroId] || null;
+  }
+
+  function aliveCombatHeroes() {
+    if (!state.combat) return [];
+    return state.combat.participantIds
+      .map(id => state.heroes.find(h => h.id === id))
+      .filter(h => h && !h.down && h.currentHp > 0);
+  }
+
+  function aliveCombatEnemies() {
+    return state.combat ? state.combat.enemies.filter(e => e.currentHp > 0) : [];
+  }
+
+  function selectedCombatEnemy() {
+    if (!state.combat) return null;
+    const alive = aliveCombatEnemies();
+    let enemy = alive.find(e => e.uid === state.combat.selectedEnemyId);
+    if (!enemy) {
+      enemy = alive[0] || null;
+      state.combat.selectedEnemyId = enemy?.uid || null;
+    }
+    return enemy;
+  }
+
+  function combatLogEntry(message) {
+    if (!combatLog) return;
+    const entry = document.createElement('div');
+    entry.className = 'combat-log-entry';
+    entry.innerHTML = message;
+    combatLog.prepend(entry);
+  }
+
+  function setCombatMessage(message, tone = '') {
+    if (!combatMessage) return;
+    combatMessage.textContent = message;
+    combatMessage.dataset.tone = tone;
+  }
+
+  function skillName(hero) {
+    if (!hero) return '스킬';
+    if (hero.id === 'knight') return '방패 강타';
+    if (hero.id === 'archer') return '관통 사격';
+    if (hero.id === 'mage') return '마력 폭발';
+    if (hero.id === 'rogue') return '급소 공격';
+    return '스킬';
+  }
+
+  function heroMainStat(hero) {
+    if (hero.id === 'knight') return hero.str;
+    if (hero.id === 'mage') return hero.magic;
+    return hero.dex;
+  }
+
+  function heroBasicDamage(hero) {
+    if (hero.id === 'knight') return { count:1, sides:8, bonus:hero.str, type:'physical', melee:true };
+    if (hero.id === 'archer') return { count:1, sides:8, bonus:hero.dex, type:'physical', melee:false };
+    if (hero.id === 'mage') return { count:1, sides:6, bonus:hero.magic, type:'magic', melee:false };
+    return { count:1, sides:6, bonus:hero.dex, type:'physical', melee:true };
+  }
+
+  function effectiveHeroAc(hero) {
+    const hs = combatHeroState(hero.id);
+    const defend = hs?.defending ? 3 : 0;
+    return Math.max(1, hero.ac - (hero.acPenalty || 0) + defend);
+  }
+
+  function canUseCombatSkill(hero) {
+    const hs = combatHeroState(hero?.id);
+    if (!hero || !hs || hs.acted || state.combat?.busy) return false;
+    if (hero.id === 'rogue') {
+      return !hs.skillUsedRound && aliveCombatHeroes().filter(h => h.id !== hero.id).length > 0;
+    }
+    if (hs.skillUsedBattle) return false;
+    if (hero.id === 'mage' && (hero.currentMana ?? 0) < 2) return false;
+    return true;
+  }
+
+  function renderCombat() {
+    const c = state.combat;
+    if (!c) return;
+
+    combatTitle.textContent = `${c.node.icon} ${c.node.name}`;
+    combatRoundLabel.textContent = `COMBAT ROUND ${c.round}`;
+    const currentHero = getCombatHero();
+    combatHeroTurn.textContent = currentHero ? `${currentHero.icon} ${currentHero.name} 행동` : 'MONSTER PHASE';
+
+    combatHeroes.innerHTML = '';
+    c.participantIds.forEach(id => {
+      const hero = state.heroes.find(h => h.id === id);
+      if (!hero) return;
+      const hs = combatHeroState(id);
+      const active = id === c.currentHeroId && !c.busy;
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = `combat-hero-card ${active ? 'active' : ''} ${hs?.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
+      el.disabled = Boolean(c.busy || hs?.acted || hero.down);
+      el.dataset.heroId = id;
+      el.innerHTML = `
+        <div class="combat-card-title">${hero.icon} <strong>${hero.name}</strong> <span>${hero.down ? 'DOWN' : hs?.acted ? 'DONE' : 'READY'}</span></div>
+        <div class="combat-hp-row"><span>❤️ ${hero.currentHp}/${hero.hp}</span><span>🛡 ${effectiveHeroAc(hero)}</span></div>
+        <div class="combat-mini-bar"><i style="width:${Math.max(0, hero.currentHp / hero.hp * 100)}%"></i></div>
+        <div class="combat-status-row">
+          ${hs?.defending ? '<span>🛡 방어 +3</span>' : ''}
+          ${hero.attackPenalty ? `<span>☠ 명중 -${hero.attackPenalty}</span>` : ''}
+          ${hero.currentMana !== null ? `<span>🔵 ${hero.currentMana}/3</span>` : ''}
+        </div>`;
+      el.addEventListener('click', () => {
+        if (!c.busy && !hs?.acted && !hero.down) {
+          c.currentHeroId = hero.id;
+          renderCombat();
+        }
+      });
+      combatHeroes.appendChild(el);
+    });
+
+    combatEnemies.innerHTML = '';
+    aliveCombatEnemies().forEach(enemy => {
+      const selected = enemy.uid === c.selectedEnemyId;
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = `combat-enemy-card tier-${enemy.tier} ${selected ? 'selected' : ''}`;
+      el.dataset.enemyId = enemy.uid;
+      el.innerHTML = `
+        <div class="enemy-icon">${enemy.icon}</div>
+        <div class="enemy-main">
+          <div class="combat-card-title"><strong>${enemy.name}</strong><span>${enemy.tier === 'boss' ? 'BOSS' : enemy.tier === 'elite' ? 'ELITE' : 'NORMAL'}</span></div>
+          <div class="combat-hp-row"><span>❤️ ${enemy.currentHp}/${enemy.maxHp}</span><span>🛡 ${enemy.ac}</span></div>
+          <div class="combat-mini-bar enemy"><i style="width:${Math.max(0, enemy.currentHp / enemy.maxHp * 100)}%"></i></div>
+          <div class="enemy-trait">${enemy.trait}</div>
+        </div>`;
+      el.addEventListener('click', () => {
+        if (!c.busy) {
+          c.selectedEnemyId = enemy.uid;
+          renderCombat();
+        }
+      });
+      combatEnemies.appendChild(el);
+    });
+
+    const target = selectedCombatEnemy();
+    combatTargetHint.textContent = target ? `TARGET · ${target.icon} ${target.name}` : '적을 쓰러뜨렸다';
+    combatAttackBtn.disabled = Boolean(c.busy || !currentHero || combatHeroState(currentHero.id)?.acted || !target);
+    combatDefendBtn.disabled = Boolean(c.busy || !currentHero || combatHeroState(currentHero.id)?.acted);
+    combatSkillBtn.disabled = !canUseCombatSkill(currentHero) || !target;
+    combatSkillBtn.textContent = currentHero ? `✨ ${skillName(currentHero)}` : '✨ 스킬';
+  }
+
+  function animateCombatD20(finalValue, label) {
+    return new Promise(resolve => {
+      if (!combatD20 || !combatD20Value) {
+        resolve(finalValue);
+        return;
+      }
+      combatDiceLabel.textContent = label || 'D20';
+      combatD20.classList.remove('rolling', 'hit', 'miss');
+      void combatD20.offsetWidth;
+      combatD20.classList.add('rolling');
+
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      const duration = reduced ? 120 : 660;
+      const start = performance.now();
+      let lastSwap = 0;
+
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed - lastSwap > 58 && elapsed < duration * .82) {
+          lastSwap = elapsed;
+          combatD20Value.textContent = String(Math.floor(Math.random() * 20) + 1);
+        }
+        if (elapsed < duration) {
+          requestAnimationFrame(frame);
+          return;
+        }
+        combatD20Value.textContent = String(finalValue);
+        combatD20.classList.remove('rolling');
+        combatD20.classList.add(finalValue === 1 ? 'miss' : 'hit');
+        setTimeout(() => combatD20.classList.remove('hit', 'miss'), 360);
+        resolve(finalValue);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function applyDamageToEnemy(enemy, rawDamage, damageType = 'physical') {
+    let damage = Math.max(0, rawDamage);
+
+    if (!enemy.firstDamageTaken && enemy.id === 'skeleton') {
+      damage = Math.max(0, damage - 2);
+      enemy.firstDamageTaken = true;
+      combatLogEntry('💀 뼈 갑옷이 첫 피해를 2 막았다.');
+    } else if (!enemy.firstDamageTaken && enemy.id === 'ghost' && damageType === 'physical') {
+      damage = Math.max(0, damage - 3);
+      enemy.firstDamageTaken = true;
+      combatLogEntry('👻 비물질 몸체가 첫 물리 피해를 3 흘려냈다.');
+    } else if (enemy.id !== 'ghost') {
+      enemy.firstDamageTaken = true;
+    }
+
+    if (enemy.id === 'demonKnight') damage = Math.min(10, damage);
+
+    enemy.currentHp = Math.max(0, enemy.currentHp - damage);
+    if (enemy.currentHp === 0) {
+      combatLogEntry(`☠️ <strong>${enemy.name}</strong> 처치!`);
+      setCombatMessage(`${enemy.name} 처치!`, 'good');
+    }
+
+    // 네크로맨서는 체력 절반을 처음 넘길 때 해골을 추가 소환한다.
+    const c = state.combat;
+    if (enemy.id === 'necromancer' && enemy.currentHp > 0 && enemy.currentHp <= enemy.maxHp / 2 && !c.necroHalfSummoned) {
+      c.necroHalfSummoned = true;
+      const skeleton = cloneEnemy('skeleton', encounterScale('normal', c.participantIds.length), '-summon2');
+      skeleton.summoned = true;
+      c.enemies.push(skeleton);
+      combatLogEntry('☠️ 네크로맨서가 해골 병사를 추가 소환했다!');
+    }
+    return damage;
+  }
+
+  function damageHero(hero, amount, sourceName = '몬스터') {
+    hero.currentHp = Math.max(0, hero.currentHp - Math.max(0, amount));
+    if (hero.currentHp <= 0) knockOutHero(hero, sourceName);
+  }
+
+  function knockOutHero(hero, sourceName) {
+    if (hero.down) return;
+    hero.down = true;
+    hero.currentHp = 0;
+    hero.position = 'village';
+    hero.acted = true;
+    hero.reviveRound = state.round + 1;
+    state.threat = Math.min(12, state.threat + 1);
+    combatLogEntry(`💀 <strong>${hero.name}</strong> 쓰러짐 → 마을 귀환 / THREAT +1`);
+    log(`💀 ${hero.icon} <strong>${hero.name}</strong> 쓰러짐 (${sourceName}) → 마을 귀환 / 🔥 THREAT +1`);
+
+    if (state.threat >= 12) {
+      state.gameOver = true;
+    }
+  }
+
+  function resolveHeroHit(hero, enemy, roll, attackBonus, damageSpec, options = {}) {
+    const naturalCrit = hero.id === 'archer' ? roll >= 19 : roll === 20;
+    const autoMiss = roll === 1;
+    const autoHit = roll === 20;
+    let hitPenalty = hero.attackPenalty || 0;
+
+    // 와이번은 짝수 전투 라운드에 비행한다. 근접 영웅은 불리하다.
+    if (enemy.id === 'wyvern' && state.combat.round % 2 === 0 && (hero.id === 'knight' || hero.id === 'rogue')) {
+      hitPenalty += 3;
+    }
+
+    const total = roll + attackBonus - hitPenalty + (options.hitBonus || 0);
+    const hit = !autoMiss && (autoHit || total >= enemy.ac);
+    hero.attackPenalty = 0;
+
+    if (!hit) {
+      combatLogEntry(`❌ ${hero.name} 공격 실패 · D20 ${roll} + 보정 ${attackBonus + (options.hitBonus || 0) - hitPenalty} = ${total} / AC ${enemy.ac}`);
+      if (roll === 1 && enemy.id === 'darkKnight') {
+        const counter = rollDice(1, 6).total;
+        damageHero(hero, counter, '흑기사 반격');
+        combatLogEntry(`⚔️ 흑기사 반격! ${hero.name}에게 ${counter} 피해.`);
+      }
+      return { hit:false, damage:0, crit:false };
+    }
+
+    const diceCount = damageSpec.count * (naturalCrit && !options.noCrit ? 2 : 1);
+    const rolledDamage = rollDice(diceCount, damageSpec.sides);
+    const rawDamage = rolledDamage.total + damageSpec.bonus + (options.flatBonus || 0);
+    const damage = applyDamageToEnemy(enemy, rawDamage, damageSpec.type || 'physical');
+    combatLogEntry(`${naturalCrit && !options.noCrit ? '💥 CRITICAL! ' : '⚔️ '}${hero.name} → ${enemy.name} <strong>${damage} 피해</strong>`);
+    return { hit:true, damage, crit:naturalCrit && !options.noCrit };
+  }
+
+  async function heroBasicAttack() {
+    const c = state.combat;
+    const hero = getCombatHero();
+    const enemy = selectedCombatEnemy();
+    if (!c || !hero || !enemy || c.busy) return;
+    const hs = combatHeroState(hero.id);
+    if (hs?.acted) return;
+
+    c.busy = true;
+    renderCombat();
+    const roll = Math.floor(Math.random() * 20) + 1;
+    await animateCombatD20(roll, `${hero.icon} ${hero.name} 공격`);
+    const damageSpec = heroBasicDamage(hero);
+    const result = resolveHeroHit(hero, enemy, roll, heroMainStat(hero), damageSpec);
+
+    if (hero.id === 'knight' || hero.id === 'rogue') {
+      if (enemy.id === 'slime' && result.hit && enemy.currentHp > 0) {
+        damageHero(hero, 1, '슬라임 산성 몸체');
+        combatLogEntry(`🟢 산성 몸체! ${hero.name}에게 1 피해.`);
+      }
+    }
+
+    hs.acted = true;
+    hero.acPenalty = 0;
+    c.heroActionsThisRound += 1;
+    c.busy = false;
+    await afterHeroAction();
+  }
+
+  async function heroSkillAction() {
+    const c = state.combat;
+    const hero = getCombatHero();
+    const enemy = selectedCombatEnemy();
+    if (!c || !hero || !enemy || c.busy || !canUseCombatSkill(hero)) return;
+    const hs = combatHeroState(hero.id);
+    c.busy = true;
+    renderCombat();
+
+    if (hero.id === 'mage') {
+      hero.currentMana -= 2;
+      hs.skillUsedBattle = true;
+      const spell = rollDice(3, 6);
+      const damage = applyDamageToEnemy(enemy, spell.total + hero.magic, 'magic');
+      combatD20Value.textContent = '✨';
+      combatDiceLabel.textContent = '마력 폭발';
+      combatLogEntry(`✨ ${hero.name} 마력 폭발 → ${enemy.name} <strong>${damage} 피해</strong> / MANA -2`);
+    } else {
+      const roll = Math.floor(Math.random() * 20) + 1;
+      await animateCombatD20(roll, `${hero.icon} ${skillName(hero)}`);
+      if (hero.id === 'knight') {
+        const result = resolveHeroHit(hero, enemy, roll, hero.str, {count:1,sides:6,bonus:hero.str,type:'physical',melee:true});
+        if (result.hit && enemy.currentHp > 0) enemy.nextAttackPenalty = 2;
+        hs.skillUsedBattle = true;
+      } else if (hero.id === 'archer') {
+        resolveHeroHit(hero, enemy, roll, hero.dex, {count:2,sides:8,bonus:hero.dex,type:'physical',melee:false}, {hitBonus:2,noCrit:true});
+        hs.skillUsedBattle = true;
+      } else if (hero.id === 'rogue') {
+        const sneak = rollDice(1, 6).total;
+        resolveHeroHit(hero, enemy, roll, hero.dex, {count:1,sides:6,bonus:hero.dex + sneak,type:'physical',melee:true});
+        hs.skillUsedRound = true;
+      }
+    }
+
+    hs.acted = true;
+    hero.acPenalty = 0;
+    c.heroActionsThisRound += 1;
+    c.busy = false;
+    await afterHeroAction();
+  }
+
+  async function heroDefendAction() {
+    const c = state.combat;
+    const hero = getCombatHero();
+    if (!c || !hero || c.busy) return;
+    const hs = combatHeroState(hero.id);
+    if (!hs || hs.acted) return;
+    hs.defending = true;
+    hs.acted = true;
+    hero.acPenalty = 0;
+    c.heroActionsThisRound += 1;
+    combatLogEntry(`🛡 ${hero.name} 방어 태세 → 이번 몬스터 공격까지 AC +3`);
+    setCombatMessage(`${hero.name} 방어!`, 'good');
+    await afterHeroAction();
+  }
+
+  function chooseMonsterTarget(enemy) {
+    let heroes = aliveCombatHeroes();
+    if (!heroes.length) return null;
+    const by = (fn, asc = true) => [...heroes].sort((a,b) => (fn(a)-fn(b)) * (asc ? 1 : -1))[0];
+
+    if (enemy.ai === 'lowHp') return by(h => h.currentHp);
+    if (enemy.ai === 'highHp') return by(h => h.currentHp, false);
+    if (enemy.ai === 'lowAc') return by(h => effectiveHeroAc(h));
+    if (enemy.ai === 'highStr') return by(h => h.str, false);
+    if (enemy.ai === 'highMagic') return by(h => h.magic, false);
+    if (enemy.ai === 'lowDex') return by(h => h.dex);
+    return heroes[Math.floor(Math.random() * heroes.length)];
+  }
+
+  async function monsterAttack(enemy) {
+    if (!state.combat || enemy.currentHp <= 0 || state.gameOver) return;
+    const target = chooseMonsterTarget(enemy);
+    if (!target) return;
+
+    let attackBonus = enemy.attack;
+    let damageBonus = enemy.damage.bonus;
+    if (enemy.id === 'orc' && enemy.currentHp <= enemy.maxHp / 2) attackBonus += 1;
+    if (enemy.id === 'demonKnight' && target.currentHp <= 15) attackBonus += 2;
+    if (enemy.id === 'minotaur' && !enemy.chargeUsed) {
+      attackBonus += 2;
+      damageBonus += 2;
+      enemy.chargeUsed = true;
+    }
+    attackBonus -= enemy.nextAttackPenalty || 0;
+    enemy.nextAttackPenalty = 0;
+
+    const roll = Math.floor(Math.random() * 20) + 1;
+    await animateCombatD20(roll, `${enemy.icon} ${enemy.name} 공격`);
+    const ac = effectiveHeroAc(target);
+    const total = roll + attackBonus;
+    const hit = roll !== 1 && (roll === 20 || total >= ac);
+
+    if (!hit) {
+      combatLogEntry(`🛡 ${enemy.name} 공격 빗나감 · D20 ${roll} + ${attackBonus} = ${total} / ${target.name} AC ${ac}`);
+      return;
+    }
+
+    const dmgRoll = rollDice(enemy.damage.count, enemy.damage.sides);
+    let damage = dmgRoll.total + damageBonus;
+    if (enemy.id === 'trollKing' && enemy.currentHp <= 20) damage += 2;
+    damageHero(target, damage, enemy.name);
+    combatLogEntry(`💢 ${enemy.name} → ${target.name} <strong>${damage} 피해</strong>`);
+
+    if (enemy.id === 'spider' && !target.down) {
+      target.attackPenalty = Math.max(target.attackPenalty || 0, 1);
+      combatLogEntry(`🕷️ 독! ${target.name}의 다음 공격 판정 -1.`);
+    }
+    if (enemy.id === 'ogre' && roll >= 17 && !target.down) {
+      target.acPenalty = Math.max(target.acPenalty || 0, 2);
+      combatLogEntry(`🧌 내려찍기! ${target.name}의 다음 행동 전까지 AC -2.`);
+    }
+  }
+
+  async function runBossInterleaveIfNeeded() {
+    const c = state.combat;
+    if (!c || !c.isBoss || c.participantIds.length < 4 || c.busy) return;
+    if (c.heroActionsThisRound !== 2 && c.heroActionsThisRound !== 4) return;
+
+    const boss = aliveCombatEnemies().find(e => e.tier === 'boss');
+    if (!boss) return;
+    c.busy = true;
+    c.currentHeroId = null;
+    setCombatMessage('보스가 끼어든다!', 'danger');
+    renderCombat();
+    await new Promise(r => setTimeout(r, 280));
+    await monsterAttack(boss);
+    c.bossActionsThisRound += 1;
+    c.busy = false;
+    renderCombat();
+  }
+
+  async function runMonsterPhase() {
+    const c = state.combat;
+    if (!c || c.busy || state.gameOver) return;
+    c.busy = true;
+    c.currentHeroId = null;
+    setCombatMessage('MONSTER PHASE', 'danger');
+    renderCombat();
+
+    // 트롤 왕 재생.
+    const troll = aliveCombatEnemies().find(e => e.id === 'trollKing');
+    if (troll) {
+      const before = troll.currentHp;
+      troll.currentHp = Math.min(troll.maxHp, troll.currentHp + 3);
+      const healed = troll.currentHp - before;
+      if (healed > 0) combatLogEntry(`👑 트롤 왕 재생 +${healed} HP`);
+    }
+
+    const enemies = aliveCombatEnemies();
+    for (const enemy of enemies) {
+      if (!aliveCombatHeroes().length || state.gameOver) break;
+
+      // 4인 보스전의 메인 보스는 영웅 2명 행동마다 이미 공격한다.
+      if (c.isBoss && c.participantIds.length >= 4 && enemy.tier === 'boss') continue;
+
+      let actions = 1;
+      if (c.participantIds.length >= 4 && enemy.tier === 'elite' && enemies.length === 1) actions = 2;
+      for (let i = 0; i < actions; i += 1) {
+        if (!aliveCombatHeroes().length || state.gameOver || enemy.currentHp <= 0) break;
+        await new Promise(r => setTimeout(r, 220));
+        await monsterAttack(enemy);
+        renderCombat();
+      }
+    }
+
+    c.busy = false;
+    if (state.gameOver) {
+      await endCombat('defeat');
+      return;
+    }
+    if (!aliveCombatHeroes().length) {
+      await endCombat('defeat');
+      return;
+    }
+    beginNextCombatRound();
+  }
+
+  function beginNextCombatRound() {
+    const c = state.combat;
+    if (!c) return;
+    c.round += 1;
+    c.heroActionsThisRound = 0;
+    c.bossActionsThisRound = 0;
+    c.participantIds.forEach(id => {
+      const hs = combatHeroState(id);
+      const hero = state.heroes.find(h => h.id === id);
+      if (!hs || !hero || hero.down) return;
+      hs.acted = false;
+      hs.defending = false;
+      hs.skillUsedRound = false;
+    });
+    const next = c.participantIds
+      .map(id => state.heroes.find(h => h.id === id))
+      .find(h => h && !h.down);
+    c.currentHeroId = next?.id || null;
+    setCombatMessage(`COMBAT ROUND ${c.round}`, '');
+    renderCombat();
+  }
+
+  async function afterHeroAction() {
+    const c = state.combat;
+    if (!c) return;
+
+    renderCombat();
+    if (!aliveCombatEnemies().length) {
+      await endCombat('victory');
+      return;
+    }
+    if (!aliveCombatHeroes().length || state.gameOver) {
+      await endCombat('defeat');
+      return;
+    }
+
+    await runBossInterleaveIfNeeded();
+    if (!state.combat) return;
+    if (!aliveCombatHeroes().length || state.gameOver) {
+      await endCombat('defeat');
+      return;
+    }
+    if (!aliveCombatEnemies().length) {
+      await endCombat('victory');
+      return;
+    }
+
+    const ready = c.participantIds
+      .map(id => state.heroes.find(h => h.id === id))
+      .find(h => h && !h.down && !combatHeroState(h.id)?.acted);
+
+    if (ready) {
+      c.currentHeroId = ready.id;
+      renderCombat();
+      return;
+    }
+    await runMonsterPhase();
+  }
+
+  function finishCombatTurns(participantIds) {
+    participantIds.forEach(id => {
+      const hero = state.heroes.find(h => h.id === id);
+      if (hero) hero.acted = true;
+    });
+    state.rolled = null;
+    clearDiceDisplay();
+
+    if (state.gameOver) {
+      renderAll();
+      return;
+    }
+
+    const next = state.heroes.find(h => !h.acted && !h.down);
+    if (next) {
+      state.activeHeroId = next.id;
+    } else {
+      endRound();
+    }
+    renderAll();
+  }
+
+  async function endCombat(result) {
+    const c = state.combat;
+    if (!c || c.ending) return;
+    c.ending = true;
+    c.busy = true;
+
+    if (result === 'victory') {
+      setCombatMessage('VICTORY!', 'good');
+      combatLogEntry('🏆 전투 승리!');
+      log(`🏆 ${c.node.icon} <strong>${c.node.name}</strong> 전투 승리.`);
+
+      // 마법사는 전투 종료 시 MANA 1 회복.
+      c.participantIds.forEach(id => {
+        const hero = state.heroes.find(h => h.id === id);
+        if (hero?.id === 'mage' && !hero.down) hero.currentMana = Math.min(3, (hero.currentMana ?? 0) + 1);
+      });
+
+      if (c.isBoss && !state.defeatedBosses.has(c.node.id)) {
+        state.defeatedBosses.add(c.node.id);
+        if (state.seals < 3) {
+          state.seals += 1;
+          combatLogEntry(`🗿 용의 봉인석 획득! ${state.seals}/3`);
+          log(`🗿 지역 보스 처치 → <strong>봉인석 ${state.seals}/3</strong>`);
+        }
+      }
+    } else {
+      setCombatMessage(state.gameOver ? 'KINGDOM FALLS' : 'DEFEAT', 'danger');
+      combatLogEntry('☠️ 전투 패배. 쓰러진 영웅은 마을로 귀환한다.');
+      log('☠️ 전투 패배. 살아남지 못한 영웅은 다음 라운드 마을에서 부활한다.');
+    }
+
+    renderCombat();
+    await new Promise(r => setTimeout(r, 850));
+    const ids = [...c.participantIds];
+    const resolver = c.resolve;
+    combatOverlay.classList.add('hidden');
+    state.combat = null;
+    finishCombatTurns(ids);
+
+    if (state.gameOver) showModal('☠️ 왕국 멸망', 'DRAGON THREAT가 12에 도달했다. GAME OVER.');
+    resolver?.(result);
+  }
+
+  function startCombat(hero, node, originNodeId) {
+    return new Promise(resolve => {
+      if (state.combat) {
+        resolve('busy');
+        return;
+      }
+
+      // 같은 칸의 아직 행동하지 않은 영웅은 자동으로 전투에 합류한다.
+      const participants = state.heroes.filter(h =>
+        !h.down && h.currentHp > 0 && h.position === node.id && (!h.acted || h.id === hero.id)
+      );
+      if (!participants.some(h => h.id === hero.id)) participants.unshift(hero);
+
+      const enemies = chooseEncounter(node, participants.length);
+      const isBoss = node.type === '보스';
+      const heroStates = {};
+      participants.forEach(h => {
+        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false };
+      });
+
+      state.combat = {
+        node,
+        nodeId: node.id,
+        originNodeId,
+        isBoss,
+        participantIds: participants.map(h => h.id),
+        heroStates,
+        enemies,
+        selectedEnemyId: enemies[0]?.uid || null,
+        currentHeroId: hero.id,
+        round: 1,
+        busy: false,
+        ending: false,
+        heroActionsThisRound: 0,
+        bossActionsThisRound: 0,
+        necroHalfSummoned: false,
+        resolve,
+      };
+
+      // 네크로맨서 전투는 해골 병사 1체와 함께 시작.
+      if (enemies[0]?.id === 'necromancer') {
+        const skeleton = cloneEnemy('skeleton', encounterScale('normal', participants.length), '-summon1');
+        skeleton.summoned = true;
+        state.combat.enemies.push(skeleton);
+      }
+
+      combatLog.innerHTML = '';
+      combatD20Value.textContent = '20';
+      combatDiceLabel.textContent = 'D20';
+      combatOverlay.classList.remove('hidden');
+      combatLogEntry(`⚔️ <strong>${participants.map(h => h.name).join(', ')}</strong> 전투 참가`);
+      combatLogEntry(`${enemies.map(e => `${e.icon} ${e.name}`).join(' + ')} 등장!`);
+      setCombatMessage('영웅 페이즈 · 대상을 선택하고 행동해', '');
+      renderCombat();
+      renderHUD();
+    });
+  }
+
   async function moveActiveHero(nodeId) {
-    if (state.isMoving || state.isRolling || state.gameOver) return;
+    if (state.isMoving || state.isRolling || state.gameOver || state.combat) return;
     const reachable = getReachableNodeIds();
     if (!reachable.has(nodeId)) return;
     const hero = getActiveHero();
-    if (!hero) return;
+    if (!hero || hero.down) return;
+    const originNodeId = hero.position;
     const path = getShortestPath(hero.position, nodeId, state.rolled ?? 0);
     if (!path) return;
     const node = WORLD_NODES.find(n => n.id === nodeId);
@@ -644,71 +1411,93 @@
     state.isMoving = false;
 
     log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
-    resolveNode(hero, node);
-    finishHeroTurn(hero);
+    const turnHandled = await resolveNode(hero, node, originNodeId);
+    if (!turnHandled) finishHeroTurn(hero);
   }
 
-  function stayPut() {
-    if (state.rolled === null || state.isMoving || state.isRolling) return;
+  async function stayPut() {
+    if (state.rolled === null || state.isMoving || state.isRolling || state.combat) return;
     const hero = getActiveHero();
+    if (!hero || hero.down) return;
     const node = WORLD_NODES.find(n => n.id === hero.position);
     log(`${hero.icon} <strong>${hero.name}</strong> 이동하지 않음 → ${node.icon} ${node.name} 행동`);
-    resolveNode(hero, node);
-    finishHeroTurn(hero);
+    const turnHandled = await resolveNode(hero, node, hero.position);
+    if (!turnHandled) finishHeroTurn(hero);
   }
 
-  function resolveNode(hero, node) {
+  async function resolveNode(hero, node, originNodeId) {
     switch (node.type) {
       case '마을':
         hero.currentHp = hero.hp;
+        hero.down = false;
+        hero.reviveRound = null;
         if (hero.currentMana !== null) hero.currentMana = 3;
         showModal('🏠 왕국 마을', `${hero.name}의 HP가 모두 회복되었다.${hero.currentMana !== null ? ' 마나도 3/3 회복.' : ''}`);
-        break;
+        return false;
+
       case '전투':
-        showModal(`${node.icon} 전투 발생`, `이 지역에서 몬스터와 조우했다. 다음 코드 작업에서 D20 명중/피해/몬스터 반격을 이 칸에 연결한다.`);
-        break;
+        await startCombat(hero, node, originNodeId);
+        return true;
+
       case '보물':
         showModal('🎁 보물 발견', `${node.name}에서 보물을 발견했다. 다음 단계에서 장비 카드를 연결하면 캐릭터 위에 실제 장비 레이어가 입혀진다.`);
-        break;
+        return false;
+
       case '사건':
         showModal('❓ 사건 발생', `${node.name}에서 랜덤 사건이 발생한다. 이벤트 카드 시스템은 이후 연결한다.`);
-        break;
+        return false;
+
       case '상점':
         showModal('🏪 상점', `${node.name}에서 물품을 사고팔 수 있다. 상점/골드는 카드 시스템과 함께 연결한다.`);
-        break;
+        return false;
+
       case '휴식':
         hero.currentHp = Math.min(hero.hp, hero.currentHp + Math.ceil(hero.hp * 0.3));
         if (hero.currentMana !== null) hero.currentMana = Math.min(3, hero.currentMana + 1);
         showModal('❤️ 휴식', `${hero.name}이 휴식했다. HP 일부 회복${hero.currentMana !== null ? ' / MANA +1' : ''}.`);
-        break;
+        return false;
+
       case '길':
         showModal('🛤 길', `${node.name}. 안전한 지름길이다.`);
-        break;
+        return false;
+
       case '보스':
-        showModal('👹 지역 보스', `${node.name}에 강력한 존재가 있다. 다음 단계에서 보스 전투와 봉인석 보상을 연결한다.`);
-        break;
+        if (state.defeatedBosses.has(node.id)) {
+          showModal('🏆 정복한 지역', `${node.name}의 보스는 이미 쓰러뜨렸다.`);
+          return false;
+        }
+        await startCombat(hero, node, originNodeId);
+        return true;
+
       case '봉인':
         if (state.seals < 3) {
           state.seals += 1;
-          showModal('🗿 용의 봉인석', `봉인석을 하나 확보했다. 현재 ${state.seals}/3.`);
+          showModal('🗿 용의 봉인석', `고대 신전의 봉인을 해제했다. 현재 봉인석 ${state.seals}/3.`);
           log(`🗿 <strong>봉인석 ${state.seals}/3</strong> 획득.`);
         } else {
           showModal('🗿 고대 신전', '이미 필요한 봉인석을 모두 확보했다.');
         }
-        break;
+        return false;
+
       case '위험':
         if (Math.random() < 0.5) {
           state.threat = Math.min(12, state.threat + 1);
           showModal('🔥 위험 지역', '불길한 징조가 번진다. DRAGON THREAT +1');
           log('🔥 위험 사건으로 <strong>THREAT +1</strong>.');
+          if (state.threat >= 12) {
+            state.gameOver = true;
+            showModal('☠️ 왕국 멸망', 'DRAGON THREAT가 12에 도달했다. GAME OVER.');
+          }
         } else {
           showModal('🔥 화산지대', '아무 일도 일어나지 않았다.');
         }
-        break;
+        return false;
+
       case '잠김':
-        showModal('🐉 드래곤의 성', '성문 앞에 도착했다. 최종 던전은 다음 프로토 단계에서 연결한다.');
-        break;
+        showModal('🐉 드래곤의 성', '성문 앞에 도착했다. 최종 던전/드래곤전은 다음 프로토 단계에서 연결한다.');
+        return false;
     }
+    return false;
   }
 
   function finishHeroTurn(hero) {
@@ -716,7 +1505,12 @@
     state.rolled = null;
     clearDiceDisplay();
 
-    const next = state.heroes.find(h => !h.acted);
+    if (state.gameOver) {
+      renderAll();
+      return;
+    }
+
+    const next = state.heroes.find(h => !h.acted && !h.down);
     if (next) {
       state.activeHeroId = next.id;
     } else {
@@ -741,8 +1535,23 @@
     }
 
     state.round += 1;
-    state.heroes.forEach(h => h.acted = false);
-    state.activeHeroId = state.heroes[0].id;
+
+    state.heroes.forEach(h => {
+      if (h.down && h.reviveRound !== null && h.reviveRound <= state.round) {
+        h.down = false;
+        h.currentHp = h.hp;
+        h.reviveRound = null;
+        h.position = 'village';
+        h.attackPenalty = 0;
+        h.acPenalty = 0;
+        if (h.currentMana !== null) h.currentMana = 3;
+        log(`✨ ${h.icon} <strong>${h.name}</strong>이 마을에서 부활했다.`);
+      }
+      h.acted = false;
+    });
+
+    const firstReady = state.heroes.find(h => !h.down);
+    state.activeHeroId = firstReady?.id || state.heroes[0]?.id || null;
   }
 
   function showModal(title, body) {
@@ -758,7 +1567,11 @@
     state.heroes = [];
     state.rolled = null;
     state.isRolling = false;
+    state.isMoving = false;
+    state.combat = null;
+    state.defeatedBosses = new Set();
     clearDiceDisplay();
+    combatOverlay?.classList.add('hidden');
     state.gameOver = false;
     modal.classList.add('hidden');
     showScreen(titleScreen);
@@ -780,6 +1593,9 @@
   startGameBtn.addEventListener('click', startGame);
   rollBtn.addEventListener('click', rollD6);
   stayBtn.addEventListener('click', stayPut);
+  combatAttackBtn?.addEventListener('click', heroBasicAttack);
+  combatSkillBtn?.addEventListener('click', heroSkillAction);
+  combatDefendBtn?.addEventListener('click', heroDefendAction);
   $('#resetBtn').addEventListener('click', resetGame);
   $('#clearLogBtn').addEventListener('click', () => gameLog.innerHTML = '');
   modalCloseBtn.addEventListener('click', () => modal.classList.add('hidden'));
