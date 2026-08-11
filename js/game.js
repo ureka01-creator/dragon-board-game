@@ -40,6 +40,7 @@
   const activeHeroLabel = $('#activeHeroLabel');
   const resourceSummary = $('#resourceSummary');
   const worldMap = $('#worldMap');
+  const boardTitle = $('#boardTitle');
   const regionNavigator = $('#regionNavigator');
   const regionTitle = $('#regionTitle');
   const worldActionBar = $('#worldActionBar');
@@ -201,6 +202,7 @@
     state.parties = {};
     state.nextPartySerial = 1;
     state.combat = null;
+    setCombatViewportLock(false);
     state.eventDeck = [];
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
@@ -214,11 +216,9 @@
     log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
     log(`🔁 월드 턴은 <strong>${state.heroes.map(h => h.name).join(' → ')}</strong> 고정 순서로 진행된다.`);
     renderAll();
-    // 첫 진입에서는 월드맵이 바로 보이도록 보드 영역으로 맞춘다.
-    requestAnimationFrame(() => {
-      const boardPanel = document.querySelector('.board-panel');
-      boardPanel?.scrollIntoView({ behavior: 'auto', block: 'start' });
-    });
+    // 인게임 진입 시 스크롤 위치를 강제로 보드 중앙에 맞추지 않는다.
+    // 화면 전환 직후 최상단을 한 번만 유지해 iOS Safari의 자동 재정렬/점프를 막는다.
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
   }
 
   function renderAll() {
@@ -538,6 +538,7 @@
     if (state.rolled !== null && activeArea !== state.viewAreaId) state.viewAreaId = activeArea;
     renderRegionNavigator();
     const areaMeta = window.WORLD_AREAS?.[state.viewAreaId];
+    if (boardTitle) boardTitle.textContent = areaMeta?.themeLabel || `${state.viewAreaId} 지역`;
     worldMap.dataset.areaId = state.viewAreaId;
     worldMap.dataset.theme = areaMeta?.themeKey || '';
 
@@ -604,6 +605,15 @@
     }
     if (partyStatusText) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';
     worldActionBar?.classList.toggle('disabled', !prep);
+  }
+
+  function setCombatViewportLock(locked) {
+    document.body.classList.toggle('combat-open', Boolean(locked));
+    if (locked) {
+      document.documentElement.style.overscrollBehavior = 'none';
+    } else {
+      document.documentElement.style.overscrollBehavior = '';
+    }
   }
 
   function closeModalPanel() {
@@ -2014,6 +2024,8 @@
     // 전투 아이템창 전용 클래스로 항상 전투 화면 위에 띄운다.
     modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','equip-compare-modal');
     modal.classList.add('combat-item-modal');
+    // iOS Safari에서 fixed 전투 오버레이보다 뒤로 밀리는 현상을 막는다.
+    if (modal.parentElement !== document.body) document.body.appendChild(modal);
     if (!items.length) {
       modalContent.innerHTML = `<div class="combat-item-sheet"><div class="status-kicker">COMBAT ITEM</div><h3>🎒 ${hero.name}의 아이템</h3><p>현재 전투에서 사용할 수 있는 소비 아이템이 없어.</p><div class="combat-item-empty">가방에 장비가 있어도 전투 중에는 회복약·폭탄·연막탄 같은 <strong>소비 아이템</strong>만 사용할 수 있어.</div></div>`;
       modalCloseBtn.textContent = '전투로 돌아가기';
@@ -2554,6 +2566,7 @@
     const ids = [...c.participantIds];
     const resolver = c.resolve;
     combatOverlay.classList.add('hidden');
+    setCombatViewportLock(false);
     state.combat = null;
     finishCombatTurns(ids);
     flushDragonCastleNotice();
@@ -2619,6 +2632,7 @@
       combatD20Value.textContent = '20';
       combatDiceLabel.textContent = 'D20';
       combatOverlay.classList.remove('hidden');
+    setCombatViewportLock(true);
       combatLogEntry(`⚔️ <strong>${participants.map(h => h.name).join(', ')}</strong> 전투 참가`);
       combatLogEntry(`${enemies.map(e => `${e.icon} ${e.name}`).join(' + ')} 등장!`);
       setCombatMessage('영웅 페이즈 · 대상을 선택하고 행동해', '');
