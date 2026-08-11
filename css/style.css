@@ -1848,7 +1848,7 @@ body.modal-open {
 @media (max-width:520px){ .shop-grid{grid-template-columns:1fr 1fr;gap:6px}.shop-product{min-height:132px;padding:7px}.shop-sell-row{grid-template-columns:26px 1fr auto;gap:5px}.shop-item-copy small{font-size:6px} }
 
 
-/* V0.5.5.2 — 탐험 목표 + Fog of War */
+/* V0.5.5.3 — 탐험 목표 + Fog of War */
 .current-objective {
   display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 7px;
   padding:6px 8px; border:2px solid #4e432d; background:#17140f; color:#d8ccb1;
