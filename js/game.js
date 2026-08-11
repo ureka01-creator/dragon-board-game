@@ -595,7 +595,7 @@
     if (regionTitle) regionTitle.textContent = `${state.viewAreaId} 지역 · ${meta?.themeLabel || '미지의 땅'}`;
   }
 
-  // V0.5.5.2 — 탐험형 Fog of War. 보드의 길/칸 위치는 보이지만,
+  // V0.5.5.3 — 탐험형 Fog of War. 보드의 길/칸 위치는 보이지만,
   // 영웅이 가까이 가기 전에는 타일의 정체를 ???로 숨긴다. 발견 정보는 게임 동안 유지된다.
   function revealFromNode(startNodeId, radius = 2) {
     if (!startNodeId) return;
@@ -892,7 +892,7 @@
 
   function equipmentCompareHTML(hero, newItem) {
     if (!hero || !newItem || newItem.type !== 'equipment') return '';
-    const oldItem = getItemCard?.(hero.equipment?.[newItem.slot]);
+    const oldItem = window.getItemCard?.(hero.equipment?.[newItem.slot]);
     const card = (label, item, cls) => {
       if (!item) return `<div class="equip-compare-card ${cls}"><div class="equip-compare-label">${label}</div><div class="equip-compare-empty">장비 없음</div></div>`;
       const stats = itemStatsText(item);
@@ -902,7 +902,7 @@
   }
 
   function openEquipComparison(hero, itemId, inventoryIndex) {
-    const item = getItemCard?.(itemId);
+    const item = window.getItemCard?.(itemId);
     if (!hero || !item || item.type !== 'equipment') return;
     if (!canHeroEquip(hero, item)) {
       showModal('장착할 수 없음', `${hero.name}은(는) ${item.name}을 장착할 수 없어.`);
@@ -922,7 +922,7 @@
   }
 
   function equipInventoryItem(hero, itemId, inventoryIndex = null) {
-    const item = getItemCard?.(itemId);
+    const item = window.getItemCard?.(itemId);
     if (!hero || !item || item.type !== 'equipment') return false;
     if (!canHeroEquip(hero, item)) {
       log(`🚫 ${hero.icon} <strong>${hero.name}</strong>은(는) ${item.name}을 장착할 수 없다.`);
@@ -1838,7 +1838,7 @@
     combatSkillBtn.textContent = currentHero ? `✨ ${skillName(currentHero)}` : '✨ 스킬';
     const currentState = currentHero ? combatHeroState(currentHero.id) : null;
     const hasCombatConsumable = currentHero ? heroInventory(currentHero).some(id => {
-      const item = getItemCard?.(id);
+      const item = window.getItemCard?.(id);
       return item?.type === 'consumable' && item.effect !== 'autoRevive';
     }) : false;
     if (combatItemBtn) {
@@ -2163,7 +2163,7 @@
     const hero = getCombatHero();
     const hs = hero ? combatHeroState(hero.id) : null;
     if (!c || !hero || !hs || c.busy || hs.acted || hs.itemUsed) return;
-    const items = heroInventory(hero).map((id,index) => ({ item:getItemCard?.(id), index })).filter(x => x.item?.type === 'consumable' && x.item.effect !== 'autoRevive');
+    const items = heroInventory(hero).map((id,index) => ({ item:window.getItemCard?.(id), index })).filter(x => x.item?.type === 'consumable' && x.item.effect !== 'autoRevive');
     // 일반 modal(z-index 20)은 전투 화면(z-index 80) 뒤에 가려진다.
     // 전투 아이템창 전용 클래스로 항상 전투 화면 위에 띄운다.
     modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','equip-compare-modal');
@@ -2181,7 +2181,7 @@
     modalContent.querySelectorAll('[data-combat-item]').forEach(btn => btn.addEventListener('click', async () => {
       const index = Number(btn.dataset.combatItem);
       const itemId = heroInventory(hero)[index];
-      const item = getItemCard?.(itemId);
+      const item = window.getItemCard?.(itemId);
       if (!item || item.type !== 'consumable' || hs.itemUsed) return;
       const enemy = selectedCombatEnemy();
       if ((item.effect === 'fireBomb' || item.effect === 'bomb') && !enemy) return;
@@ -2505,7 +2505,7 @@
     const grid = document.createElement('div');
     grid.className = 'loot-replace-grid';
     inv.forEach((oldId,index) => {
-      const old = getItemCard?.(oldId);
+      const old = window.getItemCard?.(oldId);
       if (!old) return;
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -2515,7 +2515,7 @@
         const removed = heroInventory(owner).splice(index,1)[0];
         heroInventory(owner).push(newItem.id);
         if (newItem.type === 'equipment') state.acquiredEquipmentIds.add(newItem.id);
-        log(`🗑️ ${owner.name}이 ${getItemCard?.(removed)?.name || '기존 아이템'}을 버리고 <strong>${newItem.name}</strong> 보관.`);
+        log(`🗑️ ${owner.name}이 ${window.getItemCard?.(removed)?.name || '기존 아이템'}을 버리고 <strong>${newItem.name}</strong> 보관.`);
         finish(newItem);
       }, {once:true});
       grid.appendChild(btn);
@@ -2539,7 +2539,7 @@
   function setupLootCurrentEquipmentInfo(owner, item) {
     hideLootCurrentEquipmentInfo();
     if (!owner || !item || item.type !== 'equipment') return;
-    const oldItem = getItemCard?.(owner.equipment?.[item.slot]);
+    const oldItem = window.getItemCard?.(owner.equipment?.[item.slot]);
     if (!oldItem || !lootCurrentEquipInfo || !lootCurrentEquipDetail) return;
     lootCurrentEquipInfo.classList.remove('hidden');
     lootCurrentEquipInfo.setAttribute('aria-expanded','false');
@@ -3137,7 +3137,7 @@
         <div class="shop-restock">상품 4개 고정 · 구매하면 SOLD OUT · ${stock.restockRound}라운드에 재입고</div>
         <section class="shop-section"><h4>BUY</h4><div class="shop-grid">
           ${stock.slots.map((slot,index)=>{
-            const item=getItemCard?.(slot.itemId);
+            const item=window.getItemCard?.(slot.itemId);
             if(slot.sold) return `<div class="shop-product sold"><div class="shop-sold">SOLD OUT</div></div>`;
             const price=shopBuyPrice(item);
             const blocked=!bagHasSpace(hero) || state.gold < price;
@@ -3145,13 +3145,13 @@
           }).join('')}
         </div></section>
         <section class="shop-section"><h4>SELL · 판매가는 구매가의 50%</h4><div class="shop-sell-list">
-          ${sellEntries.length ? sellEntries.map((entry,index)=>{const item=getItemCard?.(entry.id); if(!item || item.rarity==='legendary') return ''; const equipped=entry.source==='equipment'; return `<div class="shop-sell-row">${shopItemCardHTML(item, equipped?'<em>장착 중</em>':'')}<button type="button" class="text-btn" data-shop-sell="${index}">판매 ${shopSellPrice(item)}G</button></div>`;}).join('') : '<div class="personal-bag-empty">판매할 아이템이 없어.</div>'}
+          ${sellEntries.length ? sellEntries.map((entry,index)=>{const item=window.getItemCard?.(entry.id); if(!item || item.rarity==='legendary') return ''; const equipped=entry.source==='equipment'; return `<div class="shop-sell-row">${shopItemCardHTML(item, equipped?'<em>장착 중</em>':'')}<button type="button" class="text-btn" data-shop-sell="${index}">판매 ${shopSellPrice(item)}G</button></div>`;}).join('') : '<div class="personal-bag-empty">판매할 아이템이 없어.</div>'}
         </div><div class="shop-rule-note">전설 장비는 상점에서 거래하지 않아. 구매한 아이템은 현재 영웅의 가방으로 들어간다.</div></section>
       </div>`;
 
     modal.classList.remove('hidden');
     modalContent.querySelectorAll('[data-shop-buy]').forEach(btn => btn.addEventListener('click',()=>{
-      const index=Number(btn.dataset.shopBuy); const slot=stock.slots[index]; const item=getItemCard?.(slot?.itemId);
+      const index=Number(btn.dataset.shopBuy); const slot=stock.slots[index]; const item=window.getItemCard?.(slot?.itemId);
       if(!slot || slot.sold || !item) return;
       const price=shopBuyPrice(item);
       if(state.gold < price || !bagHasSpace(hero)) { openShop(hero,node); return; }
@@ -3161,7 +3161,7 @@
       renderAll(); openShop(hero,node);
     }));
     modalContent.querySelectorAll('[data-shop-sell]').forEach(btn => btn.addEventListener('click',()=>{
-      const index=Number(btn.dataset.shopSell); const current=ownedItemEntries(hero); const entry=current[index]; const item=getItemCard?.(entry?.id);
+      const index=Number(btn.dataset.shopSell); const current=ownedItemEntries(hero); const entry=current[index]; const item=window.getItemCard?.(entry?.id);
       if(!entry || !item || item.rarity==='legendary') return;
       const price=shopSellPrice(item);
       if(!removeOwnedItem(hero,entry)) return;
@@ -3325,12 +3325,12 @@
 
 
   function equipmentName(hero, slot) {
-    const item = getItemCard?.(hero?.equipment?.[slot]);
+    const item = window.getItemCard?.(hero?.equipment?.[slot]);
     return item ? `${item.icon || ''} ${item.name}`.trim() : '장비 없음';
   }
 
   function equipmentBonusText(hero, slot) {
-    const item = getItemCard?.(hero?.equipment?.[slot]);
+    const item = window.getItemCard?.(hero?.equipment?.[slot]);
     if (!item) return '—';
     const text = itemStatsText(item);
     return text || item.desc || '효과 없음';
@@ -3353,7 +3353,7 @@
         <div class="hero-status-bars"><div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/${maxMana(hero)}</strong></div>` : ''}</div>
         <div class="hero-status-stats"><div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div><div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div><div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div><div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div><div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div><div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div><div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div></div>
         <div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list"><div><span>⚔ 무기</span><strong>${equipmentName(hero,'weapon')}</strong><small>${equipmentBonusText(hero,'weapon')}</small></div><div><span>🛡 방어구</span><strong>${equipmentName(hero,'armor')}</strong><small>${equipmentBonusText(hero,'armor')}</small></div><div><span>💍 장신구</span><strong>${equipmentName(hero,'accessory')}</strong><small>${equipmentBonusText(hero,'accessory')}</small></div></div></div>
-        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); return `<div class="personal-bag-row"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">장착</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">가방은 최대 ${BAG_LIMIT}칸. 전리품은 획득한 영웅의 개인 가방에 들어간다. 다른 영웅에게 주려면 자신의 월드 턴에 ‘아이템 전달’을 사용해야 해.</div></div>
+        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=window.getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); return `<div class="personal-bag-row"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">장착</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">가방은 최대 ${BAG_LIMIT}칸. 전리품은 획득한 영웅의 개인 가방에 들어간다. 다른 영웅에게 주려면 자신의 월드 턴에 ‘아이템 전달’을 사용해야 해.</div></div>
         <div class="hero-status-section skill-status"><h4>ABILITY</h4><p><strong>패시브</strong> ${hero.passive}</p><p><strong>고유기</strong> ${hero.skill}</p></div>
       </div>`;
     modalContent.querySelectorAll('[data-equip-index]').forEach(btn => btn.addEventListener('click',()=>{
