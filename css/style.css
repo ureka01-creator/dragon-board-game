@@ -180,11 +180,14 @@ h2 { font-size: 17px; margin: 0; }
   width: var(--die-size);
   height: var(--die-size);
   display: none;
-  place-items: center;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  align-items: center;
+  justify-items: center;
   z-index: 50;
   pointer-events: none;
-  font-size: calc(var(--die-size) * .9);
-  line-height: 1;
+  box-sizing: border-box;
+  padding: calc(var(--die-size) * .115);
   color: #30281e;
   background: linear-gradient(145deg, #fff0c9 0%, #e5d0a4 70%, #c7ae79 100%);
   border: 2px solid #59462f;
@@ -196,6 +199,35 @@ h2 { font-size: 17px; margin: 0; }
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
+
+/* 실제 눈(pip)을 3x3 그리드에 배치해 폰트 글리프 편심 없이 항상 정중앙에 맞춘다. */
+.die-pip {
+  width: calc(var(--die-size) * .155);
+  height: calc(var(--die-size) * .155);
+  border-radius: 50%;
+  background: #30281e;
+  box-shadow: inset -1px -1px 0 rgba(255,255,255,.12), inset 1px 1px 0 rgba(0,0,0,.28);
+  opacity: 0;
+}
+.pip-tl { grid-column: 1; grid-row: 1; }
+.pip-tc { grid-column: 2; grid-row: 1; }
+.pip-tr { grid-column: 3; grid-row: 1; }
+.pip-ml { grid-column: 1; grid-row: 2; }
+.pip-mc { grid-column: 2; grid-row: 2; }
+.pip-mr { grid-column: 3; grid-row: 2; }
+.pip-bl { grid-column: 1; grid-row: 3; }
+.pip-bc { grid-column: 2; grid-row: 3; }
+.pip-br { grid-column: 3; grid-row: 3; }
+
+.dice-roller[data-face="1"] .pip-mc,
+.dice-roller[data-face="2"] .pip-tl, .dice-roller[data-face="2"] .pip-br,
+.dice-roller[data-face="3"] .pip-tl, .dice-roller[data-face="3"] .pip-mc, .dice-roller[data-face="3"] .pip-br,
+.dice-roller[data-face="4"] .pip-tl, .dice-roller[data-face="4"] .pip-tr, .dice-roller[data-face="4"] .pip-bl, .dice-roller[data-face="4"] .pip-br,
+.dice-roller[data-face="5"] .pip-tl, .dice-roller[data-face="5"] .pip-tr, .dice-roller[data-face="5"] .pip-mc, .dice-roller[data-face="5"] .pip-bl, .dice-roller[data-face="5"] .pip-br,
+.dice-roller[data-face="6"] .pip-tl, .dice-roller[data-face="6"] .pip-ml, .dice-roller[data-face="6"] .pip-bl, .dice-roller[data-face="6"] .pip-tr, .dice-roller[data-face="6"] .pip-mr, .dice-roller[data-face="6"] .pip-br {
+  opacity: 1;
+}
+
 .dice-roller.rolling,
 .dice-roller.landed { display: grid; }
 .dice-roller.landed {
@@ -415,6 +447,58 @@ h2 { font-size: 17px; margin: 0; }
 .map-token-stack { position:absolute; right:1px; bottom:0; display:flex; align-items:flex-end; gap:0; transform: scale(.78); transform-origin: right bottom; }
 .map-token-stack .pixel-hero { margin-left: calc(-6 * var(--u)); }
 .map-token-stack .pixel-hero:first-child { margin-left:0; }
+
+
+/* V0.3.6 — 보드게임 말을 한 칸씩 집어 옮기는 듯한 짧은 홉 이동 */
+.movement-source-hidden { visibility: hidden !important; }
+.world-map.movement-lock .map-node.reachable { pointer-events: none; }
+.hero-hop-mover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 35;
+  pointer-events: none;
+  will-change: transform;
+}
+.hero-hop-mover .pixel-hero {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 2px 1px rgba(0,0,0,.22));
+  will-change: transform;
+}
+.hero-hop-mover .pixel-hero .shadow { opacity: 0; }
+.hero-hop-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: clamp(12px, 3.2vw, 22px);
+  height: clamp(4px, .8vw, 7px);
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  filter: blur(.35px);
+  transform-origin: center;
+  z-index: 30;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.map-node.hero-step-land {
+  animation: heroStepLand .18s ease-out;
+}
+.move-steps { color: #9f916f; font-size: .88em; }
+@keyframes heroStepLand {
+  0% { transform: translateY(0); filter: brightness(1); }
+  38% { transform: translateY(1px); filter: brightness(1.2); }
+  72% { transform: translateY(-1px); }
+  100% { transform: translateY(0); filter: brightness(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-node.hero-step-land { animation: none; }
+}
 
 @media (max-width: 700px) {
   .title-start-area { min-height: calc(100dvh - 16px); }
