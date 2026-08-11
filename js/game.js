@@ -2557,6 +2557,9 @@
     const party = getHeroParty(hero);
     if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
     else log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
+    // 이동 결과 주사위는 목적지 선택까지만 보여준다. 이동이 끝난 뒤에는
+    // 사건/보상/상점 등의 모달보다 앞에 남지 않도록 즉시 정리한다.
+    clearDiceDisplay();
     const turnHandled = await resolveNode(hero,node,originNodeId,unit);
     if (!turnHandled) finishWorldUnitTurn(hero);
   }
