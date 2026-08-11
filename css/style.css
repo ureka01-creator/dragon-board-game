@@ -1448,3 +1448,92 @@ h2 { font-size: 17px; margin: 0; }
   .party-manage-actions { grid-template-columns:1fr; }
   .transfer-recipient-grid { grid-template-columns:1fr 1fr; }
 }
+
+/* ─────────────────────────────────────────────
+   V0.4.7 — 4 REGION WORLD / SOLO LOCK
+   ───────────────────────────────────────────── */
+.region-browser {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:0 0 8px;
+  padding:7px 8px;
+  border:1px solid #5c452d;
+  background:#17120d;
+}
+.region-title { display:block; margin-top:2px; color:#e3bd6e; font-size:11px; letter-spacing:.04em; }
+.region-navigator {
+  width:132px;
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:3px;
+}
+.region-nav-btn {
+  min-width:0;
+  height:38px;
+  display:grid;
+  grid-template-columns:18px 20px 1fr;
+  align-items:center;
+  gap:2px;
+  padding:2px 3px;
+  border:1px solid #5b4630;
+  background:#211911;
+  color:#baa47a;
+  font:inherit;
+  cursor:pointer;
+}
+.region-nav-btn .region-code { color:#e3bd6e; font-weight:800; font-size:10px; }
+.region-nav-btn .region-icon { font-size:13px; }
+.region-nav-btn small { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:5px; color:#8f7d5d; }
+.region-nav-btn.active { border-color:#d0a34d; box-shadow:inset 0 0 0 1px #6d4c20, 0 0 8px rgba(210,160,67,.2); background:#352719; }
+.region-nav-btn.hero-area::after { content:'●'; color:#9bcf74; font-size:5px; position:absolute; transform:translate(3px,-13px); }
+.region-nav-btn { position:relative; }
+
+.world-map .area-watermark {
+  position:absolute;
+  z-index:0;
+  left:28%; right:28%; top:28%; bottom:28%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  pointer-events:none;
+  color:rgba(226,190,117,.12);
+  text-align:center;
+  border:1px solid rgba(151,113,60,.08);
+  background:rgba(10,8,6,.12);
+}
+.area-watermark span { font-size:clamp(17px,4vw,30px); font-weight:900; letter-spacing:.14em; }
+.area-watermark small { font-size:clamp(7px,1.4vw,11px); color:rgba(210,182,128,.18); }
+
+.map-node.dragon-spawned {
+  border-color:#d44f3f;
+  background:#3b1717;
+  box-shadow:0 0 0 2px rgba(116,30,25,.8), inset 0 0 16px rgba(217,64,43,.25), 0 0 14px rgba(220,61,43,.32);
+  animation:dragonTilePulse 1.05s steps(2,end) infinite;
+}
+.map-node.dragon-spawned .node-icon { filter:drop-shadow(0 0 4px rgba(255,92,62,.8)); }
+@keyframes dragonTilePulse { 50% { filter:brightness(1.22); } }
+
+.world-action-bar.solo-mode { grid-template-columns:auto minmax(0,1fr); }
+.world-action-bar.solo-mode .party-status-text { text-align:right; }
+
+/* 테마별 중앙 톤. 타일 자체는 기존 region 색을 유지한다. */
+.world-map[data-theme="grave"] { background:radial-gradient(circle at 50% 50%,rgba(95,86,109,.18),transparent 31%),#151318; }
+.world-map[data-theme="forest"] { background:radial-gradient(circle at 50% 50%,rgba(54,91,44,.2),transparent 32%),#10170f; }
+.world-map[data-theme="war"] { background:radial-gradient(circle at 50% 50%,rgba(115,60,39,.2),transparent 32%),#1a110d; }
+.world-map[data-theme="volcano"] { background:radial-gradient(circle at 50% 50%,rgba(146,56,30,.22),transparent 32%),#1b0f0b; }
+
+@media (max-width: 720px) {
+  .region-browser { padding:5px 6px; gap:6px; }
+  .region-title { font-size:9px; }
+  .region-navigator { width:120px; gap:2px; }
+  .region-nav-btn { height:34px; grid-template-columns:15px 17px 1fr; padding:1px 2px; }
+  .region-nav-btn .region-code { font-size:8px; }
+  .region-nav-btn .region-icon { font-size:11px; }
+  .world-action-bar.solo-mode { grid-template-columns:auto 1fr; }
+  .world-action-bar.solo-mode .party-status-text { font-size:6px; }
+}
+.region-nav-btn.hero-area::after { top:2px; right:3px; transform:none; }
