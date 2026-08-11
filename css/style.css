@@ -1297,3 +1297,154 @@ h2 { font-size: 17px; margin: 0; }
   .hero-status-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .party-status-btn { padding:3px 4px; }
 }
+
+
+/* V0.4.6 — 3~4인 전투 대형을 바닥 쪽으로 압축하고, 현재 행동 영웅만 빛나는 프레임으로 표시. */
+.stage-hero-actor.active {
+  z-index: 7;
+}
+.stage-hero-actor.active::after {
+  content: "";
+  position: absolute;
+  inset: 1px 2px;
+  border: 1px solid rgba(242, 203, 103, .92);
+  box-shadow:
+    0 0 5px rgba(244, 196, 78, .72),
+    0 0 12px rgba(244, 196, 78, .28),
+    inset 0 0 7px rgba(244, 196, 78, .18);
+  pointer-events: none;
+  animation: active-actor-frame 1.05s ease-in-out infinite alternate;
+}
+@keyframes active-actor-frame {
+  from { opacity: .58; filter: brightness(.95); }
+  to   { opacity: 1; filter: brightness(1.18); }
+}
+
+/* 세 명은 뒤 1명 + 앞 2명의 삼각 대형. */
+.stage-heroes[data-count="3"] .stage-hero-actor:first-child {
+  grid-column: 1 / -1;
+  width: 50%;
+  justify-self: center;
+}
+
+/* 3~4명일 때 두 줄 간격을 줄여 캐릭터들이 허공에 떠 보이지 않게 한다. */
+.stage-heroes[data-count="3"],
+.stage-heroes[data-count="4"] {
+  align-content: end;
+  row-gap: 1px;
+}
+.stage-heroes[data-count="3"] .stage-hero-actor,
+.stage-heroes[data-count="4"] .stage-hero-actor {
+  min-height: 102px;
+  gap: 1px;
+  padding-top: 1px;
+  padding-bottom: 2px;
+}
+.stage-heroes[data-count="3"] .stage-actor-sprite,
+.stage-heroes[data-count="4"] .stage-actor-sprite {
+  height: 58px;
+}
+.stage-heroes[data-count="3"] .stage-actor-sprite .pixel-hero.medium,
+.stage-heroes[data-count="4"] .stage-actor-sprite .pixel-hero.medium {
+  --u: 1.62px;
+}
+.stage-heroes[data-count="3"] .actor-name-row,
+.stage-heroes[data-count="4"] .actor-name-row {
+  min-height: 11px;
+  font-size: 7.2px;
+}
+.stage-heroes[data-count="3"] .actor-name-row .state,
+.stage-heroes[data-count="4"] .actor-name-row .state {
+  font-size: 5px;
+}
+.stage-heroes[data-count="3"] .actor-hp-text,
+.stage-heroes[data-count="4"] .actor-hp-text {
+  font-size: 6.2px;
+}
+.stage-heroes[data-count="3"] .actor-hp-bar,
+.stage-heroes[data-count="4"] .actor-hp-bar {
+  width: min(68px, 86%);
+  height: 4px;
+}
+.stage-heroes[data-count="3"] .actor-status,
+.stage-heroes[data-count="4"] .actor-status {
+  min-height: 8px;
+  font-size: 5px;
+}
+
+@media (max-width:700px) {
+  .stage-party-wrap:has(.stage-heroes[data-count="3"]),
+  .stage-party-wrap:has(.stage-heroes[data-count="4"]) {
+    bottom: 11%;
+  }
+  .stage-heroes[data-count="3"] .stage-hero-actor,
+  .stage-heroes[data-count="4"] .stage-hero-actor {
+    min-height: 94px;
+  }
+  .stage-heroes[data-count="3"] .stage-actor-sprite,
+  .stage-heroes[data-count="4"] .stage-actor-sprite {
+    height: 52px;
+  }
+  .stage-heroes[data-count="3"] .stage-actor-sprite .pixel-hero.medium,
+  .stage-heroes[data-count="4"] .stage-actor-sprite .pixel-hero.medium {
+    --u: 1.48px;
+  }
+  .stage-hero-actor.active::after {
+    inset: 0 1px;
+    box-shadow:
+      0 0 4px rgba(244, 196, 78, .8),
+      0 0 9px rgba(244, 196, 78, .30),
+      inset 0 0 5px rgba(244, 196, 78, .16);
+  }
+}
+
+
+/* V0.4.6 — 월드 파티 편성 / 개인 인벤토리 / 아이템 전달 */
+.world-action-bar { display:grid; grid-template-columns:auto auto minmax(0,1fr); gap:7px; align-items:center; margin:7px 0 9px; }
+.world-action-btn { min-height:34px; padding:6px 8px; font-size:8px; }
+.party-status-text { min-width:0; color:#a99572; font-size:7px; line-height:1.35; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.world-action-bar.disabled .party-status-text { opacity:.72; }
+.party-member.unit-active:not(.done):not(.down) { box-shadow:inset 0 0 0 1px rgba(215,167,67,.18),0 0 9px rgba(215,167,67,.08); }
+.party-link-note { margin-top:4px; color:#8daa7f; font-size:7px; letter-spacing:.35px; }
+.map-hero-token.in-party { position:relative; }
+.map-hero-token.in-party::after { content:''; position:absolute; left:18%; right:18%; bottom:1px; height:1px; background:rgba(226,194,115,.75); box-shadow:0 0 3px rgba(226,194,115,.35); }
+.modal.party-manage-modal,.modal.item-transfer-modal { z-index:145; }
+.modal.party-manage-modal .modal-card,.modal.item-transfer-modal .modal-card { width:min(600px,100%); max-height:92dvh; overflow:auto; }
+.party-manage-sheet h3,.item-transfer-sheet h3 { margin:3px 0 8px; color:var(--gold); }
+.party-rule-copy { margin:0 0 9px; padding:7px 8px; border-left:2px solid #6b5435; background:#17110d; color:#bba986; font-size:8px; line-height:1.55; }
+.party-location,.transfer-source-single { margin-bottom:8px; color:#d6c18f; font-size:8px; }
+.party-picker-list { display:grid; gap:5px; }
+.party-picker-row { display:grid; grid-template-columns:20px 1fr auto; gap:7px; align-items:center; min-height:39px; padding:6px 8px; border:1px solid #4e3927; background:#17110d; color:#cdbc98; font-size:9px; }
+.party-picker-row.selected { border-color:#8b7140; background:#211a11; }
+.party-picker-row input { accent-color:#789b4e; }
+.party-picker-row small { color:#8f8065; font-size:7px; }
+.party-manage-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
+.party-manage-actions .pixel-btn { min-height:42px; font-size:8px; }
+.transfer-source-tabs { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+.transfer-source-tabs .text-btn { padding:5px 7px; border:1px solid #4e3927; background:#17110d; font-size:8px; }
+.transfer-source-tabs .text-btn.active { color:#f0d28a; border-color:#9c773d; background:#281e13; }
+.transfer-item-list { display:grid; gap:5px; margin:8px 0 10px; }
+.transfer-item-row { display:grid; grid-template-columns:28px 1fr auto; gap:7px; align-items:center; width:100%; min-height:43px; padding:6px 8px; border:1px solid #4e3927; background:#17110d; color:#dbc79c; text-align:left; font:inherit; }
+.transfer-item-row.selected { border-color:#d2a54c; box-shadow:inset 0 0 0 1px rgba(210,165,76,.22); }
+.transfer-item-row>span { font-size:18px; text-align:center; }
+.transfer-item-row>strong { font-size:9px; }
+.transfer-item-row>small { font-size:7px; color:#98886c; }
+.transfer-recipient-title { color:#8daa7f; font-size:8px; letter-spacing:1px; margin-bottom:5px; }
+.transfer-recipient-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.transfer-recipient-grid .pixel-btn { min-height:38px; padding:6px; font-size:8px; }
+.personal-bag-list { display:grid; gap:5px; }
+.personal-bag-row { display:grid; grid-template-columns:26px 1fr auto; gap:7px; align-items:center; padding:6px 7px; background:#17110d; border:1px solid #4d3928; }
+.bag-item-icon { font-size:17px; text-align:center; }
+.personal-bag-row>div { min-width:0; display:grid; gap:2px; }
+.personal-bag-row strong { color:#e4c989; font-size:8px; }
+.personal-bag-row small { color:#9e8d70; font-size:6.5px; line-height:1.35; }
+.bag-equip-btn { padding:4px 6px; border:1px solid #715535; background:#21180f; color:#d9c18b; font-size:7px; }
+.personal-bag-empty { padding:8px; color:#897a62; background:#17110d; font-size:8px; }
+.bag-rule-note { margin-top:6px; color:#8f8067; font-size:6.5px; line-height:1.45; }
+@media (max-width:700px) {
+  .world-action-bar { grid-template-columns:1fr 1fr; gap:5px; }
+  .party-status-text { grid-column:1/-1; text-align:left; white-space:normal; min-height:14px; }
+  .world-action-btn { min-height:31px; padding:5px 4px; font-size:7px; }
+  .party-manage-actions { grid-template-columns:1fr; }
+  .transfer-recipient-grid { grid-template-columns:1fr 1fr; }
+}
