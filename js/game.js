@@ -2396,6 +2396,9 @@
     const next = getNextReadyHero();
     if (next) {
       state.activeHeroId = next.id;
+      // 전투가 끝나는 순간 다음 영웅의 지역으로 즉시 카메라를 넘긴다.
+      // rollD6()에서 뒤늦게 이동시키면 "주사위를 굴려야 맵이 바뀌는" 것처럼 보인다.
+      state.viewAreaId = getNodeAreaId(next.position);
     } else {
       endRound();
     }
