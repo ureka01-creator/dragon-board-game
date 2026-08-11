@@ -1865,7 +1865,7 @@ body.modal-open {
 }
 .modal.shop-modal .modal-card::-webkit-scrollbar { width:0; height:0; display:none; }
 
-/* V0.5.5.16 — 탐험 목표 + Fog of War */
+/* V0.5.5.17 — 탐험 목표 + Fog of War */
 .current-objective {
   display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 7px;
   padding:6px 8px; border:2px solid #4e432d; background:#17140f; color:#d8ccb1;
@@ -1959,7 +1959,7 @@ body.modal-open {
 }
 
 
-/* V0.5.5.16 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
+/* V0.5.5.17 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
 .map-node.fogged .node-icon,
 .map-node.fogged .node-name,
 .map-node.fogged .node-type,
@@ -2011,7 +2011,7 @@ body.modal-open {
 @media (prefers-reduced-motion: reduce) {
   .map-node.tile-flip-out, .map-node.tile-flip-in { animation-duration:.01ms !important; }
 }
-\n\n/* V0.5.5.16 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
+\n\n/* V0.5.5.17 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
 .map-node.reachable {
   animation: nextStepPulse .9s steps(2,end) infinite !important;
   border-color:#8aa05d !important;
@@ -2024,6 +2024,6 @@ body.modal-open {
 }
 @keyframes nextStepPulse { 50% { filter:brightness(1.10); } }
 
-/* V0.5.5.16 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
+/* V0.5.5.17 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
 .world-map::before,
 .world-map::after { display:none !important; }
