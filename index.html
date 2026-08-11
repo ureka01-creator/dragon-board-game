@@ -3,29 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#17130f" />
+  <meta name="theme-color" content="#120f0c" />
   <title>Dragon Board Prototype</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <main class="app-shell">
-    <section id="setupScreen" class="screen active">
-      <header class="title-panel pixel-panel">
-        <div class="eyebrow">CO-OP DARK FANTASY BOARD RPG</div>
-        <h1>DRAGON BOARD</h1>
-        <p>프로토타입 V0.2 · 네모형 픽셀 보드에서 왕국을 탐험하자.</p>
+    <!-- 0. TITLE -->
+    <section id="titleScreen" class="screen active title-screen" aria-label="메인 화면">
+      <div id="titleStartArea" class="title-start-area" tabindex="0" role="button" aria-label="직업 선택 화면으로 이동">
+        <div class="title-sky" aria-hidden="true">
+          <div class="pixel-moon"></div>
+          <div class="castle-silhouette"><span></span><span></span><span></span></div>
+          <div class="dragon-shadow">◆</div>
+        </div>
+        <div class="title-copy">
+          <div class="eyebrow">CO-OP DARK FANTASY BOARD RPG</div>
+          <h1>DRAGON<br>BOARD</h1>
+          <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
+          <div class="tap-start">▶ 화면을 터치해서 시작</div>
+          <div class="version-label">PROTOTYPE V0.3</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1. HERO SELECT -->
+    <section id="setupScreen" class="screen">
+      <header class="title-panel pixel-panel compact-title">
+        <button id="backToTitleBtn" class="text-btn back-btn">← TITLE</button>
+        <div class="eyebrow">CHOOSE YOUR PARTY</div>
+        <h1>영웅 선택</h1>
+        <p>1~4명의 영웅을 선택해. 지금은 모두 기본 속옷 상태이며 장비를 얻으면 외형 레이어가 추가된다.</p>
       </header>
 
-      <section class="pixel-panel">
+      <section class="pixel-panel hero-select-panel">
         <div class="section-head">
-          <h2>영웅 선택</h2>
+          <h2>직업</h2>
           <span id="heroCount">0 / 4</span>
         </div>
         <div id="heroGrid" class="hero-grid"></div>
-        <button id="startGameBtn" class="pixel-btn primary" disabled>모험 시작</button>
+        <button id="startGameBtn" class="pixel-btn primary start-adventure-btn" disabled>모험 시작</button>
       </section>
     </section>
 
+    <!-- 2. GAME -->
     <section id="gameScreen" class="screen">
       <header class="hud pixel-panel">
         <div>
@@ -80,6 +101,7 @@
   </div>
 
   <script src="js/heroes.js"></script>
+  <script src="js/sprites.js"></script>
   <script src="js/map.js"></script>
   <script src="js/game.js"></script>
 </body>
