@@ -667,10 +667,51 @@
     document.body.classList.toggle('combat-open', Boolean(locked));
     if (locked) {
       document.documentElement.style.overscrollBehavior = 'none';
-    } else {
+    } else if (!document.body.classList.contains('modal-open')) {
       document.documentElement.style.overscrollBehavior = '';
     }
   }
+
+  // V0.5.4.1 — iOS Safari: 상태/이벤트/장비 등 모든 모달이 열려 있는 동안
+  // 뒤의 월드 페이지는 현재 스크롤 위치에 고정한다. 모달 카드 자체만 스크롤 가능.
+  let modalViewportLocked = false;
+  let modalViewportScrollY = 0;
+  function setModalViewportLock(locked) {
+    locked = Boolean(locked);
+    if (locked === modalViewportLocked) return;
+    modalViewportLocked = locked;
+
+    if (locked) {
+      modalViewportScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      const body = document.body;
+      body.classList.add('modal-open');
+      body.style.position = 'fixed';
+      body.style.top = `-${modalViewportScrollY}px`;
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+      document.documentElement.style.overscrollBehavior = 'none';
+      return;
+    }
+
+    const restoreY = modalViewportScrollY;
+    const body = document.body;
+    body.classList.remove('modal-open');
+    body.style.position = '';
+    body.style.top = '';
+    body.style.left = '';
+    body.style.right = '';
+    body.style.width = '';
+    if (!body.classList.contains('combat-open')) {
+      document.documentElement.style.overscrollBehavior = '';
+    }
+    // fixed body를 해제하면 Safari가 0으로 튈 수 있어 원래 위치로 즉시 복원한다.
+    window.scrollTo(0, restoreY);
+  }
+
+  const syncModalViewportLock = () => setModalViewportLock(!modal.classList.contains('hidden'));
+  new MutationObserver(syncModalViewportLock).observe(modal, { attributes:true, attributeFilter:['class'] });
+  syncModalViewportLock();
 
   function closeModalPanel() {
     modal.classList.add('hidden');
