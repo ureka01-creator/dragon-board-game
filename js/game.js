@@ -46,7 +46,6 @@
   const itemTransferBtn = $('#itemTransferBtn');
   const partyStatusText = $('#partyStatusText');
   const rollBtn = $('#rollBtn');
-  const stayBtn = $('#stayBtn');
   const diceValue = $('#diceValue');
   const diceBox = $('#diceBox');
   const diceRoller = $('#diceRoller');
@@ -70,6 +69,7 @@
   const combatAttackBtn = $('#combatAttackBtn');
   const combatSkillBtn = $('#combatSkillBtn');
   const combatDefendBtn = $('#combatDefendBtn');
+  const combatItemBtn = $('#combatItemBtn');
   const combatD20 = $('#combatD20');
   const combatD20Value = $('#combatD20Value');
   const combatDiceLabel = $('#combatDiceLabel');
@@ -85,6 +85,8 @@
   const modal = $('#modal');
   const modalContent = $('#modalContent');
   const modalCloseBtn = $('#modalCloseBtn');
+
+  const BAG_LIMIT = 3;
 
   function showScreen(screen) {
     [titleScreen, setupScreen, gameScreen].forEach(el => el.classList.remove('active'));
@@ -218,6 +220,45 @@
     if (!hero) return [];
     if (!Array.isArray(hero.inventory)) hero.inventory = [];
     return hero.inventory;
+  }
+
+
+  function equippedItem(hero, slot) {
+    return window.getItemCard?.(hero?.equipment?.[slot]) || null;
+  }
+
+  function hasEquipped(hero, itemId) {
+    return Boolean(hero && Object.values(hero.equipment || {}).includes(itemId));
+  }
+
+  function equipmentEffect(hero, key) {
+    if (!hero?.equipment) return 0;
+    return ['weapon','armor','accessory'].reduce((sum, slot) => {
+      const item = equippedItem(hero, slot);
+      return sum + Number(item?.effects?.[key] || 0);
+    }, 0);
+  }
+
+  function maxMana(hero) {
+    if (!hero || hero.currentMana === null || hero.currentMana === undefined) return 0;
+    return 3 + equipmentEffect(hero, 'maxMana');
+  }
+
+  function canHeroEquip(hero, item) {
+    if (!hero || !item || item.type !== 'equipment') return false;
+    return !Array.isArray(item.equip) || item.equip.includes(hero.id);
+  }
+
+  function bagHasSpace(hero) {
+    return heroInventory(hero).length < BAG_LIMIT;
+  }
+
+  function enemyHasTag(enemy, tag) {
+    const id = enemy?.id;
+    if (tag === 'undead') return ['skeleton','ghost','necromancer'].includes(id);
+    if (tag === 'demon') return ['demonKnight','fireImp'].includes(id);
+    if (tag === 'dragon') return ['wyvern','dragon'].includes(id);
+    return false;
   }
 
   function getPartyById(partyId) {
@@ -391,7 +432,7 @@
             <span class="party-state">${status}</span>
             <button type="button" class="party-status-btn" aria-label="${hero.name} 상태 보기">상태</button>
           </div>
-          <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''} · 🎒 ${bagCount}</div>
+          <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/${maxMana(hero)}` : ''} · 🎒 ${bagCount}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${hero.currentHp/hero.hp*100}%"></div></div>
           ${party ? `<div class="party-link-note">🤝 ${partyDisplayName(party)}${isLeader ? ' · 리더' : ''}</div>` : ''}
           ${hero.down ? `<div class="down-note">다음 라운드 ${hero.reviveAreaId || getNodeAreaId(hero.position)} 지역 마을에서 부활</div>` : ''}
@@ -548,7 +589,6 @@
     const unit = getWorldUnitMembers(active);
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
     rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling || state.isMoving;
-    stayBtn.disabled = !canAct || state.rolled === null || state.isRolling || state.isMoving;
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
     if (state.isMoving) {
       moveHint.textContent = party ? '파티 이동 중…' : '영웅 이동 중…';
@@ -557,7 +597,7 @@
     } else {
       moveHint.textContent = state.rolled === null
         ? party ? `${partyDisplayName(party)} · 주사위 1개로 함께 이동` : '주사위를 굴려 이동'
-        : `0~${state.rolled}칸 이동 가능`;
+        : `1~${state.rolled}칸 이동 가능`;
     }
 
     const prep = canUseWorldPrepActions();
@@ -691,6 +731,7 @@
   function removeOwnedItem(hero, entry) {
     if (entry.source === 'equipment') {
       if (hero.equipment?.[entry.slot] === entry.id) hero.equipment[entry.slot] = null;
+      if (hero.currentMana !== null) hero.currentMana = Math.min(hero.currentMana, maxMana(hero));
       return true;
     }
     const inv = heroInventory(hero);
@@ -703,14 +744,19 @@
   function equipInventoryItem(hero, itemId, inventoryIndex = null) {
     const item = getItemCard?.(itemId);
     if (!hero || !item || item.type !== 'equipment') return false;
+    if (!canHeroEquip(hero, item)) {
+      log(`🚫 ${hero.icon} <strong>${hero.name}</strong>은(는) ${item.name}을 장착할 수 없다.`);
+      return false;
+    }
     const inv = heroInventory(hero);
     const idx = Number.isInteger(inventoryIndex) && inv[inventoryIndex] === itemId ? inventoryIndex : inv.indexOf(itemId);
     if (idx < 0) return false;
-    inv.splice(idx, 1);
+    inv.splice(idx, 1); // 새 장비가 빠지므로 기존 장비가 들어갈 한 칸이 생긴다.
     const oldId = hero.equipment?.[item.slot];
     if (!hero.equipment) hero.equipment = { armor:null, weapon:null, accessory:null };
     if (oldId) inv.push(oldId);
     hero.equipment[item.slot] = item.id;
+    if (hero.currentMana !== null) hero.currentMana = Math.min(hero.currentMana, maxMana(hero));
     log(`✨ ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 장착${oldId ? ' / 기존 장비는 가방으로' : ''}.`);
     return true;
   }
@@ -782,6 +828,10 @@
           const recipient = state.heroes.find(h => h.id === btn.dataset.transferRecipient);
           const item = getItemCard(chosenEntry.id);
           if (!recipient || !item || recipient.position !== sourceHero.position || recipient.id === sourceHero.id) return;
+          if (!bagHasSpace(recipient)) {
+            showModal('🎒 가방이 가득 참', `${recipient.name}의 가방은 ${BAG_LIMIT}칸 모두 사용 중이야.`);
+            return;
+          }
           if (!removeOwnedItem(sourceHero, chosenEntry)) return;
           heroInventory(recipient).push(item.id);
           log(`🎒 ${sourceHero.icon} <strong>${sourceHero.name}</strong> → ${recipient.icon} <strong>${recipient.name}</strong> · ${item.name} 전달.`);
@@ -972,7 +1022,7 @@
         diceRoller.classList.add('landed');
         diceRoller.setAttribute('aria-label', `주사위 결과 ${finalValue}`);
 
-        // 결과 주사위는 사라지지 않는다. 플레이어가 이동/이동 안 함을 확정할 때까지 보드 위에 남아 있다.
+        // 결과 주사위는 사라지지 않는다. 플레이어가 이동을 확정할 때까지 보드 위에 남아 있다.
         setTimeout(resolve, 180);
       }
 
@@ -987,14 +1037,19 @@
     if (!hero || hero.down || hero.acted) return;
     const unit = getWorldUnitMembers(hero);
     if (unit.some(h => h.acted || h.down)) return;
-    const result = Math.floor(Math.random() * 6) + 1;
+    const rawResult = Math.floor(Math.random() * 6) + 1;
+    const result = rawResult === 1 && equipmentEffect(hero, 'minimumMove') >= 2 ? 2 : rawResult;
     state.activeHeroId = hero.id;
     state.viewAreaId = getNodeAreaId(hero.position);
     renderMap();
     state.isRolling = true;
     renderControls();
 
-    await playDiceRollAnimation(result);
+    await playDiceRollAnimation(rawResult);
+    if (result !== rawResult) {
+      setRollingDieFace(result);
+      log(`👢 <strong>여행자의 장화</strong> 발동 · 이동 주사위 1을 2로 취급.`);
+    }
 
     state.rolled = result;
     state.isRolling = false;
@@ -1481,10 +1536,12 @@
 
   function heroBasicDamage(hero) {
     const gearDamage = equipmentStat(hero, 'damage');
-    if (hero.id === 'knight') return { count:1, sides:8, bonus:hero.str + gearDamage, type:'physical', melee:true };
+    const meleeExtra = equipmentEffect(hero, 'meleeDamage');
+    const fireWeapon = equipmentEffect(hero, 'fireWeapon') > 0;
+    if (hero.id === 'knight') return { count:1, sides:8, bonus:hero.str + gearDamage + meleeExtra, type:fireWeapon ? 'fire' : 'physical', melee:true };
     if (hero.id === 'archer') return { count:1, sides:8, bonus:hero.dex + gearDamage, type:'physical', melee:false };
-    if (hero.id === 'mage') return { count:1, sides:6, bonus:hero.magic + gearDamage, type:'magic', melee:false };
-    return { count:1, sides:6, bonus:hero.dex + gearDamage, type:'physical', melee:true };
+    if (hero.id === 'mage') return { count:1, sides:equipmentEffect(hero, 'mageBoltDie') || 6, bonus:hero.magic + gearDamage, type:'magic', melee:false };
+    return { count:1, sides:6, bonus:hero.dex + gearDamage + meleeExtra, type:fireWeapon ? 'fire' : 'physical', melee:true };
   }
 
   function effectiveHeroAc(hero) {
@@ -1536,7 +1593,7 @@
         <div class="actor-status">
           ${hs?.defending ? '<span>🛡 +3</span>' : ''}
           ${hero.attackPenalty ? `<span>☠ 명중 -${hero.attackPenalty}</span>` : ''}
-          ${hero.currentMana !== null ? `<span>🔵 ${hero.currentMana}/3</span>` : ''}
+          ${hero.currentMana !== null ? `<span>🔵 ${hero.currentMana}/${maxMana(hero)}</span>` : ''}
         </div>`;
       el.addEventListener('click', () => {
         if (!c.busy && !hs?.acted && !hero.down) {
@@ -1578,6 +1635,12 @@
     combatDefendBtn.disabled = Boolean(c.busy || !currentHero || combatHeroState(currentHero.id)?.acted);
     combatSkillBtn.disabled = !canUseCombatSkill(currentHero) || !target;
     combatSkillBtn.textContent = currentHero ? `✨ ${skillName(currentHero)}` : '✨ 스킬';
+    const currentState = currentHero ? combatHeroState(currentHero.id) : null;
+    const hasCombatConsumable = currentHero ? heroInventory(currentHero).some(id => {
+      const item = getItemCard?.(id);
+      return item?.type === 'consumable' && item.effect !== 'autoRevive';
+    }) : false;
+    if (combatItemBtn) combatItemBtn.disabled = Boolean(c.busy || !currentHero || currentState?.acted || currentState?.itemUsed || !hasCombatConsumable);
   }
 
   function animateCombatD20(finalValue, label) {
@@ -1616,7 +1679,7 @@
     });
   }
 
-  function applyDamageToEnemy(enemy, rawDamage, damageType = 'physical') {
+  function applyDamageToEnemy(enemy, rawDamage, damageType = 'physical', attackerHero = null) {
     let damage = Math.max(0, rawDamage);
 
     if (!enemy.firstDamageTaken && enemy.id === 'skeleton') {
@@ -1633,10 +1696,22 @@
 
     if (enemy.id === 'demonKnight') damage = Math.min(10, damage);
 
+    if (enemy.id === 'trollKing' && damageType === 'fire' && state.combat) {
+      enemy.fireBlockedRound = state.combat.round;
+      combatLogEntry('🔥 화염 피해! 트롤 왕의 이번 라운드 재생이 봉쇄된다.');
+    }
+
     enemy.currentHp = Math.max(0, enemy.currentHp - damage);
     if (enemy.currentHp === 0) {
       combatLogEntry(`☠️ <strong>${enemy.name}</strong> 처치!`);
       setCombatMessage(`${enemy.name} 처치!`, 'good');
+      if (attackerHero && equipmentEffect(attackerHero, 'killHeal') > 0 && !attackerHero.down) {
+        const heal = equipmentEffect(attackerHero, 'killHeal');
+        const before = attackerHero.currentHp;
+        attackerHero.currentHp = Math.min(attackerHero.hp, attackerHero.currentHp + heal);
+        const gained = attackerHero.currentHp - before;
+        if (gained > 0) combatLogEntry(`🩸 피의 펜던트 · ${attackerHero.name} HP +${gained}`);
+      }
     }
 
     // 네크로맨서는 체력 절반을 처음 넘길 때 해골을 추가 소환한다.
@@ -1651,9 +1726,36 @@
     return damage;
   }
 
-  function damageHero(hero, amount, sourceName = '몬스터') {
-    hero.currentHp = Math.max(0, hero.currentHp - Math.max(0, amount));
+  function damageHero(hero, amount, sourceName = '몬스터', damageType = 'physical') {
+    let damage = Math.max(0, amount);
+    const hs = combatHeroState(hero.id);
+    if (damageType === 'fire' && equipmentEffect(hero, 'fireReduction') > 0) {
+      const reduced = Math.min(damage, equipmentEffect(hero, 'fireReduction'));
+      damage -= reduced;
+      if (reduced > 0) combatLogEntry(`🐲 용비늘 갑옷 · 화염 피해 ${reduced} 감소.`);
+    }
+    if (damage > 0 && hs && !hs.guardianCharmUsed && equipmentEffect(hero, 'firstDamageReduction') > 0) {
+      const reduced = Math.min(damage, equipmentEffect(hero, 'firstDamageReduction'));
+      damage -= reduced;
+      hs.guardianCharmUsed = true;
+      combatLogEntry(`🧿 수호의 부적 · 첫 피해 ${reduced} 감소.`);
+    }
+    const nextHp = hero.currentHp - damage;
+    if (nextHp <= 0) {
+      const inv = heroInventory(hero);
+      const featherIndex = inv.indexOf('phoenix_feather');
+      if (featherIndex >= 0) {
+        inv.splice(featherIndex, 1);
+        hero.currentHp = Math.min(hero.hp, 6);
+        combatLogEntry(`🪶 불사조의 깃털 발동! ${hero.name}이 HP ${hero.currentHp}로 즉시 부활.`);
+        log(`🪶 ${hero.icon} <strong>${hero.name}</strong> · 불사조의 깃털로 전투 중 부활.`);
+        fxAtElement(heroActorElement(hero.id), `HP ${hero.currentHp}`, 'good');
+        return damage;
+      }
+    }
+    hero.currentHp = Math.max(0, nextHp);
     if (hero.currentHp <= 0) knockOutHero(hero, sourceName);
+    return damage;
   }
 
   function knockOutHero(hero, sourceName) {
@@ -1674,22 +1776,26 @@
   }
 
   function resolveHeroHit(hero, enemy, roll, attackBonus, damageSpec, options = {}) {
+    const hs = combatHeroState(hero.id);
+    const firstAttack = (hs?.attackAttempts || 0) === 0;
+    const firstAttackBonus = firstAttack ? equipmentEffect(hero, 'firstAttackBonus') : 0;
+    const focusBonus = Number(hero.nextAttackBonus || 0);
     const naturalCrit = hero.id === 'archer' ? roll >= 19 : roll === 20;
     const autoMiss = roll === 1;
     const autoHit = roll === 20;
     let hitPenalty = hero.attackPenalty || 0;
 
-    // 와이번은 짝수 전투 라운드에 비행한다. 근접 영웅은 불리하다.
-    if (enemy.id === 'wyvern' && state.combat.round % 2 === 0 && (hero.id === 'knight' || hero.id === 'rogue')) {
-      hitPenalty += 3;
-    }
+    if (enemy.id === 'wyvern' && state.combat.round % 2 === 0 && (hero.id === 'knight' || hero.id === 'rogue')) hitPenalty += 3;
 
-    const total = roll + attackBonus - hitPenalty + (options.hitBonus || 0);
+    const dynamicHitBonus = (options.hitBonus || 0) + firstAttackBonus + focusBonus;
+    const total = roll + attackBonus - hitPenalty + dynamicHitBonus;
     const hit = !autoMiss && (autoHit || total >= enemy.ac);
     hero.attackPenalty = 0;
+    hero.nextAttackBonus = 0;
+    if (hs) hs.attackAttempts = (hs.attackAttempts || 0) + 1;
 
     if (!hit) {
-      combatLogEntry(`❌ ${hero.name} 공격 실패 · D20 ${roll} + 보정 ${attackBonus + (options.hitBonus || 0) - hitPenalty} = ${total} / AC ${enemy.ac}`);
+      combatLogEntry(`❌ ${hero.name} 공격 실패 · D20 ${roll} + 보정 ${attackBonus + dynamicHitBonus - hitPenalty} = ${total} / AC ${enemy.ac}`);
       if (roll === 1 && enemy.id === 'darkKnight') {
         const counter = rollDice(1, 6).total;
         damageHero(hero, counter, '흑기사 반격');
@@ -1700,10 +1806,38 @@
 
     const diceCount = damageSpec.count * (naturalCrit && !options.noCrit ? 2 : 1);
     const rolledDamage = rollDice(diceCount, damageSpec.sides);
-    const rawDamage = rolledDamage.total + damageSpec.bonus + (options.flatBonus || 0);
-    const damage = applyDamageToEnemy(enemy, rawDamage, damageSpec.type || 'physical');
-    combatLogEntry(`${naturalCrit && !options.noCrit ? '💥 CRITICAL! ' : '⚔️ '}${hero.name} → ${enemy.name} <strong>${damage} 피해</strong>`);
+    let bonusDamage = options.flatBonus || 0;
+    const weapon = equippedItem(hero, 'weapon');
+    if (enemyHasTag(enemy, 'undead')) bonusDamage += Number(weapon?.effects?.undeadDamage || 0);
+    if (enemyHasTag(enemy, 'demon')) bonusDamage += Number(weapon?.effects?.demonDamage || 0);
+    if (weapon?.effects?.eliteBossDamage) bonusDamage += enemy.tier === 'normal' ? Number(weapon.effects.normalDamage || 0) : Number(weapon.effects.eliteBossDamage || 0);
+
+    if (hs && !hs.firstSuccessfulHit) {
+      if (weapon?.effects?.firstHitDamage) bonusDamage += Number(weapon.effects.firstHitDamage);
+      if (weapon?.effects?.firstHitDie) {
+        const extra = rollDice(1, Number(weapon.effects.firstHitDie)).total;
+        bonusDamage += extra;
+        combatLogEntry(`🗡️ ${weapon.name} 추가 피해 D${weapon.effects.firstHitDie} = ${extra}`);
+      }
+      hs.firstSuccessfulHit = true;
+    }
+
+    const damageType = weapon?.effects?.fireWeapon ? 'fire' : (damageSpec.type || 'physical');
+    const rawDamage = rolledDamage.total + damageSpec.bonus + bonusDamage;
+    const damage = applyDamageToEnemy(enemy, rawDamage, damageType, hero);
+    combatLogEntry(`${naturalCrit && !options.noCrit ? '💥 CRITICAL! ' : '⚔️ '}${hero.name} → ${enemy.name} <strong>${damage} 피해</strong>${bonusDamage ? ` (장비 보너스 +${bonusDamage})` : ''}`);
     return { hit:true, damage, crit:naturalCrit && !options.noCrit };
+  }
+
+  async function maybeRerollNaturalOne(hero, roll, label) {
+    const hs = combatHeroState(hero?.id);
+    if (roll !== 1 || !hero || !hs || hs.fateCoinUsed || equipmentEffect(hero, 'rerollNaturalOne') <= 0) return roll;
+    hs.fateCoinUsed = true;
+    combatLogEntry(`🪙 운명의 동전 발동! ${hero.name}의 Natural 1을 다시 굴린다.`);
+    const reroll = Math.floor(Math.random() * 20) + 1;
+    await animateCombatD20(reroll, `${hero.icon} 운명의 동전 재굴림`);
+    await sleep(120);
+    return reroll;
   }
 
   async function heroBasicAttack() {
@@ -1717,8 +1851,9 @@
     c.busy = true;
     renderCombat();
     setCombatMessage(`${hero.name} 공격 판정!`, '');
-    const roll = Math.floor(Math.random() * 20) + 1;
+    let roll = Math.floor(Math.random() * 20) + 1;
     await animateCombatD20(roll, `${hero.icon} ${hero.name} 공격`);
+    roll = await maybeRerollNaturalOne(hero, roll, `${hero.icon} ${hero.name} 공격`);
     // 주사위 결과를 먼저 확실히 보여준 뒤, 실제 공격 애니메이션을 재생한다.
     await sleep(150);
     await animateActorWindup(heroActorElement(hero.id));
@@ -1758,15 +1893,16 @@
       hero.currentMana -= 2;
       hs.skillUsedBattle = true;
       const spell = rollDice(3, 6);
-      const damage = applyDamageToEnemy(enemy, spell.total + hero.magic + equipmentStat(hero, 'damage'), 'magic');
+      const damage = applyDamageToEnemy(enemy, spell.total + hero.magic + equipmentStat(hero, 'damage'), 'magic', hero);
       combatD20Value.textContent = '✨';
       combatDiceLabel.textContent = '마력 폭발';
       combatLogEntry(`✨ ${hero.name} 마력 폭발 → ${enemy.name} <strong>${damage} 피해</strong> / MANA -2`);
       setCombatMessage(`${enemy.name}에게 ${damage} 마법 피해!`, 'good');
       await animateMagicBurst(hero, enemy, damage);
     } else {
-      const roll = Math.floor(Math.random() * 20) + 1;
+      let roll = Math.floor(Math.random() * 20) + 1;
       await animateCombatD20(roll, `${hero.icon} ${skillName(hero)}`);
+      roll = await maybeRerollNaturalOne(hero, roll, `${hero.icon} ${skillName(hero)}`);
       // 스킬도 D20 결과가 멈춘 다음 캐릭터가 공격한다.
       await sleep(150);
       await animateActorWindup(heroActorElement(hero.id));
@@ -1817,6 +1953,69 @@
     await afterHeroAction();
   }
 
+  function openCombatItems() {
+    const c = state.combat;
+    const hero = getCombatHero();
+    const hs = hero ? combatHeroState(hero.id) : null;
+    if (!c || !hero || !hs || c.busy || hs.acted || hs.itemUsed) return;
+    const items = heroInventory(hero).map((id,index) => ({ item:getItemCard?.(id), index })).filter(x => x.item?.type === 'consumable' && x.item.effect !== 'autoRevive');
+    if (!items.length) return;
+    modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal');
+    modalContent.innerHTML = `<div class="combat-item-sheet"><div class="status-kicker">COMBAT ITEM</div><h3>🎒 ${hero.name}의 아이템</h3><p>이번 전투 라운드에는 소비 아이템을 1개만 사용할 수 있어. 아이템 사용 후에도 공격/스킬/방어가 가능해.</p><div class="combat-item-grid">${items.map(({item,index}) => `<button type="button" class="transfer-item-row" data-combat-item="${index}"><span>${item.icon}</span><strong>${item.name}</strong><small>${item.desc}</small></button>`).join('')}</div></div>`;
+    modalCloseBtn.textContent = '취소';
+    modalContent.querySelectorAll('[data-combat-item]').forEach(btn => btn.addEventListener('click', async () => {
+      const index = Number(btn.dataset.combatItem);
+      const itemId = heroInventory(hero)[index];
+      const item = getItemCard?.(itemId);
+      if (!item || item.type !== 'consumable' || hs.itemUsed) return;
+      const enemy = selectedCombatEnemy();
+      if ((item.effect === 'fireBomb' || item.effect === 'bomb') && !enemy) return;
+      if (item.effect === 'mana' && hero.currentMana === null) {
+        showModal('🔵 마나 물약', `${hero.name}은(는) MANA를 사용하지 않아.`);
+        return;
+      }
+      if (item.effect === 'escape' && c.isBoss) {
+        showModal('💨 연막탄', '보스전에서는 연막탄으로 도주할 수 없어.');
+        return;
+      }
+      heroInventory(hero).splice(index, 1);
+      hs.itemUsed = true;
+      closeModalPanel();
+
+      if (item.effect === 'heal') {
+        const before = hero.currentHp; hero.currentHp = Math.min(hero.hp, hero.currentHp + item.value);
+        combatLogEntry(`${item.icon} ${item.name} · ${hero.name} HP +${hero.currentHp-before}`);
+        fxAtElement(heroActorElement(hero.id), `+${hero.currentHp-before}`, 'good');
+      } else if (item.effect === 'mana') {
+        const before = hero.currentMana; hero.currentMana = Math.min(maxMana(hero), hero.currentMana + item.value);
+        combatLogEntry(`🔵 ${item.name} · ${hero.name} MANA +${hero.currentMana-before}`);
+      } else if (item.effect === 'focus') {
+        hero.nextAttackBonus = Math.max(hero.nextAttackBonus || 0, Number(item.value || 3));
+        combatLogEntry(`🎯 집중의 비약 · ${hero.name}의 다음 공격 명중 +${hero.nextAttackBonus}`);
+      } else if (item.effect === 'fireBomb') {
+        const rolled = rollDice(1,6).total + 2;
+        const damage = applyDamageToEnemy(enemy, rolled, 'fire', hero);
+        combatLogEntry(`🔥 화염병 → ${enemy.name} <strong>${damage} 피해</strong>`);
+        await animateProjectile(heroActorElement(hero.id), enemyActorElement(enemy.uid), '🔥');
+        fxAtElement(enemyActorElement(enemy.uid), `-${damage}`, 'damage');
+      } else if (item.effect === 'bomb') {
+        const rolled = rollDice(2,6).total;
+        const damage = applyDamageToEnemy(enemy, rolled, 'physical', hero);
+        combatLogEntry(`💣 폭탄 → ${enemy.name} <strong>${damage} 피해</strong>`);
+        await animateProjectile(heroActorElement(hero.id), enemyActorElement(enemy.uid), '💣');
+        fxAtElement(enemyActorElement(enemy.uid), `-${damage}`, 'damage');
+      } else if (item.effect === 'escape') {
+        combatLogEntry(`💨 연막탄! ${hero.name}이 전투에서 빠져나간다.`);
+        await endCombat('escaped');
+        return;
+      }
+      renderCombat();
+      renderParty();
+      if (!aliveCombatEnemies().length) await endCombat('victory');
+    }));
+    modal.classList.remove('hidden');
+  }
+
   function chooseMonsterTarget(enemy) {
     let heroes = aliveCombatHeroes();
     if (!heroes.length) return null;
@@ -1847,6 +2046,12 @@
     }
     attackBonus -= enemy.nextAttackPenalty || 0;
     enemy.nextAttackPenalty = 0;
+    const targetState = combatHeroState(target.id);
+    if (targetState && !targetState.rangerCloakUsed && equipmentEffect(target, 'firstEnemyAttackPenalty') > 0) {
+      attackBonus -= equipmentEffect(target, 'firstEnemyAttackPenalty');
+      targetState.rangerCloakUsed = true;
+      combatLogEntry(`🏹 레인저의 망토 · ${target.name}을 향한 첫 적 공격 명중 -${equipmentEffect(target, 'firstEnemyAttackPenalty')}.`);
+    }
 
     setCombatMessage(`${enemy.name} 공격 판정!`, 'danger');
     const roll = Math.floor(Math.random() * 20) + 1;
@@ -1868,10 +2073,10 @@
     const dmgRoll = rollDice(enemy.damage.count, enemy.damage.sides);
     let damage = dmgRoll.total + damageBonus;
     if (enemy.id === 'trollKing' && enemy.currentHp <= 20) damage += 2;
-    damageHero(target, damage, enemy.name);
-    combatLogEntry(`💢 ${enemy.name} → ${target.name} <strong>${damage} 피해</strong>`);
-    setCombatMessage(`${target.name} ${damage} 피해!`, 'danger');
-    await animateMonsterResult(enemy, target, true, damage);
+    const dealt = damageHero(target, damage, enemy.name, enemy.damageType || (enemy.id === 'fireImp' ? 'fire' : 'physical'));
+    combatLogEntry(`💢 ${enemy.name} → ${target.name} <strong>${dealt} 피해</strong>`);
+    setCombatMessage(`${target.name} ${dealt} 피해!`, 'danger');
+    await animateMonsterResult(enemy, target, true, dealt);
 
     if (enemy.id === 'spider' && !target.down) {
       target.attackPenalty = Math.max(target.attackPenalty || 0, 1);
@@ -1912,10 +2117,14 @@
     // 트롤 왕 재생.
     const troll = aliveCombatEnemies().find(e => e.id === 'trollKing');
     if (troll) {
-      const before = troll.currentHp;
-      troll.currentHp = Math.min(troll.maxHp, troll.currentHp + 3);
-      const healed = troll.currentHp - before;
-      if (healed > 0) combatLogEntry(`👑 트롤 왕 재생 +${healed} HP`);
+      if (troll.fireBlockedRound === c.round) {
+        combatLogEntry('🔥 트롤 왕 재생 실패 · 이번 라운드에 화염 피해를 받았다.');
+      } else {
+        const before = troll.currentHp;
+        troll.currentHp = Math.min(troll.maxHp, troll.currentHp + 3);
+        const healed = troll.currentHp - before;
+        if (healed > 0) combatLogEntry(`👑 트롤 왕 재생 +${healed} HP`);
+      }
     }
 
     const enemies = aliveCombatEnemies();
@@ -1960,6 +2169,7 @@
       hs.acted = false;
       hs.defending = false;
       hs.skillUsedRound = false;
+      hs.itemUsed = false;
     });
     const next = c.participantIds
       .map(id => state.heroes.find(h => h.id === id))
@@ -2022,80 +2232,152 @@
     if (stats.attack) parts.push(`명중 +${stats.attack}`);
     if (stats.damage) parts.push(`피해 +${stats.damage}`);
     if (stats.ac) parts.push(`AC +${stats.ac}`);
+    if (item?.equip?.length && item.equip.length < 4) parts.push(`장착: ${item.equip.map(id => HEROES.find(h=>h.id===id)?.name || id).join('/')}`);
     return parts.join(' · ');
   }
 
   function stashLoot(hero, item) {
-    if (!hero || !item) return;
+    if (!hero || !item || !bagHasSpace(hero)) return false;
     heroInventory(hero).push(item.id);
-    log(`🎒 ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 보관.`);
+    log(`🎒 ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 보관 (${heroInventory(hero).length}/${BAG_LIMIT}).`);
+    return true;
   }
 
-  function equipLoot(hero, item) {
-    if (!hero || !item) return;
+  function equipLoot(hero, item, { discardOldIfNeeded = false } = {}) {
+    if (!hero || !item || !canHeroEquip(hero, item)) return false;
     const slot = item.slot;
     const oldId = hero.equipment?.[slot];
     if (!hero.equipment) hero.equipment = { armor:null, weapon:null, accessory:null };
     if (oldId) {
-      heroInventory(hero).push(oldId);
-      const old = getItemCard(oldId);
-      if (old) log(`🎒 ${hero.name}의 <strong>${old.name}</strong> → ${hero.name} 가방으로 이동.`);
+      if (bagHasSpace(hero)) {
+        heroInventory(hero).push(oldId);
+        const old = getItemCard(oldId);
+        if (old) log(`🎒 ${hero.name}의 <strong>${old.name}</strong> → 가방으로 이동.`);
+      } else if (discardOldIfNeeded) {
+        const old = getItemCard(oldId);
+        log(`🗑️ 가방이 가득 차 ${hero.name}의 <strong>${old?.name || '기존 장비'}</strong>를 버렸다.`);
+      } else return false;
     }
     hero.equipment[slot] = item.id;
+    if (hero.currentMana !== null) hero.currentMana = Math.min(hero.currentMana, maxMana(hero));
     log(`✨ ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 장착!`);
+    return true;
   }
 
   function acquireSimpleLoot(owner, item) {
     if (item.type === 'gold') {
       state.gold += Number(item.value || 0);
-      log(`💰 <strong>${item.value} 골드</strong> 획득! (파티 공용)`);
-      return;
+      log(`💰 <strong>${item.value} 골드</strong> 획득!`);
+      return true;
     }
-    if (item.type === 'consumable') stashLoot(owner, item);
+    if (item.type === 'consumable') return stashLoot(owner, item);
+    return false;
   }
 
-  function showCombatLoot(c) {
+  function hasLuckyRing(hero) {
+    return hasEquipped(hero, 'lucky_ring');
+  }
+
+  function renderBagReplacementChoices(owner, newItem, finish) {
+    const inv = heroInventory(owner);
+    if (!inv.length || !lootActions) return;
+    const title = document.createElement('div');
+    title.className = 'loot-replace-title';
+    title.textContent = '가방이 가득 참 · 버릴 아이템 선택';
+    lootActions.appendChild(title);
+    const grid = document.createElement('div');
+    grid.className = 'loot-replace-grid';
+    inv.forEach((oldId,index) => {
+      const old = getItemCard?.(oldId);
+      if (!old) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'loot-replace-card';
+      btn.innerHTML = `<span>${old.icon||'🎒'}</span><strong>${old.name}</strong><small>이 아이템을 버리고 ${newItem.name} 보관</small>`;
+      btn.addEventListener('click', () => {
+        const removed = heroInventory(owner).splice(index,1)[0];
+        heroInventory(owner).push(newItem.id);
+        log(`🗑️ ${owner.name}이 ${getItemCard?.(removed)?.name || '기존 아이템'}을 버리고 <strong>${newItem.name}</strong> 보관.`);
+        finish(newItem);
+      }, {once:true});
+      grid.appendChild(btn);
+    });
+    lootActions.appendChild(grid);
+  }
+
+  function showLootReward({ owner, draw, title = '전리품 상자', guide = '카드를 터치해서 열기' }) {
     return new Promise(resolve => {
-      if (!lootOverlay || !lootCard || !window.drawCombatLoot) { resolve(null); return; }
-      const tier = lootTierForCombat(c);
-      const item = drawCombatLoot(tier);
-      const owner = state.heroes.find(h => h.id === c.lootOwnerId) || state.heroes.find(h => h.id === c.initiatorHeroId) || state.heroes.find(h => h.id === c.participantIds[0]);
+      if (!lootOverlay || !lootCard || !draw || !owner) { resolve(null); return; }
+      const choiceCount = hasLuckyRing(owner) ? 2 : 1;
+      const choices = Array.from({length:choiceCount}, () => draw());
       let revealed = false;
       let finished = false;
       lootOverlay.classList.remove('hidden');
       lootCard.classList.add('face-down');
-      lootCard.classList.remove('revealed', 'rare', 'danger');
+      lootCard.classList.remove('revealed','rare','legendary','danger');
       lootCard.disabled = false;
-      lootCardIcon.textContent = '📦'; lootCardName.textContent = '?'; lootCardDesc.textContent = '카드를 터치해서 열기';
-      lootGuide.textContent = tier === 'boss' ? `보스 전리품 · 장비 1개 확정 · ${owner?.name || '획득 영웅'} 소유` : tier === 'elite' ? `정예 전리품 · 장비 확률 상승 · ${owner?.name || '획득 영웅'} 소유` : `전리품 상자 · ${owner?.name || '획득 영웅'}이 획득`;
-      lootActions.innerHTML = '';
-      const finish = () => { if (finished) return; finished = true; lootOverlay.classList.add('hidden'); renderParty(); resolve(item); };
-      const makeButton = (text, cls, handler) => { const btn=document.createElement('button'); btn.type='button'; btn.className=`pixel-btn ${cls||''}`.trim(); btn.textContent=text; btn.addEventListener('click',handler,{once:true}); lootActions.appendChild(btn); return btn; };
-      const reveal = () => {
-        if (revealed) return;
-        revealed = true; lootCard.disabled = true; lootCard.classList.remove('face-down'); lootCard.classList.add('revealed');
+      lootCardIcon.textContent='📦'; lootCardName.textContent='?'; lootCardDesc.textContent='카드를 터치해서 열기';
+      lootGuide.textContent = hasLuckyRing(owner) ? `💍 행운의 반지 · ${owner.name}이 카드 2장 중 1장을 선택한다.` : `${guide} · ${owner.name} 소유`;
+      lootActions.innerHTML='';
+      const finish = item => { if (finished) return; finished=true; lootOverlay.classList.add('hidden'); renderAll(); resolve(item || null); };
+      const makeButton=(text,cls,handler)=>{const btn=document.createElement('button');btn.type='button';btn.className=`pixel-btn ${cls||''}`.trim();btn.textContent=text;btn.addEventListener('click',handler,{once:true});lootActions.appendChild(btn);return btn;};
+
+      const presentItem = item => {
+        lootCard.classList.remove('face-down'); lootCard.classList.add('revealed');
         if (item.rarity === 'rare') lootCard.classList.add('rare');
-        if (item.type === 'curse' || item.type === 'mimic') lootCard.classList.add('danger');
+        if (item.rarity === 'legendary') lootCard.classList.add('legendary');
         lootCardIcon.textContent=item.icon||'🎁'; lootCardName.textContent=item.name;
-        const stats=itemStatsText(item); lootCardDesc.textContent=`${item.desc}${stats ? ` · ${stats}` : ''}`; lootActions.innerHTML='';
+        const stats=itemStatsText(item); lootCardDesc.textContent=`${item.desc}${stats ? ` · ${stats}` : ''}`;
+        lootActions.innerHTML='';
         if (item.type === 'equipment') {
-          lootGuide.textContent = `${owner?.icon || ''} ${owner?.name || '획득 영웅'} 소유 · ${itemSlotLabel(item.slot)}. 다른 영웅에게 즉시 줄 수 없어.`;
-          makeButton(`${owner?.icon || ''} ${owner?.name || ''} 바로 장착`, 'primary', () => { equipLoot(owner,item); finish(); });
-          makeButton(`🎒 ${owner?.name || '획득 영웅'} 가방에 보관`, '', () => { stashLoot(owner,item); finish(); });
+          const canEquip = canHeroEquip(owner,item);
+          const oldId = owner.equipment?.[item.slot];
+          const directNeedsDiscard = Boolean(oldId && !bagHasSpace(owner));
+          lootGuide.textContent = `${owner.icon} ${owner.name} 소유 · ${itemSlotLabel(item.slot)}${canEquip ? '' : ' · 현재 직업은 장착 불가'}.`;
+          if (canEquip) makeButton(directNeedsDiscard ? '기존 장비 버리고 장착' : `${owner.name} 바로 장착`, 'primary', () => { equipLoot(owner,item,{discardOldIfNeeded:directNeedsDiscard}); finish(item); });
+          if (bagHasSpace(owner)) makeButton(`🎒 가방에 보관 (${heroInventory(owner).length+1}/${BAG_LIMIT})`, '', () => { stashLoot(owner,item); finish(item); });
+          else renderBagReplacementChoices(owner, item, finish);
+          makeButton('아이템 포기', 'danger', () => { log(`🗑️ ${owner.name}이 ${item.name}을 포기했다.`); finish(null); });
           return;
         }
         if (item.type === 'gold') {
-          lootGuide.textContent = `${item.value} 골드 발견 · 골드는 파티 공용 자원으로 처리.`;
-          makeButton(`💰 ${item.value} 골드 획득`, 'primary', () => { acquireSimpleLoot(owner,item); finish(); }); return;
+          lootGuide.textContent=`${item.value} 골드를 발견했다.`;
+          makeButton(`💰 ${item.value} 골드 획득`,'primary',()=>{acquireSimpleLoot(owner,item);finish(item);}); return;
         }
         if (item.type === 'consumable') {
-          lootGuide.textContent = `${owner?.icon || ''} ${owner?.name || '획득 영웅'}의 가방에 들어간다.`;
-          makeButton(`🎒 ${owner?.name || '획득 영웅'} 가방에 넣기`, 'primary', () => { acquireSimpleLoot(owner,item); finish(); }); return;
+          lootGuide.textContent=`${owner.icon} ${owner.name}의 개인 가방에 들어간다.`;
+          if (bagHasSpace(owner)) makeButton(`🎒 가방에 넣기 (${heroInventory(owner).length+1}/${BAG_LIMIT})`,'primary',()=>{stashLoot(owner,item);finish(item);});
+          else renderBagReplacementChoices(owner, item, finish);
+          makeButton('아이템 포기','danger',()=>{log(`🗑️ ${owner.name}이 ${item.name}을 포기했다.`);finish(null);}); return;
         }
-        lootGuide.textContent='이번 상자는 비어 있었다.'; makeButton('계속','primary',finish);
+        lootGuide.textContent='이번 상자는 비어 있었다.'; makeButton('계속','primary',()=>finish(item));
+      };
+
+      const reveal = () => {
+        if (revealed) return; revealed=true; lootCard.disabled=true;
+        if (choices.length === 1) { presentItem(choices[0]); return; }
+        lootCard.classList.remove('face-down'); lootCard.classList.add('revealed');
+        lootCardIcon.textContent='💍'; lootCardName.textContent='행운의 선택'; lootCardDesc.textContent='아래 카드 2장 중 하나를 골라.';
+        lootActions.innerHTML='<div class="loot-choice-title">2장 중 1장 선택</div>';
+        const grid=document.createElement('div'); grid.className='loot-choice-grid';
+        choices.forEach((item,index)=>{const btn=document.createElement('button');btn.type='button';btn.className=`loot-choice-card ${item.rarity||''}`;btn.innerHTML=`<span>${item.icon||'🎁'}</span><strong>${item.name}</strong><small>${item.desc}</small>`;btn.addEventListener('click',()=>presentItem(item),{once:true});grid.appendChild(btn);});
+        lootActions.appendChild(grid);
       };
       lootCard.addEventListener('click',reveal,{once:true});
     });
+  }
+
+  function showCombatLoot(c) {
+    if (!window.drawCombatLoot) return Promise.resolve(null);
+    const tier = lootTierForCombat(c);
+    const owner = state.heroes.find(h => h.id === c.lootOwnerId) || state.heroes.find(h => h.id === c.initiatorHeroId) || state.heroes.find(h => h.id === c.participantIds[0]);
+    const guide = tier === 'boss' ? '보스 전리품 · 장비 1개 확정' : tier === 'elite' ? '정예 전리품 · 장비 확률 상승' : '전투 전리품';
+    return showLootReward({ owner, draw:() => drawCombatLoot(tier), title:'전리품', guide });
+  }
+
+  function showTreasureLoot(hero) {
+    if (!window.drawTreasureLoot) return Promise.resolve(null);
+    return showLootReward({ owner:hero, draw:() => drawTreasureLoot(), title:'보물', guide:'보물 상자' });
   }
 
   function finishCombatTurns(participantIds) {
@@ -2134,7 +2416,7 @@
       // 마법사는 전투 종료 시 MANA 1 회복.
       c.participantIds.forEach(id => {
         const hero = state.heroes.find(h => h.id === id);
-        if (hero?.id === 'mage' && !hero.down) hero.currentMana = Math.min(3, (hero.currentMana ?? 0) + 1);
+        if (hero?.id === 'mage' && !hero.down) hero.currentMana = Math.min(maxMana(hero), (hero.currentMana ?? 0) + 1 + equipmentEffect(hero, 'endBattleManaBonus'));
       });
 
       if (c.isBoss && !state.defeatedBosses.has(c.node.id)) {
@@ -2146,6 +2428,14 @@
           checkDragonCastleSpawn('seal');
         }
       }
+    } else if (result === 'escaped') {
+      setCombatMessage('ESCAPED!', 'good');
+      combatLogEntry('💨 전투에서 도주했다. 전리품은 없다.');
+      c.participantIds.forEach(id => {
+        const hero = state.heroes.find(h => h.id === id);
+        if (hero && !hero.down) hero.position = c.originNodeId;
+      });
+      log(`💨 ${c.node.name} 전투에서 도주 → 이전 칸으로 후퇴.`);
     } else {
       setCombatMessage(state.gameOver ? 'KINGDOM FALLS' : 'DEFEAT', 'danger');
       combatLogEntry('☠️ 전투 패배. 쓰러진 영웅은 해당 지역의 중앙 마을로 귀환한다.');
@@ -2153,7 +2443,7 @@
     }
 
     renderCombat();
-    await new Promise(r => setTimeout(r, result === 'victory' ? 620 : 850));
+    await new Promise(r => setTimeout(r, result === 'victory' ? 620 : 650));
     if (result === 'victory' && !state.gameOver) {
       await showCombatLoot(c);
     }
@@ -2185,7 +2475,8 @@
       const isBoss = node.type === '보스';
       const heroStates = {};
       participants.forEach(h => {
-        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false };
+        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false };
+        h.nextAttackBonus = 0;
       });
 
       state.combat = {
@@ -2256,22 +2547,11 @@
     if (!turnHandled) finishWorldUnitTurn(hero);
   }
 
-  async function stayPut() {
-    if (state.rolled === null || state.isMoving || state.isRolling || state.combat) return;
-    const hero = getWorldUnitLeader(getActiveHero());
-    if (!hero || hero.down) return;
-    const unit = getWorldUnitMembers(hero);
-    const node = WORLD_NODES.find(n => n.id === hero.position);
-    const party = getHeroParty(hero);
-    log(`${party ? '🤝 <strong>' + partyDisplayName(party) + '</strong>' : hero.icon + ' <strong>' + hero.name + '</strong>'} 이동하지 않음 → ${node.icon} ${node.name} 행동`);
-    const turnHandled = await resolveNode(hero,node,hero.position,unit);
-    if (!turnHandled) finishWorldUnitTurn(hero);
-  }
 
   async function resolveNode(hero, node, originNodeId, unitMembers = getWorldUnitMembers(hero)) {
     switch (node.type) {
       case '마을':
-        unitMembers.forEach(member => { member.currentHp=member.hp; member.down=false; member.reviveRound=null; if (member.currentMana !== null) member.currentMana=3; });
+        unitMembers.forEach(member => { member.currentHp=member.hp; member.down=false; member.reviveRound=null; if (member.currentMana !== null) member.currentMana=maxMana(member); });
         showModal('🏠 왕국 마을', `${unitMembers.length > 1 ? '파티 전원' : hero.name}의 HP가 모두 회복되었다.${unitMembers.some(member => member.currentMana !== null) ? ' 마나도 회복.' : ''}`);
         return false;
 
@@ -2291,7 +2571,21 @@
         return true;
 
       case '보물':
-        showModal('🎁 보물 발견', `${node.name}에서 보물을 발견했다. 다음 단계에서 장비 카드를 연결하면 캐릭터 위에 실제 장비 레이어가 입혀진다.`);
+        if (node.consumed) {
+          showModal('📭 빈 상자', '이 보물은 이미 누군가 가져갔다.');
+          return false;
+        }
+        node.consumed = true;
+        node.type = '빈상자';
+        node.icon = '📭';
+        node.short = '빈상자';
+        node.name = '비어 있는 상자';
+        log(`🎁 ${hero.icon} <strong>${hero.name}</strong>이 보물 상자를 열었다. 이 칸의 보물은 이번 게임에서 소진.`);
+        await showTreasureLoot(hero);
+        return false;
+
+      case '빈상자':
+        showModal('📭 빈 상자', '이미 비어 있는 상자다. 이번 게임에서는 다시 보상이 생기지 않아.');
         return false;
 
       case '사건':
@@ -2303,7 +2597,7 @@
         return false;
 
       case '휴식':
-        unitMembers.forEach(member => { member.currentHp=Math.min(member.hp,member.currentHp+Math.ceil(member.hp*.3)); if (member.currentMana !== null) member.currentMana=Math.min(3,member.currentMana+1); });
+        unitMembers.forEach(member => { member.currentHp=Math.min(member.hp,member.currentHp+Math.ceil(member.hp*.3)); if (member.currentMana !== null) member.currentMana=Math.min(maxMana(member),member.currentMana+1); });
         showModal('❤️ 휴식', `${unitMembers.length > 1 ? '파티 전원' : hero.name}이 휴식했다. HP 일부 회복${unitMembers.some(member => member.currentMana !== null) ? ' / MANA +1' : ''}.`);
         return false;
 
@@ -2385,7 +2679,7 @@
         h.reviveAreaId = null;
         h.attackPenalty = 0;
         h.acPenalty = 0;
-        if (h.currentMana !== null) h.currentMana = 3;
+        if (h.currentMana !== null) h.currentMana = maxMana(h);
         log(`✨ ${h.icon} <strong>${h.name}</strong>이 ${reviveAreaId} 지역 마을에서 부활했다.`);
       }
       h.acted = false;
@@ -2430,10 +2724,10 @@
     modalContent.innerHTML = `
       <div class="hero-status-sheet">
         <div class="hero-status-top"><div class="hero-status-portrait">${heroSpriteHTML(hero, 'large')}</div><div class="hero-status-title"><div class="status-kicker">CHARACTER STATUS</div><h3>${hero.icon} ${hero.name}</h3><p>${hero.role}</p><div class="status-now">${stateText}${pos ? ` · 📍 ${pos.name}` : ''}</div></div></div>
-        <div class="hero-status-bars"><div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/3</strong></div>` : ''}</div>
+        <div class="hero-status-bars"><div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/${maxMana(hero)}</strong></div>` : ''}</div>
         <div class="hero-status-stats"><div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div><div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div><div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div><div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div><div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div><div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div><div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div></div>
         <div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list"><div><span>⚔ 무기</span><strong>${equipmentName(hero,'weapon')}</strong><small>${equipmentBonusText(hero,'weapon')}</small></div><div><span>🛡 방어구</span><strong>${equipmentName(hero,'armor')}</strong><small>${equipmentBonusText(hero,'armor')}</small></div><div><span>💍 장신구</span><strong>${equipmentName(hero,'accessory')}</strong><small>${equipmentBonusText(hero,'accessory')}</small></div></div></div>
-        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); return `<div class="personal-bag-row"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}</small></div>${item.type==='equipment' && canEquipNow ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">장착</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">전리품은 획득한 영웅의 개인 가방에 들어간다. 다른 영웅에게 주려면 자신의 월드 턴에 ‘아이템 전달’을 사용해야 해.</div></div>
+        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); return `<div class="personal-bag-row"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">장착</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">가방은 최대 ${BAG_LIMIT}칸. 전리품은 획득한 영웅의 개인 가방에 들어간다. 다른 영웅에게 주려면 자신의 월드 턴에 ‘아이템 전달’을 사용해야 해.</div></div>
         <div class="hero-status-section skill-status"><h4>ABILITY</h4><p><strong>패시브</strong> ${hero.passive}</p><p><strong>고유기</strong> ${hero.skill}</p></div>
       </div>`;
     modalContent.querySelectorAll('[data-equip-index]').forEach(btn => btn.addEventListener('click',()=>{
@@ -2484,12 +2778,12 @@
   backToTitleBtn.addEventListener('click', () => showScreen(titleScreen));
   startGameBtn.addEventListener('click', startGame);
   rollBtn.addEventListener('click', rollD6);
-  stayBtn.addEventListener('click', stayPut);
   partyManageBtn?.addEventListener('click', openPartyManager);
   itemTransferBtn?.addEventListener('click', openItemTransfer);
   combatAttackBtn?.addEventListener('click', heroBasicAttack);
   combatSkillBtn?.addEventListener('click', heroSkillAction);
   combatDefendBtn?.addEventListener('click', heroDefendAction);
+  combatItemBtn?.addEventListener('click', openCombatItems);
   combatLogToggle?.addEventListener('click', () => {
     const expanded = combatLog?.classList.toggle('expanded');
     if (combatLogToggle) combatLogToggle.textContent = expanded ? '전체 기록 닫기 ▴' : '전체 기록 보기 ▾';

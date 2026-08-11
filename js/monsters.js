@@ -6,7 +6,7 @@ window.MONSTERS = {
   spider: { id:'spider', name:'거대 거미', icon:'🕷️', tier:'normal', hp:9, ac:12, attack:2, damage:{count:1,sides:4,bonus:2}, ai:'lowAc', trait:'독: 명중한 영웅의 다음 공격 판정 -1.' },
   ghost: { id:'ghost', name:'망령', icon:'👻', tier:'normal', hp:10, ac:13, attack:3, damage:{count:1,sides:6,bonus:0}, ai:'highStr', trait:'비물질: 전투 중 처음 받는 물리 피해를 3 감소.' },
   orc: { id:'orc', name:'오크 전사', icon:'👹', tier:'normal', hp:14, ac:13, attack:3, damage:{count:1,sides:8,bonus:2}, ai:'highHp', trait:'격노: HP가 절반 이하가 되면 공격 판정 +1.' },
-  fireImp: { id:'fireImp', name:'화염 임프', icon:'🔥', tier:'normal', hp:8, ac:12, attack:3, damage:{count:1,sides:6,bonus:1}, ai:'highMagic', trait:'불꽃 사냥: 마력이 가장 높은 영웅을 노린다.' },
+  fireImp: { id:'fireImp', name:'화염 임프', icon:'🔥', tier:'normal', hp:8, ac:12, attack:3, damage:{count:1,sides:6,bonus:1}, damageType:'fire', ai:'highMagic', trait:'불꽃 사냥: 마력이 가장 높은 영웅을 노린다.' },
 
   ogre: { id:'ogre', name:'오우거', icon:'🧌', tier:'elite', hp:24, ac:12, attack:4, damage:{count:1,sides:10,bonus:3}, ai:'highHp', trait:'내려찍기: Natural 17+ 명중 시 대상의 다음 방어도 -2.' },
   darkKnight: { id:'darkKnight', name:'흑기사', icon:'⚔️', tier:'elite', hp:22, ac:15, attack:4, damage:{count:1,sides:8,bonus:3}, ai:'highStr', trait:'반격: 영웅이 Natural 1을 굴리면 즉시 D6 피해.' },

@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.4.9
+// DRAGON BOARD V0.5.0
 // 4개 지역은 같은 7x7 토폴로지를 공유하지만, 새 게임마다 테마와 타일 내용/배치가 다시 섞인다.
 window.PARTY_SYSTEM_ENABLED = false;
 
