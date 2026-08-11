@@ -618,7 +618,7 @@
 
   function closeModalPanel() {
     modal.classList.add('hidden');
-    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal');
+    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal');
     modalCloseBtn.textContent = '확인';
     modalCloseBtn.hidden = false;
   }
@@ -1679,7 +1679,11 @@
       const item = getItemCard?.(id);
       return item?.type === 'consumable' && item.effect !== 'autoRevive';
     }) : false;
-    if (combatItemBtn) combatItemBtn.disabled = Boolean(c.busy || !currentHero || currentState?.acted || currentState?.itemUsed || !hasCombatConsumable);
+    if (combatItemBtn) {
+      combatItemBtn.disabled = Boolean(c.busy || !currentHero || currentState?.acted || currentState?.itemUsed);
+      combatItemBtn.classList.toggle('no-consumable', !hasCombatConsumable);
+      combatItemBtn.title = hasCombatConsumable ? '소비 아이템 사용' : '사용 가능한 소비 아이템이 없어';
+    }
   }
 
   function animateCombatD20(finalValue, label) {
@@ -1998,8 +2002,16 @@
     const hs = hero ? combatHeroState(hero.id) : null;
     if (!c || !hero || !hs || c.busy || hs.acted || hs.itemUsed) return;
     const items = heroInventory(hero).map((id,index) => ({ item:getItemCard?.(id), index })).filter(x => x.item?.type === 'consumable' && x.item.effect !== 'autoRevive');
-    if (!items.length) return;
-    modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal');
+    // 일반 modal(z-index 20)은 전투 화면(z-index 80) 뒤에 가려진다.
+    // 전투 아이템창 전용 클래스로 항상 전투 화면 위에 띄운다.
+    modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','equip-compare-modal');
+    modal.classList.add('combat-item-modal');
+    if (!items.length) {
+      modalContent.innerHTML = `<div class="combat-item-sheet"><div class="status-kicker">COMBAT ITEM</div><h3>🎒 ${hero.name}의 아이템</h3><p>현재 전투에서 사용할 수 있는 소비 아이템이 없어.</p><div class="combat-item-empty">가방에 장비가 있어도 전투 중에는 회복약·폭탄·연막탄 같은 <strong>소비 아이템</strong>만 사용할 수 있어.</div></div>`;
+      modalCloseBtn.textContent = '전투로 돌아가기';
+      modal.classList.remove('hidden');
+      return;
+    }
     modalContent.innerHTML = `<div class="combat-item-sheet"><div class="status-kicker">COMBAT ITEM</div><h3>🎒 ${hero.name}의 아이템</h3><p>이번 전투 라운드에는 소비 아이템을 1개만 사용할 수 있어. 아이템 사용 후에도 공격/스킬/방어가 가능해.</p><div class="combat-item-grid">${items.map(({item,index}) => `<button type="button" class="transfer-item-row" data-combat-item="${index}"><span>${item.icon}</span><strong>${item.name}</strong><small>${item.desc}</small></button>`).join('')}</div></div>`;
     modalCloseBtn.textContent = '취소';
     modalContent.querySelectorAll('[data-combat-item]').forEach(btn => btn.addEventListener('click', async () => {
@@ -2795,7 +2807,7 @@
         }, { once:true });
       };
 
-      modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal');
+      modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal');
       modalCloseBtn.hidden = true;
       modalContent.innerHTML = `<div class="event-sheet">
         <div class="status-kicker">EVENT CARD · ${state.eventDiscard.length}/20</div>
@@ -3049,7 +3061,7 @@
   }
 
   function showModal(title, body) {
-    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal');
+    modal.classList.remove('hero-status-modal', 'party-manage-modal', 'item-transfer-modal', 'combat-item-modal');
     modalCloseBtn.textContent = '확인';
     modalContent.innerHTML = `<h3>${title}</h3><p>${body}</p>`;
     modal.classList.remove('hidden');
