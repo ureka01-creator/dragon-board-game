@@ -746,6 +746,37 @@
     return true;
   }
 
+  function equipmentCompareHTML(hero, newItem) {
+    if (!hero || !newItem || newItem.type !== 'equipment') return '';
+    const oldItem = getItemCard?.(hero.equipment?.[newItem.slot]);
+    const card = (label, item, cls) => {
+      if (!item) return `<div class="equip-compare-card ${cls}"><div class="equip-compare-label">${label}</div><div class="equip-compare-empty">장비 없음</div></div>`;
+      const stats = itemStatsText(item);
+      return `<div class="equip-compare-card ${cls}"><div class="equip-compare-label">${label}</div><div class="equip-compare-main"><span>${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${stats ? ` · ${stats}` : ''}</small></div></div></div>`;
+    };
+    return `<div class="equip-compare-wrap">${card('현재 장비', oldItem, 'current')}${card('새 장비', newItem, 'new')}</div>`;
+  }
+
+  function openEquipComparison(hero, itemId, inventoryIndex) {
+    const item = getItemCard?.(itemId);
+    if (!hero || !item || item.type !== 'equipment') return;
+    if (!canHeroEquip(hero, item)) {
+      showModal('장착할 수 없음', `${hero.name}은(는) ${item.name}을 장착할 수 없어.`);
+      return;
+    }
+    modal.classList.remove('party-manage-modal','item-transfer-modal');
+    modal.classList.add('hero-status-modal','equip-compare-modal');
+    modalCloseBtn.textContent = '취소';
+    modalContent.innerHTML = `<div class="equip-confirm-sheet"><div class="status-kicker">EQUIPMENT CHANGE</div><h3>🔄 ${itemSlotLabel(item.slot)} 교체</h3><p>${hero.icon} ${hero.name} · 장착할 장비를 확인해.</p>${equipmentCompareHTML(hero,item)}<div class="equip-confirm-actions"><button type="button" class="pixel-btn primary" data-equip-confirm>교체 장착</button><button type="button" class="pixel-btn" data-equip-cancel>취소</button></div></div>`;
+    modal.classList.remove('hidden');
+    modalContent.querySelector('[data-equip-confirm]')?.addEventListener('click', () => {
+      if (!equipInventoryItem(hero, itemId, inventoryIndex)) return;
+      renderAll();
+      openHeroStatus(hero);
+    }, { once:true });
+    modalContent.querySelector('[data-equip-cancel]')?.addEventListener('click', () => openHeroStatus(hero), { once:true });
+  }
+
   function equipInventoryItem(hero, itemId, inventoryIndex = null) {
     const item = getItemCard?.(itemId);
     if (!hero || !item || item.type !== 'equipment') return false;
@@ -2342,7 +2373,13 @@
           const oldId = owner.equipment?.[item.slot];
           const directNeedsDiscard = Boolean(oldId && !bagHasSpace(owner));
           lootGuide.textContent = `${owner.icon} ${owner.name} 소유 · ${itemSlotLabel(item.slot)}${canEquip ? '' : ' · 현재 직업은 장착 불가'}.`;
-          if (canEquip) makeButton(directNeedsDiscard ? '기존 장비 버리고 장착' : `${owner.name} 바로 장착`, 'primary', () => { equipLoot(owner,item,{discardOldIfNeeded:directNeedsDiscard}); finish(item); });
+          if (canEquip) {
+            const compare = document.createElement('div');
+            compare.className = 'loot-equip-compare';
+            compare.innerHTML = equipmentCompareHTML(owner, item);
+            lootActions.appendChild(compare);
+            makeButton(directNeedsDiscard ? '기존 장비 버리고 교체 장착' : (oldId ? '새 장비로 교체' : `${owner.name} 바로 장착`), 'primary', () => { equipLoot(owner,item,{discardOldIfNeeded:directNeedsDiscard}); finish(item); });
+          }
           if (bagHasSpace(owner)) makeButton(`🎒 가방에 보관 (${heroInventory(owner).length+1}/${BAG_LIMIT})`, '', () => { stashLoot(owner,item); finish(item); });
           else renderBagReplacementChoices(owner, item, finish);
           makeButton('아이템 포기', 'danger', () => { log(`🗑️ ${owner.name}이 ${item.name}을 포기했다.`); finish(null); });
@@ -3006,7 +3043,7 @@
         <div class="hero-status-section skill-status"><h4>ABILITY</h4><p><strong>패시브</strong> ${hero.passive}</p><p><strong>고유기</strong> ${hero.skill}</p></div>
       </div>`;
     modalContent.querySelectorAll('[data-equip-index]').forEach(btn => btn.addEventListener('click',()=>{
-      if(!canUseWorldPrepActions())return; const activeUnit=getWorldUnitMembers(getActiveHero()); if(!activeUnit.some(h=>h.id===hero.id))return; const index=Number(btn.dataset.equipIndex); const itemId=heroInventory(hero)[index]; if(!itemId||!equipInventoryItem(hero,itemId,index))return; renderAll(); openHeroStatus(hero);
+      if(!canUseWorldPrepActions())return; const activeUnit=getWorldUnitMembers(getActiveHero()); if(!activeUnit.some(h=>h.id===hero.id))return; const index=Number(btn.dataset.equipIndex); const itemId=heroInventory(hero)[index]; if(!itemId)return; openEquipComparison(hero,itemId,index);
     }));
     modalCloseBtn.textContent='닫기'; modal.classList.remove('party-manage-modal','item-transfer-modal'); modal.classList.add('hero-status-modal'); modal.classList.remove('hidden');
   }
