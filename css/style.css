@@ -1820,3 +1820,29 @@ body.modal-open {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
+
+/* V0.5.5.0 — shop */
+.modal.shop-modal { z-index:145; }
+.modal.shop-modal .modal-card { width:min(680px,100%); max-height:92dvh; overflow:auto; }
+.shop-sheet h3 { margin:2px 0 4px; }
+.shop-sheet p { margin:0; font-size:10px; }
+.shop-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.shop-gold { color:var(--gold); white-space:nowrap; font-size:16px; }
+.shop-restock,.shop-rule-note { margin:9px 0; padding:7px 9px; border:1px solid #4e3b2a; background:#17110d; color:#a99878; font-size:8px; line-height:1.5; }
+.shop-section { margin-top:14px; }
+.shop-section h4 { margin:0 0 7px; color:#8daa7f; font-size:9px; letter-spacing:1.4px; }
+.shop-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.shop-product { min-height:124px; padding:9px; display:flex; flex-direction:column; gap:7px; border:1px solid #5b432e; background:#1b140f; }
+.shop-product .pixel-btn { margin-top:auto; }
+.shop-product.sold { align-items:center; justify-content:center; opacity:.6; }
+.shop-sold { color:#a97962; border:1px dashed #765044; padding:8px; transform:rotate(-4deg); font-size:10px; }
+.shop-item-icon { font-size:24px; line-height:1; }
+.shop-item-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.shop-item-copy strong { color:#e8d39d; font-size:10px; }
+.shop-item-copy small { color:#a99878; font-size:7px; line-height:1.5; }
+.shop-item-copy em { color:#c99b5c; font-style:normal; font-size:7px; }
+.shop-sell-list { display:flex; flex-direction:column; gap:5px; }
+.shop-sell-row { display:grid; grid-template-columns:32px 1fr auto; gap:8px; align-items:center; padding:7px 8px; border-bottom:1px solid #443326; background:#18120e; }
+.shop-sell-row .shop-item-icon { font-size:20px; }
+.shop-sell-row .text-btn { white-space:nowrap; }
+@media (max-width:520px){ .shop-grid{grid-template-columns:1fr 1fr;gap:6px}.shop-product{min-height:132px;padding:7px}.shop-sell-row{grid-template-columns:26px 1fr auto;gap:5px}.shop-item-copy small{font-size:6px} }
