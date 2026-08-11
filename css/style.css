@@ -1788,5 +1788,5 @@ body.combat-open .combat-overlay {
 }
 
 
-/* V0.5.3.0 — 전투 현재 영웅은 사각 박스를 사용하지 않고 기존 스프라이트 글로우만 유지. */
+/* V0.5.3.1 — 전투 현재 영웅은 사각 박스를 사용하지 않고 기존 스프라이트 글로우만 유지. */
 .stage-hero-actor.active::after { content:none !important; display:none !important; }
