@@ -27,6 +27,7 @@
     sealQuests: [],
     questProgress: {},
     shopStocks: {},
+    discoveredNodeIds: new Set(),
   };
 
   const titleScreen = $('#titleScreen');
@@ -43,6 +44,7 @@
   const activeHeroLabel = $('#activeHeroLabel');
   const resourceSummary = $('#resourceSummary');
   const worldMap = $('#worldMap');
+  const currentObjective = $('#currentObjective');
   const boardTitle = $('#boardTitle');
   const regionNavigator = $('#regionNavigator');
   const regionTitle = $('#regionTitle');
@@ -259,7 +261,9 @@
     state.eventDiscard = [];
     state.acquiredEquipmentIds = new Set();
     state.shopStocks = {};
+    state.discoveredNodeIds = new Set();
     setupSealQuests();
+    revealAroundAllHeroes(2);
     gameLog.innerHTML = '';
 
     showScreen(gameScreen);
@@ -591,6 +595,45 @@
     if (regionTitle) regionTitle.textContent = `${state.viewAreaId} 지역 · ${meta?.themeLabel || '미지의 땅'}`;
   }
 
+  // V0.5.5.2 — 탐험형 Fog of War. 보드의 길/칸 위치는 보이지만,
+  // 영웅이 가까이 가기 전에는 타일의 정체를 ???로 숨긴다. 발견 정보는 게임 동안 유지된다.
+  function revealFromNode(startNodeId, radius = 2) {
+    if (!startNodeId) return;
+    if (!(state.discoveredNodeIds instanceof Set)) state.discoveredNodeIds = new Set(state.discoveredNodeIds || []);
+    const queue = [[startNodeId, 0]];
+    const seen = new Set([startNodeId]);
+    while (queue.length) {
+      const [id, dist] = queue.shift();
+      state.discoveredNodeIds.add(id);
+      if (dist >= radius) continue;
+      const node = WORLD_NODES.find(n => n.id === id);
+      for (const next of (node?.links || [])) {
+        if (seen.has(next)) continue;
+        seen.add(next); queue.push([next, dist + 1]);
+      }
+    }
+  }
+
+  function revealAroundAllHeroes(radius = 2) {
+    state.heroes.filter(h => !h.down).forEach(h => revealFromNode(h.position, radius));
+  }
+
+  function renderCurrentObjective() {
+    if (!currentObjective) return;
+    const active = getActiveHero();
+    const incomplete = (state.sealQuests || []).find(q => !q.complete);
+    const progress = incomplete ? Math.min(incomplete.target, Number(state.questProgress?.[incomplete.type] || 0)) : 0;
+    const areaNodes = WORLD_NODES.filter(n => n.areaId === state.viewAreaId);
+    const discovered = areaNodes.filter(n => state.discoveredNodeIds?.has(n.id)).length;
+    if (state.seals >= 3 || state.dragonCastleSpawned) {
+      currentObjective.innerHTML = `<strong>🐉 현재 목표</strong><span>출현한 용의 성을 찾아가자.</span>`;
+    } else if (incomplete) {
+      currentObjective.innerHTML = `<strong>🗿 현재 목표</strong><span>${incomplete.icon} ${incomplete.name} ${progress}/${incomplete.target} · ${state.viewAreaId}지역 탐험 ${discovered}/${areaNodes.length}</span>`;
+    } else {
+      currentObjective.innerHTML = `<strong>🧭 현재 목표</strong><span>미탐험 지역을 조사하자 · ${state.viewAreaId}지역 ${discovered}/${areaNodes.length}</span>`;
+    }
+  }
+
   function renderMap() {
     worldMap.innerHTML = '';
     const activeHero = getActiveHero();
@@ -599,6 +642,7 @@
     renderRegionNavigator();
     const areaMeta = window.WORLD_AREAS?.[state.viewAreaId];
     if (boardTitle) boardTitle.textContent = areaMeta?.themeLabel || `${state.viewAreaId} 지역`;
+    renderCurrentObjective();
     worldMap.dataset.areaId = state.viewAreaId;
     worldMap.dataset.theme = areaMeta?.themeKey || '';
 
@@ -614,14 +658,15 @@
       const activeUnit = getWorldUnitMembers(activeHero);
       const isCurrent = activeUnit.some(h => h.position === node.id);
       const isDragon = node.type === '드래곤성';
-      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon ? 'dragon-spawned' : ''}`;
+      const discovered = Boolean(state.discoveredNodeIds?.has(node.id)) || isCurrent;
+      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon && discovered ? 'dragon-spawned' : ''} ${discovered ? 'discovered' : 'fogged'}`;
       el.dataset.nodeId = node.id;
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
       el.innerHTML = `
-        <div class="node-icon">${node.icon}</div>
-        <div class="node-name">${node.short || node.name}</div>
-        <div class="node-type">${node.type}</div>
+        <div class="node-icon">${discovered ? node.icon : '❔'}</div>
+        <div class="node-name">${discovered ? (node.short || node.name) : '???'}</div>
+        <div class="node-type">${discovered ? node.type : '미탐험'}</div>
         ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
       if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
@@ -2752,6 +2797,7 @@
     state.isMoving = true; renderControls();
     await Promise.all(unit.map((member,index) => animateHeroHop(member,path,index,unit.length)));
     unit.forEach(member => { member.position = nodeId; });
+    revealFromNode(nodeId, 2);
     state.isMoving = false;
     const party = getHeroParty(hero);
     if (party) log(`🤝 <strong>${partyDisplayName(party)}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
@@ -3087,7 +3133,7 @@
     modalContent.innerHTML = `
       <div class="shop-sheet">
         <div class="status-kicker">TRADING POST</div>
-        <div class="shop-head"><div><h3>🏪 ${node.name}</h3><p>${hero.icon} ${hero.name} · 가방 ${inv.length}/${BAG_LIMIT}</p></div><strong class="shop-gold">💰 ${state.gold}G</strong></div>
+        <div class="shop-head"><div><div class="eyebrow">MERCHANT SHOP</div><h3>🏪 ${node.name}</h3><p>${hero.icon} ${hero.name} · 가방 ${inv.length}/${BAG_LIMIT}</p></div><strong class="shop-gold">💰 ${state.gold}G</strong></div>
         <div class="shop-restock">상품 4개 고정 · 구매하면 SOLD OUT · ${stock.restockRound}라운드에 재입고</div>
         <section class="shop-section"><h4>BUY</h4><div class="shop-grid">
           ${stock.slots.map((slot,index)=>{
@@ -3137,6 +3183,7 @@
         if (!target) return false;
         unitMembers.forEach(member => { member.position = target.id; });
         state.viewAreaId = target.areaId;
+        revealFromNode(target.id, 2);
         const targetMeta = window.WORLD_AREAS?.[target.areaId];
         log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${target.areaId} 지역</strong> 진입 (${targetMeta?.themeLabel || ''})`);
         addQuestProgress('portal', 1);
@@ -3254,6 +3301,7 @@
         h.currentHp = h.hp;
         h.reviveRound = null;
         h.position = getAreaCenterNodeId(reviveAreaId);
+        revealFromNode(h.position, 2);
         h.reviveAreaId = null;
         h.attackPenalty = 0;
         h.acPenalty = 0;
