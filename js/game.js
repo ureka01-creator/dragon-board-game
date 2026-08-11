@@ -216,6 +216,11 @@
     log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
     log(`🔁 월드 턴은 <strong>${state.heroes.map(h => h.name).join(' → ')}</strong> 고정 순서로 진행된다.`);
     renderAll();
+    // 첫 진입에서는 월드맵이 바로 보이도록 보드 영역으로 맞춘다.
+    requestAnimationFrame(() => {
+      const boardPanel = document.querySelector('.board-panel');
+      boardPanel?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    });
   }
 
   function renderAll() {
@@ -616,7 +621,11 @@
     }
     const transferSources = unit.filter(h => heroInventory(h).length || Object.values(h.equipment || {}).some(Boolean));
     const nearbyCount = active ? state.heroes.filter(h => !h.down && h.position === active.position).length : 0;
-    if (itemTransferBtn) itemTransferBtn.disabled = !prep || !transferSources.length || nearbyCount < 2;
+    const canTransfer = Boolean(prep && transferSources.length && nearbyCount >= 2);
+    if (itemTransferBtn) {
+      itemTransferBtn.disabled = !canTransfer;
+      itemTransferBtn.hidden = !canTransfer;
+    }
     if (partyStatusText) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';
     worldActionBar?.classList.toggle('disabled', !prep);
   }
@@ -1101,6 +1110,24 @@
 
   function getActiveHero() {
     return state.heroes.find(h => h.id === state.activeHeroId);
+  }
+
+  function focusCurrentTurnHero() {
+    if (state.gameOver || state.combat || state.isMoving) return;
+    const hero = getActiveHero();
+    if (!hero) return;
+    const areaId = getNodeAreaId(hero.position);
+    if (areaId) state.viewAreaId = areaId;
+    state.focusHeroId = hero.id;
+    renderMap();
+    renderHUD();
+    const token = worldMap?.querySelector(`.map-hero-token[data-hero-id="${hero.id}"]`);
+    if (token) {
+      token.classList.remove('focused');
+      void token.offsetWidth;
+      token.classList.add('focused');
+      setTimeout(() => token.classList.remove('focused'), 1500);
+    }
   }
 
   function getReachableNodeIds() {
@@ -3144,7 +3171,19 @@
   startGameBtn.addEventListener('click', startGame);
   rollBtn.addEventListener('click', rollD6);
   partyManageBtn?.addEventListener('click', openPartyManager);
-  itemTransferBtn?.addEventListener('click', openItemTransfer);
+  currentTurnBanner?.addEventListener('click', (event) => {
+    if (event.target.closest('#itemTransferBtn')) return;
+    focusCurrentTurnHero();
+  });
+  currentTurnBanner?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    focusCurrentTurnHero();
+  });
+  itemTransferBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openItemTransfer();
+  });
   combatAttackBtn?.addEventListener('click', heroBasicAttack);
   combatSkillBtn?.addEventListener('click', heroSkillAction);
   combatDefendBtn?.addEventListener('click', heroDefendAction);
