@@ -8,9 +8,12 @@
   window.heroSpriteHTML = function heroSpriteHTML(hero, size = 'large') {
     const v = hero.visual || {};
     const equipment = hero.equipment || {};
-    const armor = equipment.armor || 'none';
-    const weapon = equipment.weapon || 'none';
-    const accessory = equipment.accessory || 'none';
+    const armorItem = window.getItemCard?.(equipment.armor);
+    const weaponItem = window.getItemCard?.(equipment.weapon);
+    const accessoryItem = window.getItemCard?.(equipment.accessory);
+    const armor = armorItem?.visual || equipment.armor || 'none';
+    const weapon = weaponItem?.visual || equipment.weapon || 'none';
+    const accessory = accessoryItem?.visual || equipment.accessory || 'none';
 
     return `
       <div class="pixel-hero ${size} hero-${hero.id} body-${v.body || 'lean'}"
