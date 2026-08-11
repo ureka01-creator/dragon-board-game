@@ -42,8 +42,6 @@
   const worldMap = $('#worldMap');
   const regionNavigator = $('#regionNavigator');
   const regionTitle = $('#regionTitle');
-  const currentTurnBanner = $('#currentTurnBanner');
-  const currentTurnName = $('#currentTurnName');
   const worldActionBar = $('#worldActionBar');
   const partyManageBtn = $('#partyManageBtn');
   const itemTransferBtn = $('#itemTransferBtn');
@@ -391,33 +389,6 @@
     const party = getHeroParty(active);
     const unit = getWorldUnitMembers(active);
 
-    if (currentTurnBanner && currentTurnName) {
-      currentTurnBanner.classList.toggle('game-over', state.gameOver);
-      currentTurnBanner.dataset.hero = active?.id || '';
-      currentTurnName.textContent = state.gameOver
-        ? '☠ GAME OVER'
-        : state.combat
-          ? '⚔ 전투 진행 중'
-          : active
-            ? party
-              ? `🤝 ${active.name} 파티 턴 (${unit.length}명)`
-              : `${active.icon} ${active.name} 턴`
-            : '-';
-      const guide = currentTurnBanner.querySelector('.turn-guide');
-      if (guide) {
-        guide.textContent = state.gameOver
-          ? '왕국의 운명이 끝났다'
-          : state.combat
-            ? '전투를 먼저 해결해'
-            : state.isMoving
-              ? party ? '파티 이동 중…' : '이동 중…'
-              : state.isRolling
-                ? '주사위 굴리는 중…'
-                : state.rolled === null
-                  ? party ? '파티는 주사위 1개로 함께 이동해' : '주사위를 굴려 행동해'
-                  : `최대 ${state.rolled}칸 이동할 곳을 선택해`;
-      }
-    }
   }
 
   function renderParty() {
@@ -604,14 +575,19 @@
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
     rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling || state.isMoving;
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
-    if (state.isMoving) {
-      moveHint.textContent = party ? '파티 이동 중…' : '영웅 이동 중…';
+    const turnLabel = active ? `${active.icon} ${active.name} 턴` : '턴 없음';
+    if (state.gameOver) {
+      moveHint.textContent = '☠ GAME OVER';
+    } else if (state.combat) {
+      moveHint.textContent = `⚔ ${active?.name || ''} 전투 진행 중`;
+    } else if (state.isMoving) {
+      moveHint.textContent = `${turnLabel} · 이동 중…`;
     } else if (state.isRolling) {
-      moveHint.textContent = '주사위 굴리는 중…';
+      moveHint.textContent = `${turnLabel} · 주사위 굴리는 중…`;
     } else {
       moveHint.textContent = state.rolled === null
-        ? party ? `${partyDisplayName(party)} · 주사위 1개로 함께 이동` : '주사위를 굴려 이동'
-        : `1~${state.rolled}칸 이동 가능`;
+        ? `${turnLabel} · 주사위를 굴려 이동`
+        : `${turnLabel} · 1~${state.rolled}칸 이동 가능`;
     }
 
     const prep = canUseWorldPrepActions();
@@ -3171,11 +3147,11 @@
   startGameBtn.addEventListener('click', startGame);
   rollBtn.addEventListener('click', rollD6);
   partyManageBtn?.addEventListener('click', openPartyManager);
-  currentTurnBanner?.addEventListener('click', (event) => {
+  moveHint?.addEventListener('click', (event) => {
     if (event.target.closest('#itemTransferBtn')) return;
     focusCurrentTurnHero();
   });
-  currentTurnBanner?.addEventListener('keydown', (event) => {
+  moveHint?.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     focusCurrentTurnHero();
