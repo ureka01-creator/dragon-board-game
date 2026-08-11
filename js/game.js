@@ -2704,9 +2704,55 @@
         if (settled) return;
         settled = true;
         if (extraText) log(`${card.icon} <strong>${card.name}</strong> · ${extraText}`);
+
+        const before = {
+          hp: hero.currentHp,
+          mana: hero.currentMana,
+          gold: state.gold,
+          threat: state.threat
+        };
+        const hasLoot = (effects || []).some(effect => effect?.type === 'loot');
+        const hasCombat = (effects || []).some(effect => effect?.type === 'combat');
         const handled = await applyEventEffects(hero, effects, { node, originNodeId });
-        closeModalPanel();
-        resolve(handled);
+
+        // 전투/전리품은 각 전용 화면이 결과를 보여주므로 중복 결과창을 띄우지 않는다.
+        if (handled || hasCombat || hasLoot) {
+          closeModalPanel();
+          resolve(handled);
+          return;
+        }
+
+        const resultLines = [];
+        if (hero.currentHp !== before.hp) {
+          const diff = hero.currentHp - before.hp;
+          resultLines.push(`${diff >= 0 ? '❤️' : '💥'} HP ${diff >= 0 ? '+' : ''}${diff}`);
+        }
+        if (hero.currentMana !== before.mana && hero.currentMana !== null && before.mana !== null) {
+          const diff = hero.currentMana - before.mana;
+          resultLines.push(`🔵 MANA ${diff >= 0 ? '+' : ''}${diff}`);
+        }
+        if (state.gold !== before.gold) {
+          const diff = state.gold - before.gold;
+          resultLines.push(`💰 골드 ${diff >= 0 ? '+' : ''}${diff}`);
+        }
+        if (state.threat !== before.threat) {
+          const diff = state.threat - before.threat;
+          resultLines.push(`🔥 THREAT ${diff >= 0 ? '+' : ''}${diff}`);
+        }
+        if (!resultLines.length) resultLines.push('변화 없음');
+
+        modal.classList.remove('hidden');
+        modalCloseBtn.hidden = true;
+        modalContent.innerHTML = `<div class="event-sheet event-result-sheet">
+          <div class="status-kicker">EVENT RESULT</div>
+          <div class="event-card-head"><span class="event-card-icon">${card.icon}</span><div><h3>${card.name}</h3><p>${extraText || '사건이 끝났다.'}</p></div></div>
+          <div class="event-resolution-box">${resultLines.map(line => `<div>${line}</div>`).join('')}</div>
+          <button type="button" class="pixel-btn primary event-main-btn" data-event-result-close>계속</button>
+        </div>`;
+        modalContent.querySelector('[data-event-result-close]').addEventListener('click', () => {
+          closeModalPanel();
+          resolve(false);
+        }, { once:true });
       };
 
       modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal');
