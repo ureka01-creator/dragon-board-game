@@ -23,6 +23,7 @@
     dragonSpawnNoticePending: null,
     eventDeck: [],
     eventDiscard: [],
+    acquiredEquipmentIds: new Set(),
   };
 
   const titleScreen = $('#titleScreen');
@@ -83,6 +84,9 @@
   const lootCardName = $('#lootCardName');
   const lootCardDesc = $('#lootCardDesc');
   const lootActions = $('#lootActions');
+  const lootNewBadge = $('#lootNewBadge');
+  const lootCurrentEquipInfo = $('#lootCurrentEquipInfo');
+  const lootCurrentEquipDetail = $('#lootCurrentEquipDetail');
 
   const modal = $('#modal');
   const modalContent = $('#modalContent');
@@ -201,6 +205,7 @@
     state.combat = null;
     state.eventDeck = [];
     state.eventDiscard = [];
+    state.acquiredEquipmentIds = new Set();
     gameLog.innerHTML = '';
 
     showScreen(gameScreen);
@@ -2290,6 +2295,7 @@
   function stashLoot(hero, item) {
     if (!hero || !item || !bagHasSpace(hero)) return false;
     heroInventory(hero).push(item.id);
+    if (item.type === 'equipment') state.acquiredEquipmentIds.add(item.id);
     log(`🎒 ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 보관 (${heroInventory(hero).length}/${BAG_LIMIT}).`);
     return true;
   }
@@ -2310,6 +2316,7 @@
       } else return false;
     }
     hero.equipment[slot] = item.id;
+    state.acquiredEquipmentIds.add(item.id);
     if (hero.currentMana !== null) hero.currentMana = Math.min(hero.currentMana, maxMana(hero));
     log(`✨ ${hero.icon} <strong>${hero.name}</strong> · ${item.name} 장착!`);
     return true;
@@ -2348,12 +2355,42 @@
       btn.addEventListener('click', () => {
         const removed = heroInventory(owner).splice(index,1)[0];
         heroInventory(owner).push(newItem.id);
+        if (newItem.type === 'equipment') state.acquiredEquipmentIds.add(newItem.id);
         log(`🗑️ ${owner.name}이 ${getItemCard?.(removed)?.name || '기존 아이템'}을 버리고 <strong>${newItem.name}</strong> 보관.`);
         finish(newItem);
       }, {once:true});
       grid.appendChild(btn);
     });
     lootActions.appendChild(grid);
+  }
+
+  function setLootNewBadge(item) {
+    if (!lootNewBadge) return;
+    const isNew = item?.type === 'equipment' && !state.acquiredEquipmentIds.has(item.id);
+    lootNewBadge.classList.toggle('hidden', !isNew);
+  }
+
+  function hideLootCurrentEquipmentInfo() {
+    lootCurrentEquipInfo?.classList.add('hidden');
+    lootCurrentEquipDetail?.classList.add('hidden');
+    if (lootCurrentEquipDetail) lootCurrentEquipDetail.innerHTML = '';
+    if (lootCurrentEquipInfo) lootCurrentEquipInfo.setAttribute('aria-expanded','false');
+  }
+
+  function setupLootCurrentEquipmentInfo(owner, item) {
+    hideLootCurrentEquipmentInfo();
+    if (!owner || !item || item.type !== 'equipment') return;
+    const oldItem = getItemCard?.(owner.equipment?.[item.slot]);
+    if (!oldItem || !lootCurrentEquipInfo || !lootCurrentEquipDetail) return;
+    lootCurrentEquipInfo.classList.remove('hidden');
+    lootCurrentEquipInfo.setAttribute('aria-expanded','false');
+    const stats = itemStatsText(oldItem);
+    lootCurrentEquipDetail.innerHTML = `<div class="loot-current-detail-label">현재 ${itemSlotLabel(item.slot)}</div><div class="loot-current-detail-main"><span>${oldItem.icon||'🎁'}</span><div><strong>${oldItem.name}</strong><small>${oldItem.desc}${stats ? ` · ${stats}` : ''}</small></div></div>`;
+    lootCurrentEquipInfo.onclick = () => {
+      const opening = lootCurrentEquipDetail.classList.contains('hidden');
+      lootCurrentEquipDetail.classList.toggle('hidden', !opening);
+      lootCurrentEquipInfo.setAttribute('aria-expanded', String(opening));
+    };
   }
 
   function showLootReward({ owner, draw, title = '전리품 상자', guide = '카드를 터치해서 열기' }) {
@@ -2368,9 +2405,11 @@
       lootCard.classList.remove('revealed','rare','legendary','danger');
       lootCard.disabled = false;
       lootCardIcon.textContent='📦'; lootCardName.textContent='?'; lootCardDesc.textContent='카드를 터치해서 열기';
+      lootNewBadge?.classList.add('hidden');
+      hideLootCurrentEquipmentInfo();
       lootGuide.textContent = hasLuckyRing(owner) ? `💍 행운의 반지 · ${owner.name}이 카드 2장 중 1장을 선택한다.` : `${guide} · ${owner.name} 소유`;
       lootActions.innerHTML='';
-      const finish = item => { if (finished) return; finished=true; lootOverlay.classList.add('hidden'); renderAll(); resolve(item || null); };
+      const finish = item => { if (finished) return; finished=true; hideLootCurrentEquipmentInfo(); lootNewBadge?.classList.add('hidden'); lootOverlay.classList.add('hidden'); renderAll(); resolve(item || null); };
       const makeButton=(text,cls,handler)=>{const btn=document.createElement('button');btn.type='button';btn.className=`pixel-btn ${cls||''}`.trim();btn.textContent=text;btn.addEventListener('click',handler,{once:true});lootActions.appendChild(btn);return btn;};
 
       const presentItem = item => {
@@ -2379,6 +2418,8 @@
         if (item.rarity === 'legendary') lootCard.classList.add('legendary');
         lootCardIcon.textContent=item.icon||'🎁'; lootCardName.textContent=item.name;
         const stats=itemStatsText(item); lootCardDesc.textContent=`${item.desc}${stats ? ` · ${stats}` : ''}`;
+        setLootNewBadge(item);
+        setupLootCurrentEquipmentInfo(owner, item);
         lootActions.innerHTML='';
         if (item.type === 'equipment') {
           const canEquip = canHeroEquip(owner,item);
@@ -2386,10 +2427,6 @@
           const directNeedsDiscard = Boolean(oldId && !bagHasSpace(owner));
           lootGuide.textContent = `${owner.icon} ${owner.name} 소유 · ${itemSlotLabel(item.slot)}${canEquip ? '' : ' · 현재 직업은 장착 불가'}.`;
           if (canEquip) {
-            const compare = document.createElement('div');
-            compare.className = 'loot-equip-compare';
-            compare.innerHTML = equipmentCompareHTML(owner, item);
-            lootActions.appendChild(compare);
             makeButton(directNeedsDiscard ? '기존 장비 버리고 교체 장착' : (oldId ? '새 장비로 교체' : `${owner.name} 바로 장착`), 'primary', () => { equipLoot(owner,item,{discardOldIfNeeded:directNeedsDiscard}); finish(item); });
           }
           if (bagHasSpace(owner)) makeButton(`🎒 가방에 보관 (${heroInventory(owner).length+1}/${BAG_LIMIT})`, '', () => { stashLoot(owner,item); finish(item); });
@@ -2414,6 +2451,7 @@
         if (revealed) return; revealed=true; lootCard.disabled=true;
         if (choices.length === 1) { presentItem(choices[0]); return; }
         lootCard.classList.remove('face-down'); lootCard.classList.add('revealed');
+        lootNewBadge?.classList.add('hidden'); hideLootCurrentEquipmentInfo();
         lootCardIcon.textContent='💍'; lootCardName.textContent='행운의 선택'; lootCardDesc.textContent='아래 카드 2장 중 하나를 골라.';
         lootActions.innerHTML='<div class="loot-choice-title">2장 중 1장 선택</div>';
         const grid=document.createElement('div'); grid.className='loot-choice-grid';
@@ -3079,6 +3117,7 @@
     state.combat = null;
     state.eventDeck = [];
     state.eventDiscard = [];
+    state.acquiredEquipmentIds = new Set();
     state.parties = {};
     state.nextPartySerial = 1;
     state.defeatedBosses = new Set();
