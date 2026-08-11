@@ -757,25 +757,34 @@ h2 { font-size: 17px; margin: 0; }
   gap:3px;
   padding:4px 3px 6px;
   color:var(--ink);
-  background:transparent;
-  border:2px solid transparent;
+  background:none;
+  border:0;
+  outline:0;
+  box-shadow:none;
   font:inherit;
   cursor:pointer;
+  -webkit-appearance:none;
+  appearance:none;
   -webkit-tap-highlight-color:transparent;
   transform-origin:center bottom;
 }
-.stage-hero-actor.active {
-  border-color:#c79a43;
-  background:rgba(215,167,67,.07);
-  box-shadow:inset 0 0 14px rgba(215,167,67,.07);
+/* 액터를 둘러싸던 네모 선택 박스는 제거하고 캐릭터 자체의 빛으로 턴/타깃을 표시한다. */
+.stage-hero-actor.active .stage-actor-sprite {
+  filter:drop-shadow(0 0 5px rgba(231,188,91,.95)) drop-shadow(3px 5px 0 rgba(0,0,0,.32));
 }
 .stage-hero-actor.done { opacity:.48; }
 .stage-hero-actor.down { opacity:.25; filter:grayscale(1); }
-.stage-enemy-actor.selected {
-  border-color:#a9483e;
-  background:rgba(168,55,44,.07);
+.stage-enemy-actor.selected .stage-enemy-visual {
+  filter:drop-shadow(0 0 6px rgba(205,73,60,.95)) drop-shadow(4px 6px 0 rgba(0,0,0,.32));
 }
 .stage-enemy-actor.tier-boss { min-height:150px; }
+
+.stage-hero-actor:focus-visible .stage-actor-sprite {
+  filter:drop-shadow(0 0 6px rgba(238,212,145,.95)) drop-shadow(3px 5px 0 rgba(0,0,0,.32));
+}
+.stage-enemy-actor:focus-visible .stage-enemy-visual {
+  filter:drop-shadow(0 0 6px rgba(230,112,95,.95)) drop-shadow(4px 6px 0 rgba(0,0,0,.32));
+}
 .stage-actor-sprite {
   position:relative;
   height:82px;
