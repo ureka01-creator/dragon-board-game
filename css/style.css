@@ -1727,3 +1727,22 @@ h2 { font-size: 17px; margin: 0; }
   .board-panel > .section-head { margin-bottom: 4px; }
   .current-turn-banner { margin: 4px 0 6px; }
 }
+
+/* V0.5.2.7 - current turn is integrated into the world-board move hint */
+.current-turn-banner { display:none !important; }
+.move-hint-locator {
+  cursor:pointer;
+  color:#f1d9a2;
+  text-align:right;
+  user-select:none;
+  -webkit-user-select:none;
+  transition:filter .12s ease, transform .12s ease;
+}
+.move-hint-locator:active {
+  filter:brightness(1.35);
+  transform:translateY(1px);
+}
+@media (max-width:560px) {
+  .board-panel .section-head { align-items:center; gap:8px; }
+  .move-hint-locator { font-size:12px; line-height:1.25; max-width:68%; }
+}
