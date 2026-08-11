@@ -1505,7 +1505,7 @@ h2 { font-size: 17px; margin: 0; }
   .region-browser { padding:5px 6px; gap:6px; }
   .region-title { font-size:9px; }
   .region-navigator { width:120px; gap:2px; }
-  .region-nav-btn { height:34px; grid-template-columns:15px 17px 1fr; padding:1px 2px; }
+  .region-nav-btn { height:34px; grid-template-columns:17px 1fr; padding:1px 2px; }
   .region-nav-btn .region-code { font-size:8px; }
   .region-nav-btn .region-icon { font-size:11px; }
   .world-action-bar.solo-mode { grid-template-columns:auto 1fr; }
@@ -1865,7 +1865,7 @@ body.modal-open {
 }
 .modal.shop-modal .modal-card::-webkit-scrollbar { width:0; height:0; display:none; }
 
-/* V0.5.5.4 — 탐험 목표 + Fog of War */
+/* V0.5.5.6 — 탐험 목표 + Fog of War */
 .current-objective {
   display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 7px;
   padding:6px 8px; border:2px solid #4e432d; background:#17140f; color:#d8ccb1;
@@ -1900,4 +1900,114 @@ body.modal-open {
 }
 @media (max-width: 720px) {
   .current-objective { font-size:8px; gap:5px; padding:5px 6px; }
+}
+
+/* V0.5.5.5 — 월드 말 가독성 / iOS 모달 스크롤바 억제 */
+.map-token-grid {
+  right: 50%;
+  bottom: 50%;
+  transform: translate(50%, 50%);
+  width: 82%;
+  height: 82%;
+  gap: 2px;
+  align-content: center;
+  justify-content: center;
+}
+.map-token-grid.count-1 {
+  width: 70%;
+  height: 70%;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.map-token-grid.count-2 {
+  width: 84%;
+  height: 52%;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+.map-hero-token { font-size: clamp(16px, 3.8vw, 28px); }
+.hero-hop-mover .map-hero-token {
+  width: clamp(28px, 7vw, 48px);
+  height: clamp(28px, 7vw, 48px);
+  font-size: clamp(18px, 4.5vw, 32px);
+}
+.modal-card,
+.modal.shop-modal .modal-card,
+.modal.hero-status-modal .modal-card,
+.modal.party-manage-modal .modal-card,
+.modal.item-transfer-modal .modal-card,
+.modal.combat-item-modal .modal-card {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.modal-card::-webkit-scrollbar,
+.modal.shop-modal .modal-card::-webkit-scrollbar,
+.modal.hero-status-modal .modal-card::-webkit-scrollbar,
+.modal.party-manage-modal .modal-card::-webkit-scrollbar,
+.modal.item-transfer-modal .modal-card::-webkit-scrollbar,
+.modal.combat-item-modal .modal-card::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+}
+@media (max-width:700px) {
+  .map-token-grid { right:50%; bottom:50%; transform:translate(50%,50%); width:82%; height:82%; gap:1px; }
+  .map-token-grid.count-1 { width:68%; height:68%; }
+  .map-token-grid.count-2 { width:84%; height:50%; }
+  .map-hero-token { font-size: clamp(15px, 5vw, 25px); }
+}
+
+
+/* V0.5.5.6 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
+.map-node.fogged .node-icon,
+.map-node.fogged .node-name,
+.map-node.fogged .node-type,
+.map-node.deep-fog .node-icon,
+.map-node.deep-fog .node-name,
+.map-node.deep-fog .node-type {
+  visibility: hidden !important;
+}
+.map-node.fogged::after {
+  content:'';
+  position:absolute;
+  inset:5px;
+  border:1px solid rgba(131,119,88,.28);
+  background:
+    linear-gradient(135deg, transparent 44%, rgba(120,108,78,.11) 45%, rgba(120,108,78,.11) 55%, transparent 56%),
+    linear-gradient(45deg, transparent 44%, rgba(120,108,78,.08) 45%, rgba(120,108,78,.08) 55%, transparent 56%);
+  pointer-events:none;
+}
+.map-node.deep-fog::after { content:none; }
+
+/* 주사위 후 이동 가능 칸은 정체를 공개하지 않고 테두리만 안내한다. */
+.map-node.deep-fog.reachable,
+.map-node.fogged.reachable {
+  opacity:.92;
+  border-color:#7f9656;
+  box-shadow:0 0 0 2px rgba(130,168,84,.24), inset 0 0 14px rgba(0,0,0,.78);
+}
+
+/* 처음 밟은 칸: 뒷면이 접힌 뒤 앞면이 펼쳐지는 타일 플립 */
+.map-node.tile-flip-out {
+  transform-origin:center;
+  animation:tileFlipOut .23s ease-in forwards !important;
+  z-index:8;
+}
+.map-node.tile-flip-in {
+  transform-origin:center;
+  animation:tileFlipIn .34s cubic-bezier(.2,.75,.25,1) forwards !important;
+  z-index:8;
+}
+@keyframes tileFlipOut {
+  from { transform:perspective(280px) rotateY(0deg) scale(1); filter:brightness(1); }
+  to { transform:perspective(280px) rotateY(90deg) scale(.96); filter:brightness(.65); }
+}
+@keyframes tileFlipIn {
+  from { transform:perspective(280px) rotateY(-90deg) scale(.96); filter:brightness(1.45); }
+  70% { transform:perspective(280px) rotateY(8deg) scale(1.03); }
+  to { transform:perspective(280px) rotateY(0deg) scale(1); filter:brightness(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-node.tile-flip-out, .map-node.tile-flip-in { animation-duration:.01ms !important; }
 }
