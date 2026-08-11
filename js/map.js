@@ -1,54 +1,180 @@
-window.WORLD_NODES = [
-  // ─────────────────────────────────────────────
-  // OUTER RING — square board path
-  // North: cemetery / ruined abbey
-  // ─────────────────────────────────────────────
-  { id:'abbey', name:'버려진 수도원', short:'수도원', icon:'🏰', type:'보스', region:'grave', x:1, y:1, links:['boneRoad','cemetery'] },
-  { id:'cemetery', name:'공동묘지', short:'묘지', icon:'☠️', type:'전투', region:'grave', x:2, y:1, links:['abbey','crypt'] },
-  { id:'crypt', name:'지하 묘실', short:'묘실', icon:'⚰️', type:'사건', region:'grave', x:3, y:1, links:['cemetery','graveTreasure'] },
-  { id:'graveTreasure', name:'망자의 제단', short:'제단', icon:'🎁', type:'보물', region:'grave', x:4, y:1, links:['crypt','watchtower','northRoad'] },
-  { id:'watchtower', name:'무너진 망루', short:'망루', icon:'💀', type:'전투', region:'grave', x:5, y:1, links:['graveTreasure','warCamp'] },
-  { id:'warCamp', name:'버려진 진지', short:'진지', icon:'⚔️', type:'전투', region:'war', x:6, y:1, links:['watchtower','demonKeep'] },
-  { id:'demonKeep', name:'악마 기사의 성채', short:'성채', icon:'😈', type:'보스', region:'war', x:7, y:1, links:['warCamp','brokenWall'] },
+// DRAGON BOARD V0.4.7
+// 4개 지역은 같은 7x7 토폴로지를 공유하지만, 새 게임마다 테마와 타일 내용/배치가 다시 섞인다.
+window.PARTY_SYSTEM_ENABLED = false;
 
-  // East: battlefield
-  { id:'brokenWall', name:'부서진 성벽', short:'성벽', icon:'🧱', type:'사건', region:'war', x:7, y:2, links:['demonKeep','battleTreasure'] },
-  { id:'battleTreasure', name:'전장의 유품', short:'유품', icon:'🎁', type:'보물', region:'war', x:7, y:3, links:['brokenWall','warGate'] },
-  { id:'warGate', name:'전쟁터 관문', short:'관문', icon:'⚔️', type:'전투', region:'war', x:7, y:4, links:['battleTreasure','orcField','eastRoad'] },
-  { id:'orcField', name:'오크 전장', short:'오크', icon:'👹', type:'전투', region:'war', x:7, y:5, links:['warGate','ashField'] },
-  { id:'ashField', name:'잿빛 평원', short:'잿빛', icon:'🔥', type:'위험', region:'volcano', x:7, y:6, links:['orcField','dragon'] },
-  { id:'dragon', name:'드래곤의 성', short:'용의 성', icon:'🐉', type:'잠김', region:'dragon', x:7, y:7, links:['ashField','lavaBridge'], locked:true },
+const AREA_IDS = ['A','B','C','D'];
+const AREA_NEIGHBORS = {
+  A: { east:'B', south:'C' },
+  B: { west:'A', south:'D' },
+  C: { north:'A', east:'D' },
+  D: { north:'B', west:'C' },
+};
 
-  // South: volcano / mine
-  { id:'lavaBridge', name:'용암 다리', short:'용암', icon:'🌋', type:'위험', region:'volcano', x:6, y:7, links:['dragon','wyvernNest'] },
-  { id:'wyvernNest', name:'와이번 둥지', short:'와이번', icon:'🐲', type:'전투', region:'volcano', x:5, y:7, links:['lavaBridge','temple'] },
-  { id:'temple', name:'고대 신전', short:'신전', icon:'🗿', type:'봉인', region:'volcano', x:4, y:7, links:['wyvernNest','mine','southRoad'] },
-  { id:'mine', name:'폐광', short:'폐광', icon:'⛏️', type:'전투', region:'mine', x:3, y:7, links:['temple','lostCart'] },
-  { id:'lostCart', name:'버려진 광차', short:'광차', icon:'🎁', type:'보물', region:'mine', x:2, y:7, links:['mine','trollGrove'] },
-  { id:'trollGrove', name:'트롤 왕의 숲', short:'트롤왕', icon:'🧌', type:'보스', region:'forest', x:1, y:7, links:['lostCart','deepForest'] },
+const THEMES = {
+  grave: {
+    label:'망자의 땅', icon:'☠️', region:'grave',
+    combatPool:['skeleton','ghost','slime'], boss:'necromancer',
+    combatNames:['백골길','낡은 묘비군','망자의 뜰','검은 장례길','유령 회랑','부서진 납골당','침묵의 묘역','핏빛 비석길','썩은 관문','망령의 샛길','해골 참호','저주받은 계단','흐느끼는 언덕','빈 관 속 길','장송의 골목'],
+    treasureNames:['도굴꾼의 상자','망자의 유품','봉인된 관','성자의 유골함'],
+    eventNames:['울리는 종','핏자국','검은 까마귀','사라진 묘지기'],
+    restNames:['작은 성소','순례자의 쉼터'], shopName:'묘지기 상점', dangerNames:['저주의 안개','죽음의 종소리'], bossName:'버려진 수도원'
+  },
+  forest: {
+    label:'저주받은 숲', icon:'🌲', region:'forest',
+    combatPool:['wolf','spider','goblin'], boss:'trollKing',
+    combatNames:['가시숲','늑대길','거미굴','검은 수풀','뒤틀린 고목','버섯 숲','사냥꾼 길','독초 지대','울창한 협곡','마른 개울','수액 동굴','고블린 흔적','숲속 폐허','굶주린 짐승길','마녀의 오솔길'],
+    treasureNames:['버려진 배낭','고목의 보물','사냥꾼 은닉처','요정의 상자'],
+    eventNames:['속삭이는 나무','길 잃은 여행자','수상한 발자국','푸른 불빛'],
+    restNames:['맑은 샘','숲속 야영지'], shopName:'마녀의 오두막', dangerNames:['독안개','가시 폭풍'], bossName:'트롤 왕의 숲'
+  },
+  war: {
+    label:'피의 전쟁터', icon:'⚔️', region:'war',
+    combatPool:['goblin','orc','ogre','darkKnight'], boss:'demonKnight',
+    combatNames:['부서진 방진','오크 전초기지','검은 참호','피의 언덕','무너진 성벽','불탄 막사','버려진 포대','투석기 잔해','창병의 길','검은 군기지','쇠사슬 광장','패잔병 진지','붉은 관문','철갑 전선','악마군 흔적'],
+    treasureNames:['전장의 유품','장교의 상자','보급품 마차','무기고 잔해'],
+    eventNames:['꺼지지 않는 봉화','부상병','찢어진 군기','전령의 시체'],
+    restNames:['야전 천막','낡은 막사'], shopName:'용병 상인', dangerNames:['화살 세례','붕괴하는 성벽'], bossName:'악마 기사의 성채'
+  },
+  volcano: {
+    label:'불타는 황무지', icon:'🔥', region:'volcano',
+    combatPool:['fireImp','orc','minotaur','wyvern'], boss:'demonKnight',
+    combatNames:['잿빛 평원','용암 틈','화염 동굴','검댕 길','불타는 폐광','검은 용암지','와이번 흔적','붉은 협곡','유황 구덩이','불꽃 계단','잿더미 언덕','용암 폭포','마른 광맥','화산 동굴','재의 관문'],
+    treasureNames:['광부의 금고','화산석 상자','잿더미 보물','용암 옆 유품'],
+    eventNames:['지진','분화 징조','붉은 유성','광부의 흔적'],
+    restNames:['광부 야영지','온천 틈새'], shopName:'광산 상인', dangerNames:['용암 분출','화산재 폭풍'], bossName:'화염 성채'
+  }
+};
 
-  // West: cursed forest
-  { id:'deepForest', name:'깊은 숲', short:'깊은숲', icon:'🌲', type:'전투', region:'forest', x:1, y:6, links:['trollGrove','spiderNest'] },
-  { id:'spiderNest', name:'거미 둥지', short:'거미', icon:'🕷️', type:'전투', region:'forest', x:1, y:5, links:['deepForest','forestGate'] },
-  { id:'forestGate', name:'숲의 관문', short:'숲문', icon:'🌳', type:'사건', region:'forest', x:1, y:4, links:['spiderNest','witchHut','westRoad'] },
-  { id:'witchHut', name:'마녀의 오두막', short:'오두막', icon:'🧙', type:'상점', region:'forest', x:1, y:3, links:['forestGate','boneRoad'] },
-  { id:'boneRoad', name:'뼈의 길', short:'뼈길', icon:'🦴', type:'전투', region:'grave', x:1, y:2, links:['witchHut','abbey'] },
-
-  // ─────────────────────────────────────────────
-  // INNER CROSS — shortcuts back to the village
-  // ─────────────────────────────────────────────
-  { id:'northRoad', name:'북쪽 순례길', short:'북로', icon:'⬆️', type:'길', region:'road', x:4, y:2, links:['graveTreasure','northShrine'] },
-  { id:'northShrine', name:'작은 성소', short:'성소', icon:'❤️', type:'휴식', region:'road', x:4, y:3, links:['northRoad','village'] },
-
-  { id:'eastRoad', name:'동쪽 군용로', short:'동로', icon:'➡️', type:'길', region:'road', x:6, y:4, links:['warGate','eastCross'] },
-  { id:'eastCross', name:'동쪽 교차로', short:'교차로', icon:'❓', type:'사건', region:'road', x:5, y:4, links:['eastRoad','village'] },
-
-  { id:'southRoad', name:'남쪽 광산길', short:'남로', icon:'⬇️', type:'길', region:'road', x:4, y:6, links:['temple','southCamp'] },
-  { id:'southCamp', name:'광부의 야영지', short:'야영지', icon:'❤️', type:'휴식', region:'road', x:4, y:5, links:['southRoad','village'] },
-
-  { id:'westRoad', name:'서쪽 숲길', short:'서로', icon:'⬅️', type:'길', region:'road', x:2, y:4, links:['forestGate','westCross'] },
-  { id:'westCross', name:'서쪽 교차로', short:'교차로', icon:'❓', type:'사건', region:'road', x:3, y:4, links:['westRoad','village'] },
-
-  // Center
-  { id:'village', name:'왕국 마을', short:'마을', icon:'🏠', type:'마을', region:'village', x:4, y:4, links:['northShrine','eastCross','southCamp','westCross'] }
+const OUTER = [
+  [1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],
+  [7,2],[7,3],[7,4],[7,5],[7,6],[7,7],
+  [6,7],[5,7],[4,7],[3,7],[2,7],[1,7],
+  [1,6],[1,5],[1,4],[1,3],[1,2]
 ];
+const INNER = [
+  ['n1',4,2],['n2',4,3],['e1',6,4],['e2',5,4],
+  ['s1',4,6],['s2',4,5],['w1',2,4],['w2',3,4],['center',4,4]
+];
+const GATE_BY_DIR = { north:'o3', east:'o9', south:'o15', west:'o21' };
+const OPPOSITE = { north:'south', south:'north', east:'west', west:'east' };
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i=a.length-1;i>0;i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function iconForType(type, theme) {
+  if (type === '전투') return theme.region === 'grave' ? '💀' : theme.region === 'forest' ? '🐺' : theme.region === 'war' ? '⚔️' : '🔥';
+  if (type === '보물') return '🎁';
+  if (type === '사건') return '❓';
+  if (type === '휴식') return '❤️';
+  if (type === '상점') return '🏪';
+  if (type === '위험') return '🔥';
+  if (type === '보스') return '👑';
+  return '·';
+}
+
+function buildTileDeck(theme) {
+  const tiles = [];
+  theme.combatNames.forEach(name => tiles.push({ type:'전투', name, short:name.slice(0,4), icon:iconForType('전투',theme), encounterPool:theme.combatPool }));
+  theme.treasureNames.forEach(name => tiles.push({ type:'보물', name, short:name.slice(0,4), icon:'🎁' }));
+  theme.eventNames.forEach(name => tiles.push({ type:'사건', name, short:name.slice(0,4), icon:'❓' }));
+  theme.restNames.forEach(name => tiles.push({ type:'휴식', name, short:name.slice(0,4), icon:'❤️' }));
+  tiles.push({ type:'상점', name:theme.shopName, short:'상점', icon:'🏪' });
+  theme.dangerNames.forEach(name => tiles.push({ type:'위험', name, short:name.slice(0,4), icon:'🔥' }));
+  tiles.push({ type:'길', name:`${theme.label}의 길`, short:'길', icon:'🛤️' });
+  tiles.push({ type:'보스', name:theme.bossName, short:'지역보스', icon:'👑', bossMonsterId:theme.boss });
+  return shuffle(tiles); // 30개. 게이트 2개 + 중앙 1개를 제외한 슬롯 수와 동일.
+}
+
+function localId(areaId, key) { return `${areaId.toLowerCase()}-${key}`; }
+
+function makeAreaBase(areaId) {
+  const nodes = [];
+  OUTER.forEach(([x,y],i) => nodes.push({ id:localId(areaId,`o${i}`), localKey:`o${i}`, x,y, links:[] }));
+  INNER.forEach(([key,x,y]) => nodes.push({ id:localId(areaId,key), localKey:key, x,y, links:[] }));
+
+  // 외곽 링
+  for (let i=0;i<24;i++) {
+    const prev = localId(areaId,`o${(i+23)%24}`);
+    const next = localId(areaId,`o${(i+1)%24}`);
+    nodes.find(n=>n.localKey===`o${i}`).links.push(prev,next);
+  }
+  // 중앙 십자
+  const link = (a,b) => {
+    const na=nodes.find(n=>n.localKey===a), nb=nodes.find(n=>n.localKey===b);
+    na.links.push(nb.id); nb.links.push(na.id);
+  };
+  link('o3','n1'); link('n1','n2'); link('n2','center');
+  link('o9','e1'); link('e1','e2'); link('e2','center');
+  link('o15','s1'); link('s1','s2'); link('s2','center');
+  link('o21','w1'); link('w1','w2'); link('w2','center');
+  return nodes;
+}
+
+function generateWorld() {
+  const themeKeys = shuffle(Object.keys(THEMES));
+  const areas = {};
+  const nodes = [];
+
+  AREA_IDS.forEach((areaId,index) => {
+    const themeKey = themeKeys[index % themeKeys.length];
+    const theme = THEMES[themeKey];
+    const areaNodes = makeAreaBase(areaId);
+    const neighborMap = AREA_NEIGHBORS[areaId];
+    const gatewayKeys = new Set(Object.keys(neighborMap).map(dir => GATE_BY_DIR[dir]));
+    const center = areaNodes.find(n=>n.localKey==='center');
+
+    areas[areaId] = { id:areaId, name:`${areaId} 지역`, themeKey, themeLabel:theme.label, icon:theme.icon };
+
+    center.name = areaId === 'A' ? '왕국 마을' : `${theme.label} 야영지`;
+    center.short = areaId === 'A' ? '마을' : '야영지';
+    center.icon = areaId === 'A' ? '🏠' : '⛺';
+    center.type = areaId === 'A' ? '마을' : '휴식';
+    center.region = areaId === 'A' ? 'village' : theme.region;
+    center.areaId = areaId;
+
+    const fillable = areaNodes.filter(n => n.localKey !== 'center' && !gatewayKeys.has(n.localKey));
+    const deck = buildTileDeck(theme);
+    fillable.forEach((node,i) => Object.assign(node, deck[i]));
+
+    Object.entries(neighborMap).forEach(([dir,targetArea]) => {
+      const key = GATE_BY_DIR[dir];
+      const gate = areaNodes.find(n=>n.localKey===key);
+      gate.name = `${targetArea} 지역 입구`;
+      gate.short = `${targetArea}입구`;
+      gate.icon = dir === 'north' ? '⬆️' : dir === 'south' ? '⬇️' : dir === 'east' ? '➡️' : '⬅️';
+      gate.type = '입구';
+      gate.region = 'road';
+      gate.portalTo = targetArea;
+      gate.portalEntryId = localId(targetArea, GATE_BY_DIR[OPPOSITE[dir]]);
+    });
+
+    areaNodes.forEach(node => {
+      node.areaId = areaId;
+      node.region ||= theme.region;
+      node.short ||= node.name?.slice(0,4) || '길';
+      node.icon ||= '·';
+      node.type ||= '길';
+      delete node.localKey;
+    });
+    nodes.push(...areaNodes);
+  });
+
+  return { nodes, areas, startNodeId:'a-center' };
+}
+
+window.resetWorldMap = function resetWorldMap() {
+  const generated = generateWorld();
+  window.WORLD_NODES = generated.nodes;
+  window.WORLD_AREAS = generated.areas;
+  window.WORLD_START_NODE_ID = generated.startNodeId;
+  return generated;
+};
+
+// 최초 로드용 1회 생성. 실제 게임 시작 시 다시 생성되어 매 판 구성이 달라진다.
+window.resetWorldMap();

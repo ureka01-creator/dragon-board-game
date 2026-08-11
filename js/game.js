@@ -16,6 +16,10 @@
     parties: {},
     nextPartySerial: 1,
     combat: null,
+    viewAreaId: 'A',
+    dragonCastleNodeId: null,
+    dragonCastleSpawned: false,
+    dragonSpawnNoticePending: null,
   };
 
   const titleScreen = $('#titleScreen');
@@ -31,6 +35,8 @@
   const activeHeroLabel = $('#activeHeroLabel');
   const resourceSummary = $('#resourceSummary');
   const worldMap = $('#worldMap');
+  const regionNavigator = $('#regionNavigator');
+  const regionTitle = $('#regionTitle');
   const currentTurnBanner = $('#currentTurnBanner');
   const currentTurnName = $('#currentTurnName');
   const worldActionBar = $('#worldActionBar');
@@ -133,13 +139,18 @@
   }
 
   function startGame() {
+    window.resetWorldMap?.();
+    state.viewAreaId = 'A';
+    state.dragonCastleNodeId = null;
+    state.dragonCastleSpawned = false;
+    state.dragonSpawnNoticePending = null;
     state.heroes = state.selectedHeroIds.map(id => {
       const src = HEROES.find(h => h.id === id);
       return {
         ...src,
         currentHp: src.hp,
         currentMana: src.mana ?? null,
-        position: 'village',
+        position: window.WORLD_START_NODE_ID || 'a-center',
         acted: false,
         down: false,
         reviveRound: null,
@@ -167,7 +178,9 @@
 
     showScreen(gameScreen);
     log(`<strong>모험 시작!</strong> ${state.heroes.map(h => h.icon + h.name).join(', ')} 출발.`);
-    log('👕 모든 영웅은 기본 장비가 없는 상태다. 이후 보물/상점에서 얻은 장비가 캐릭터 외형에 표시된다.');
+    log('👕 모든 영웅은 기본 장비가 없는 상태다. 이후 얻은 장비가 캐릭터 외형에 표시된다.');
+    log('🗺️ 4개 지역의 타일 내용과 테마가 이번 게임용으로 새롭게 생성되었다.');
+    log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
     renderAll();
   }
 
@@ -185,10 +198,12 @@
   }
 
   function getPartyById(partyId) {
+    if (!window.PARTY_SYSTEM_ENABLED) return null;
     return partyId ? state.parties?.[partyId] || null : null;
   }
 
   function getHeroParty(hero) {
+    if (!window.PARTY_SYSTEM_ENABLED) return null;
     return hero ? getPartyById(hero.partyId) : null;
   }
 
@@ -207,6 +222,7 @@
 
   function getWorldUnitMembers(hero = getActiveHero()) {
     if (!hero) return [];
+    if (!window.PARTY_SYSTEM_ENABLED) return [hero];
     const party = getHeroParty(hero);
     if (!party) return [hero];
     return getPartyMembers(party).filter(h => !h.down);
@@ -214,6 +230,7 @@
 
   function getWorldUnitLeader(hero = getActiveHero()) {
     if (!hero) return null;
+    if (!window.PARTY_SYSTEM_ENABLED) return hero;
     const party = getHeroParty(hero);
     if (!party) return hero;
     const leader = state.heroes.find(h => h.id === party.leaderId && !h.down);
@@ -226,6 +243,7 @@
   function sameWorldUnit(a, b) {
     if (!a || !b) return false;
     if (a.id === b.id) return true;
+    if (!window.PARTY_SYSTEM_ENABLED) return false;
     return Boolean(a.partyId && a.partyId === b.partyId);
   }
 
@@ -255,6 +273,7 @@
   }
 
   function removeHeroFromParty(hero) {
+    if (!window.PARTY_SYSTEM_ENABLED) { if (hero) hero.partyId = null; return; }
     if (!hero?.partyId) return;
     const partyId = hero.partyId;
     const party = getPartyById(partyId);
@@ -363,6 +382,8 @@
         if (!hero.down && !hero.acted && state.rolled === null && !state.gameOver && !state.combat) {
           const targetParty = getHeroParty(hero);
           state.activeHeroId = targetParty?.leaderId || hero.id;
+          const heroNode = WORLD_NODES.find(n => n.id === hero.position);
+          if (heroNode?.areaId) state.viewAreaId = heroNode.areaId;
           renderAll();
         }
       });
@@ -374,28 +395,113 @@
       ? party ? `🤝 ${partyDisplayName(party)}` : `${normalizedActive.icon} ${normalizedActive.name}`
       : '';
     const totalBag = state.heroes.reduce((sum, h) => sum + heroInventory(h).length, 0);
-    if (resourceSummary) resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}`;
+    const dragonArea = state.dragonCastleNodeId ? getNodeAreaId(state.dragonCastleNodeId) : null;
+    if (resourceSummary) resourceSummary.textContent = `🗿 ${state.seals}/3 · 💰 ${state.gold} · 🎒 ${totalBag}${dragonArea ? ` · 🐉 ${dragonArea}` : ''}`;
+  }
+
+  function getNodeAreaId(nodeId) {
+    return WORLD_NODES.find(n => n.id === nodeId)?.areaId || 'A';
+  }
+
+  function flushDragonCastleNotice() {
+    if (!state.dragonSpawnNoticePending || state.combat) return;
+    const message = state.dragonSpawnNoticePending;
+    state.dragonSpawnNoticePending = null;
+    showModal('🐉 용의 성 출현', message);
+  }
+
+  function checkDragonCastleSpawn(trigger = '') {
+    if (state.dragonCastleSpawned) return false;
+    if (state.seals < 3 && state.threat < 12) return false;
+
+    const occupied = new Set(state.heroes.filter(h => !h.down).map(h => h.position));
+    let candidates = WORLD_NODES.filter(n =>
+      !occupied.has(n.id) &&
+      !['마을','입구','보스','드래곤성'].includes(n.type) &&
+      n.id !== (window.WORLD_START_NODE_ID || 'a-center')
+    );
+    if (!candidates.length) candidates = WORLD_NODES.filter(n => !['마을','입구','보스','드래곤성'].includes(n.type));
+    const node = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!node) return false;
+
+    node.originalTile = { name:node.name, short:node.short, icon:node.icon, type:node.type, region:node.region };
+    node.name = '드래곤의 성';
+    node.short = '용의 성';
+    node.icon = '🐉';
+    node.type = '드래곤성';
+    node.region = 'dragon';
+    delete node.encounterPool;
+    delete node.bossMonsterId;
+
+    state.dragonCastleNodeId = node.id;
+    state.dragonCastleSpawned = true;
+    const areaMeta = window.WORLD_AREAS?.[node.areaId];
+    const reason = state.seals >= 3 ? '봉인석 3개가 모였다.' : 'DRAGON THREAT가 12에 도달했다.';
+    const message = `${reason} ${node.areaId} 지역 · ${areaMeta?.themeLabel || ''}에 드래곤의 성이 나타났다!`;
+    state.dragonSpawnNoticePending = message;
+    log(`🐉 <strong>용의 성 출현!</strong> ${node.areaId} 지역 · ${node.name}`);
+    if (state.combat) combatLogEntry?.(`🐉 ${reason} 용의 성이 ${node.areaId} 지역에 출현!`);
+    flushDragonCastleNotice();
+    renderRegionNavigator();
+    return true;
+  }
+
+  function renderRegionNavigator() {
+    if (!regionNavigator) return;
+    regionNavigator.innerHTML = '';
+    const active = getActiveHero();
+    const activeArea = active ? getNodeAreaId(active.position) : 'A';
+    ['A','B','C','D'].forEach(areaId => {
+      const meta = window.WORLD_AREAS?.[areaId] || { id:areaId, name:`${areaId} 지역`, themeLabel:'미지의 땅', icon:'🗺️' };
+      const heroesInArea = state.heroes.filter(h => getNodeAreaId(h.position) === areaId && !h.down);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `region-nav-btn ${state.viewAreaId === areaId ? 'active' : ''} ${activeArea === areaId ? 'hero-area' : ''}`;
+      const dragonHere = state.dragonCastleNodeId && getNodeAreaId(state.dragonCastleNodeId) === areaId;
+      btn.innerHTML = `<span class="region-code">${areaId}</span><span class="region-icon">${dragonHere ? '🐉' : meta.icon}</span><small>${heroesInArea.map(h=>h.icon).join('') || meta.themeLabel}</small>`;
+      btn.addEventListener('click', () => {
+        if (state.isRolling || state.isMoving || state.combat || state.rolled !== null) return;
+        state.viewAreaId = areaId;
+        renderMap();
+        renderRegionNavigator();
+      });
+      regionNavigator.appendChild(btn);
+    });
+    const meta = window.WORLD_AREAS?.[state.viewAreaId];
+    if (regionTitle) regionTitle.textContent = `${state.viewAreaId} 지역 · ${meta?.themeLabel || '미지의 땅'}`;
   }
 
   function renderMap() {
     worldMap.innerHTML = '';
+    const activeHero = getActiveHero();
+    const activeArea = activeHero ? getNodeAreaId(activeHero.position) : state.viewAreaId;
+    if (state.rolled !== null && activeArea !== state.viewAreaId) state.viewAreaId = activeArea;
+    renderRegionNavigator();
+    const areaMeta = window.WORLD_AREAS?.[state.viewAreaId];
+    worldMap.dataset.areaId = state.viewAreaId;
+    worldMap.dataset.theme = areaMeta?.themeKey || '';
+
+    const watermark = document.createElement('div');
+    watermark.className = 'area-watermark';
+    watermark.innerHTML = `<span>${state.viewAreaId} 지역</span><small>${areaMeta?.icon || '🗺️'} ${areaMeta?.themeLabel || ''}</small>`;
+    worldMap.appendChild(watermark);
+
     const reachable = getReachableNodeIds();
-    WORLD_NODES.forEach(node => {
+    WORLD_NODES.filter(node => node.areaId === state.viewAreaId).forEach(node => {
       const el = document.createElement('div');
       const heroesHere = state.heroes.filter(h => h.position === node.id);
-      const activeHero = getActiveHero();
       const activeUnit = getWorldUnitMembers(activeHero);
       const isCurrent = activeUnit.some(h => h.position === node.id);
-      const locked = node.locked && state.seals < 3 && state.threat < 9;
-      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${locked ? 'locked' : ''}`;
+      const isDragon = node.type === '드래곤성';
+      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon ? 'dragon-spawned' : ''}`;
       el.dataset.nodeId = node.id;
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
       el.innerHTML = `
         <div class="node-icon">${node.icon}</div>
         <div class="node-name">${node.short || node.name}</div>
-        <div class="node-type">${locked ? '🔒 잠김' : node.type}</div>
-        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${h.partyId ? 'in-party' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
+        <div class="node-type">${node.type}</div>
+        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
       if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
       worldMap.appendChild(el);
@@ -421,15 +527,14 @@
     }
 
     const prep = canUseWorldPrepActions();
-    if (partyManageBtn) partyManageBtn.disabled = !prep;
+    if (partyManageBtn) {
+      partyManageBtn.hidden = !window.PARTY_SYSTEM_ENABLED;
+      partyManageBtn.disabled = true;
+    }
     const transferSources = unit.filter(h => heroInventory(h).length || Object.values(h.equipment || {}).some(Boolean));
     const nearbyCount = active ? state.heroes.filter(h => !h.down && h.position === active.position).length : 0;
     if (itemTransferBtn) itemTransferBtn.disabled = !prep || !transferSources.length || nearbyCount < 2;
-    if (partyStatusText) {
-      partyStatusText.textContent = party
-        ? `${partyDisplayName(party)} · ${unit.map(h => h.icon + h.name).join(' + ')}`
-        : 'SOLO · 같은 칸의 READY 영웅과 파티 편성 가능';
-    }
+    if (partyStatusText) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';
     worldActionBar?.classList.toggle('disabled', !prep);
   }
 
@@ -440,6 +545,7 @@
   }
 
   function openPartyManager() {
+    if (!window.PARTY_SYSTEM_ENABLED) { showModal('🤝 파티 편성', '현재 프로토타입에서는 파티 기능을 잠가두었어.'); return; }
     if (!canUseWorldPrepActions()) return;
     const active = getActiveHero();
     if (!active) return;
@@ -849,6 +955,8 @@
     if (unit.some(h => h.acted || h.down)) return;
     const result = Math.floor(Math.random() * 6) + 1;
     state.activeHeroId = hero.id;
+    state.viewAreaId = getNodeAreaId(hero.position);
+    renderMap();
     state.isRolling = true;
     renderControls();
 
@@ -1119,14 +1227,14 @@
 
   function chooseEncounter(node, participantCount) {
     if (node.type === '보스') {
-      const monsterId = BOSS_ENCOUNTERS[node.id];
+      const monsterId = node.bossMonsterId || BOSS_ENCOUNTERS[node.id] || 'demonKnight';
       const src = MONSTERS[monsterId];
       return [cloneEnemy(monsterId, encounterScale(src.tier, participantCount))];
     }
 
-    const pool = NODE_ENCOUNTERS[node.id] || (
+    const pool = node.encounterPool || NODE_ENCOUNTERS[node.id] || (
       node.region === 'grave' ? ['skeleton','ghost','slime'] :
-      node.region === 'war' ? ['goblin','orc'] :
+      node.region === 'war' ? ['goblin','orc','ogre','darkKnight'] :
       node.region === 'forest' ? ['wolf','spider','goblin'] :
       node.region === 'mine' ? ['orc','ogre','minotaur'] :
       node.region === 'volcano' ? ['fireImp','minotaur','wyvern'] :
@@ -1519,16 +1627,13 @@
     hero.down = true;
     hero.currentHp = 0;
     removeHeroFromParty(hero);
-    hero.position = 'village';
+    hero.position = window.WORLD_START_NODE_ID || 'a-center';
     hero.acted = true;
     hero.reviveRound = state.round + 1;
     state.threat = Math.min(12, state.threat + 1);
     combatLogEntry(`💀 <strong>${hero.name}</strong> 쓰러짐 → 마을 귀환 / THREAT +1`);
     log(`💀 ${hero.icon} <strong>${hero.name}</strong> 쓰러짐 (${sourceName}) → 마을 귀환 / 🔥 THREAT +1`);
-
-    if (state.threat >= 12) {
-      state.gameOver = true;
-    }
+    checkDragonCastleSpawn('threat');
   }
 
   function resolveHeroHit(hero, enemy, roll, attackBonus, damageSpec, options = {}) {
@@ -2001,6 +2106,7 @@
           state.seals += 1;
           combatLogEntry(`🗿 용의 봉인석 획득! ${state.seals}/3`);
           log(`🗿 지역 보스 처치 → <strong>봉인석 ${state.seals}/3</strong>`);
+          checkDragonCastleSpawn('seal');
         }
       }
     } else {
@@ -2019,8 +2125,7 @@
     combatOverlay.classList.add('hidden');
     state.combat = null;
     finishCombatTurns(ids);
-
-    if (state.gameOver) showModal('☠️ 왕국 멸망', 'DRAGON THREAT가 12에 도달했다. GAME OVER.');
+    flushDragonCastleNotice();
     resolver?.(result);
   }
 
@@ -2031,9 +2136,8 @@
         return;
       }
 
-      // V0.4.6: 전투 참가자는 "같은 칸"이 아니라 "같은 파티"로 결정한다.
-      // SOLO 영웅은 같은 칸에 다른 영웅이 있어도 혼자 싸운다.
-      // 파티로 편성된 경우에만 생존 파티원 전원이 전투에 참가한다.
+      // V0.4.7: 파티 기능 잠금. 같은 칸에 다른 영웅이 있어도 전투는 현재 영웅 SOLO로 진행한다.
+      // 파티 코드는 이후 다시 켤 수 있도록 유지하지만 PARTY_SYSTEM_ENABLED=false에서는 참가하지 않는다.
       const party = getHeroParty(hero);
       const participants = party
         ? getPartyMembers(party, { aliveOnly:true }).filter(h => h.position === node.id)
@@ -2134,6 +2238,17 @@
         showModal('🏠 왕국 마을', `${unitMembers.length > 1 ? '파티 전원' : hero.name}의 HP가 모두 회복되었다.${unitMembers.some(member => member.currentMana !== null) ? ' 마나도 회복.' : ''}`);
         return false;
 
+      case '입구': {
+        const target = WORLD_NODES.find(n => n.id === node.portalEntryId);
+        if (!target) return false;
+        unitMembers.forEach(member => { member.position = target.id; });
+        state.viewAreaId = target.areaId;
+        const targetMeta = window.WORLD_AREAS?.[target.areaId];
+        log(`🗺️ ${hero.icon} <strong>${hero.name}</strong> → <strong>${target.areaId} 지역</strong> 진입 (${targetMeta?.themeLabel || ''})`);
+        showModal(`🗺️ ${target.areaId} 지역 진입`, `${targetMeta?.icon || ''} ${targetMeta?.themeLabel || target.areaId + ' 지역'}으로 이동했다.`);
+        return false;
+      }
+
       case '전투':
         await startCombat(hero, node, originNodeId);
         return true;
@@ -2172,6 +2287,7 @@
           state.seals += 1;
           showModal('🗿 용의 봉인석', `고대 신전의 봉인을 해제했다. 현재 봉인석 ${state.seals}/3.`);
           log(`🗿 <strong>봉인석 ${state.seals}/3</strong> 획득.`);
+          checkDragonCastleSpawn('seal');
         } else {
           showModal('🗿 고대 신전', '이미 필요한 봉인석을 모두 확보했다.');
         }
@@ -2182,17 +2298,15 @@
           state.threat = Math.min(12, state.threat + 1);
           showModal('🔥 위험 지역', '불길한 징조가 번진다. DRAGON THREAT +1');
           log('🔥 위험 사건으로 <strong>THREAT +1</strong>.');
-          if (state.threat >= 12) {
-            state.gameOver = true;
-            showModal('☠️ 왕국 멸망', 'DRAGON THREAT가 12에 도달했다. GAME OVER.');
-          }
+          checkDragonCastleSpawn('threat');
         } else {
-          showModal('🔥 화산지대', '아무 일도 일어나지 않았다.');
+          showModal('🔥 위험 지역', '아무 일도 일어나지 않았다.');
         }
         return false;
 
+      case '드래곤성':
       case '잠김':
-        showModal('🐉 드래곤의 성', '성문 앞에 도착했다. 최종 던전/드래곤전은 다음 프로토 단계에서 연결한다.');
+        showModal('🐉 드래곤의 성', '드래곤의 성에 도착했다. 최종 던전/드래곤전은 다음 프로토 단계에서 연결한다.');
         return false;
     }
     return false;
@@ -2209,25 +2323,18 @@
     }
     if (state.gameOver) { renderAll(); return; }
     const next = getNextReadyHero();
-    if (next) state.activeHeroId = next.id; else endRound();
+    if (next) {
+      state.activeHeroId = next.id;
+      state.viewAreaId = getNodeAreaId(next.position);
+    } else endRound();
     renderAll();
   }
   function finishHeroTurn(hero) { finishWorldUnitTurn(hero); }
 
   function endRound() {
-    state.threat += 1;
+    state.threat = Math.min(12, state.threat + 1);
     log(`라운드 종료 → 🔥 <strong>DRAGON THREAT ${state.threat}/12</strong>`);
-
-    if (state.threat >= 12) {
-      state.gameOver = true;
-      showModal('☠️ 왕국 멸망', 'DRAGON THREAT가 12에 도달했다. 프로토타입 GAME OVER.');
-      return;
-    }
-
-    if (state.threat === 9 && state.seals < 3) {
-      log('🐉 <strong>THREAT 9!</strong> 드래곤의 성이 강제로 개방되었다.');
-      showModal('🐉 강제 개방', '위협도 9. 봉인석이 부족하지만 드래곤의 성이 강제로 개방되었다.');
-    }
+    checkDragonCastleSpawn('threat');
 
     state.round += 1;
 
@@ -2236,18 +2343,25 @@
         h.down = false;
         h.currentHp = h.hp;
         h.reviveRound = null;
-        h.position = 'village';
+        h.position = window.WORLD_START_NODE_ID || 'a-center';
         h.attackPenalty = 0;
         h.acPenalty = 0;
         if (h.currentMana !== null) h.currentMana = 3;
         log(`✨ ${h.icon} <strong>${h.name}</strong>이 마을에서 부활했다.`);
       }
       h.acted = false;
+      if (!window.PARTY_SYSTEM_ENABLED) h.partyId = null;
     });
 
-    Object.keys(state.parties).forEach(cleanupParty);
+    if (window.PARTY_SYSTEM_ENABLED) Object.keys(state.parties).forEach(cleanupParty);
+    else state.parties = {};
     const firstReady = getNextReadyHero();
     state.activeHeroId = firstReady?.id || state.heroes.find(h => !h.down)?.id || state.heroes[0]?.id || null;
+    if (state.activeHeroId) {
+      const active = state.heroes.find(h => h.id === state.activeHeroId);
+      if (active) state.viewAreaId = getNodeAreaId(active.position);
+    }
+    flushDragonCastleNotice();
   }
 
 
