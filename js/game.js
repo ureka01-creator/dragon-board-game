@@ -176,7 +176,7 @@
         <div class="node-icon">${node.icon}</div>
         <div class="node-name">${node.short || node.name}</div>
         <div class="node-type">${locked ? '🔒 잠김' : node.type}</div>
-        ${heroesHere.length ? `<div class="map-token-stack">${heroesHere.map(h => heroSpriteHTML(h, 'mini')).join('')}</div>` : ''}
+        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${h.id === state.activeHeroId ? 'active' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
       if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
       worldMap.appendChild(el);
@@ -467,7 +467,7 @@
     const rect = nodeEl.getBoundingClientRect();
     return {
       x: rect.left - mapRect.left + rect.width * 0.5,
-      y: rect.top - mapRect.top + rect.height * 0.82,
+      y: rect.top - mapRect.top + rect.height * 0.76,
       cell: Math.min(rect.width, rect.height),
     };
   }
@@ -491,8 +491,8 @@
         return;
       }
 
-      const sourceSprite = worldMap.querySelector(`.map-token-stack .pixel-hero[data-hero-id="${hero.id}"]`);
-      sourceSprite?.classList.add('movement-source-hidden');
+      const sourceToken = worldMap.querySelector(`.map-hero-token[data-hero-id="${hero.id}"]`);
+      sourceToken?.classList.add('movement-source-hidden');
 
       const shadow = document.createElement('div');
       shadow.className = 'hero-hop-shadow';
@@ -500,8 +500,8 @@
 
       const mover = document.createElement('div');
       mover.className = 'hero-hop-mover';
-      mover.innerHTML = heroSpriteHTML(hero, 'mini');
-      const sprite = mover.querySelector('.pixel-hero');
+      mover.innerHTML = `<div class="map-hero-token moving token-${hero.id}" data-hero-id="${hero.id}" aria-hidden="true">${hero.icon}</div>`;
+      const token = mover.querySelector('.map-hero-token');
       worldMap.appendChild(mover);
       worldMap.classList.add('movement-lock');
 
@@ -518,7 +518,7 @@
 
       function place(point, lift = 0, scaleX = 1, scaleY = 1, shadowScale = 1, shadowOpacity = .34) {
         mover.style.transform = `translate3d(${point.x}px, ${point.y - lift}px, 0)`;
-        if (sprite) sprite.style.transform = `translate(-50%, -100%) scale(${scaleX}, ${scaleY})`;
+        if (token) token.style.transform = `translate(-50%, -50%) scale(${scaleX}, ${scaleY})`;
         shadow.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) translate(-50%, -50%) scale(${shadowScale})`;
         shadow.style.opacity = String(shadowOpacity);
       }
@@ -536,7 +536,7 @@
           setTimeout(() => {
             mover.remove();
             shadow.remove();
-            sourceSprite?.classList.remove('movement-source-hidden');
+            sourceToken?.classList.remove('movement-source-hidden');
             worldMap.classList.remove('movement-lock');
             resolve();
           }, 95);
@@ -591,12 +591,12 @@
       }
 
       // 첫 점프 전에 보드게임 말을 집어 올리는 듯 아주 짧게 준비 동작.
-      if (sprite) {
-        sprite.style.transition = 'transform 70ms ease-out';
-        sprite.style.transform = 'translate(-50%, -100%) scale(1.06, .92)';
+      if (token) {
+        token.style.transition = 'transform 70ms ease-out';
+        token.style.transform = 'translate(-50%, -50%) scale(1.08, .90)';
       }
       setTimeout(() => {
-        if (sprite) sprite.style.transition = 'none';
+        if (token) token.style.transition = 'none';
         runSegment();
       }, 72);
     });
