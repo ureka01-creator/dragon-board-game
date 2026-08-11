@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120f0c" />
   <title>Dragon Board Prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=044" />
+  <link rel="stylesheet" href="css/style.css?v=046" />
 </head>
 <body>
   <main class="app-shell">
@@ -22,7 +22,7 @@
           <h1>DRAGON<br>BOARD</h1>
           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
-          <div class="version-label">PROTOTYPE V0.4.3</div>
+          <div class="version-label">PROTOTYPE V0.4.6</div>
         </div>
       </div>
     </section>
@@ -66,7 +66,7 @@
           <div class="section-head"><h2>파티</h2><span id="activeHeroLabel"></span></div>
           <div id="resourceSummary" class="resource-summary">🗿 0/3 · 💰 0 · 🎒 0</div>
           <div id="partyList" class="party-list"></div>
-          <div class="turn-order-hint">이번 라운드에 아직 행동하지 않은 영웅을 선택해서 진행.</div>
+          <div class="turn-order-hint">SOLO 또는 PARTY 단위로 행동해. 같은 칸의 READY 영웅은 주사위 전에 파티 편성 가능.</div>
         </aside>
 
         <section class="pixel-panel board-panel">
@@ -78,6 +78,11 @@
             <span class="turn-kicker">CURRENT TURN</span>
             <strong id="currentTurnName">-</strong>
             <span class="turn-guide">주사위를 굴려 행동해</span>
+          </div>
+          <div id="worldActionBar" class="world-action-bar">
+            <button id="partyManageBtn" class="pixel-btn world-action-btn" type="button">🤝 파티 편성</button>
+            <button id="itemTransferBtn" class="pixel-btn world-action-btn" type="button">🎒 아이템 전달</button>
+            <span id="partyStatusText" class="party-status-text">SOLO</span>
           </div>
           <div id="worldMap" class="world-map" aria-label="월드맵"></div>
           <!-- D6는 실제 보드게임처럼 보드 위로 높게 던져져 떨어진다. -->
@@ -184,11 +189,11 @@
     </div>
   </div>
 
-  <script src="js/heroes.js?v=044"></script>
-  <script src="js/items.js?v=044"></script>
-  <script src="js/sprites.js?v=044"></script>
-  <script src="js/map.js?v=044"></script>
-  <script src="js/monsters.js?v=044"></script>
-  <script src="js/game.js?v=044"></script>
+  <script src="js/heroes.js?v=046"></script>
+  <script src="js/items.js?v=046"></script>
+  <script src="js/sprites.js?v=046"></script>
+  <script src="js/map.js?v=046"></script>
+  <script src="js/monsters.js?v=046"></script>
+  <script src="js/game.js?v=046"></script>
 </body>
 </html>
