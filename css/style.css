@@ -171,21 +171,9 @@ h2 { font-size: 17px; margin: 0; }
 .dice-box { border: 3px solid #5d4930; background: #1d1710; display: grid; place-items: center; align-content: center; position: relative; overflow: hidden; }
 .dice-value { font-size: 28px; color: var(--gold); }
 
-/* 이동 주사위: 실제 보드게임처럼 위에서 던져져 보드 위에 떨어지고 튄다. */
+/* 이동 주사위: 위치/회전은 JS가 requestAnimationFrame으로 매 프레임 계산한다. */
 .dice-roller {
-  --die-size: 46px;
-  --dice-start-x: 20px;
-  --dice-start-y: -90px;
-  --dice-apex-x: 90px;
-  --dice-apex-y: -150px;
-  --dice-drop-x: 160px;
-  --dice-drop-y: 180px;
-  --dice-bounce1-x: 185px;
-  --dice-bounce1-y: 130px;
-  --dice-bounce2-x: 205px;
-  --dice-bounce2-y: 173px;
-  --dice-end-x: 215px;
-  --dice-end-y: 182px;
+  --die-size: 48px;
   position: absolute;
   left: 0;
   top: 0;
@@ -195,70 +183,38 @@ h2 { font-size: 17px; margin: 0; }
   place-items: center;
   z-index: 50;
   pointer-events: none;
-  font-size: calc(var(--die-size) * .88);
+  font-size: calc(var(--die-size) * .9);
   line-height: 1;
-  color: #3d3325;
-  background: #efe1bb;
+  color: #30281e;
+  background: linear-gradient(145deg, #fff0c9 0%, #e5d0a4 70%, #c7ae79 100%);
   border: 2px solid #59462f;
-  border-radius: 8px;
-  box-shadow: 4px 7px 0 rgba(0,0,0,.48), inset -3px -3px 0 rgba(90,60,30,.22);
+  border-radius: 9px;
+  box-shadow: 5px 8px 4px rgba(0,0,0,.42), inset 2px 2px 0 rgba(255,255,255,.38), inset -3px -3px 0 rgba(90,60,30,.18);
   text-shadow: none;
   transform-origin: center;
-  will-change: transform, filter, opacity;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
-.dice-roller.rolling {
-  display: grid;
-  animation: diceBoardThrow 1.18s cubic-bezier(.19,.7,.22,1) both;
-}
+.dice-roller.rolling,
+.dice-roller.landed { display: grid; }
 .dice-roller.landed {
-  display: grid;
   filter: brightness(1.08);
-  animation: diceSettle .32s ease-out both;
+  animation: diceResultLock .24s ease-out both;
 }
 .world-map.board-impact { animation: boardDiceImpact .18s ease-out; }
 
-@keyframes diceBoardThrow {
-  /* 손에서 위로 던져지는 구간: 작고 빠르게 회전 */
-  0% {
-    transform: translate3d(var(--dice-start-x), var(--dice-start-y), 0) rotate(-35deg) scale(.66);
-    filter: brightness(.86);
-  }
-  17% {
-    transform: translate3d(var(--dice-apex-x), var(--dice-apex-y), 0) rotate(250deg) scale(.72);
-    filter: brightness(.93);
-  }
-  /* 높이에서 보드로 낙하: 가까워지며 커짐 */
-  48% {
-    transform: translate3d(var(--dice-drop-x), var(--dice-drop-y), 0) rotate(690deg) scale(1.18);
-    filter: brightness(1.05);
-  }
-  /* 첫 충돌 후 크게 한 번 튐 */
-  63% {
-    transform: translate3d(var(--dice-bounce1-x), var(--dice-bounce1-y), 0) rotate(845deg) scale(1.02);
-  }
-  77% {
-    transform: translate3d(var(--dice-bounce2-x), var(--dice-bounce2-y), 0) rotate(1015deg) scale(1.05);
-  }
-  /* 작은 재튐 뒤 정지 */
-  88% {
-    transform: translate3d(calc(var(--dice-end-x) - 7px), calc(var(--dice-end-y) - 18px), 0) rotate(1095deg) scale(.99);
-  }
-  100% {
-    transform: translate3d(var(--dice-end-x), var(--dice-end-y), 0) rotate(1152deg) scale(1);
-  }
-}
-@keyframes diceSettle {
-  0%   { transform: translate3d(var(--dice-end-x), var(--dice-end-y), 0) rotate(1152deg) scale(1.04); }
-  45%  { transform: translate3d(calc(var(--dice-end-x) + 3px), calc(var(--dice-end-y) - 4px), 0) rotate(1162deg) scale(.99); }
-  100% { transform: translate3d(var(--dice-end-x), var(--dice-end-y), 0) rotate(1152deg) scale(1); }
+@keyframes diceResultLock {
+  0% { filter: brightness(1.35) drop-shadow(0 0 7px rgba(240,189,79,.55)); }
+  100% { filter: brightness(1.08) drop-shadow(0 0 0 rgba(240,189,79,0)); }
 }
 @keyframes boardDiceImpact {
   0%,100% { transform: translateY(0); }
-  45% { transform: translateY(2px); }
+  42% { transform: translateY(2px); }
+  72% { transform: translateY(-1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dice-roller.rolling { animation-duration: .2s; }
   .dice-roller.landed { animation-duration: .1s; }
   .world-map.board-impact { animation: none; }
 }
