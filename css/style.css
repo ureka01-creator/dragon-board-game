@@ -1450,7 +1450,7 @@ h2 { font-size: 17px; margin: 0; }
 }
 
 /* ─────────────────────────────────────────────
-   V0.4.7 — 4 REGION WORLD / SOLO LOCK
+   V0.4.9 — RANDOM START / LOCAL VILLAGE REVIVE
    ───────────────────────────────────────────── */
 .region-browser {
   display:flex;
@@ -1537,3 +1537,21 @@ h2 { font-size: 17px; margin: 0; }
   .world-action-bar.solo-mode .party-status-text { font-size:6px; }
 }
 .region-nav-btn.hero-area::after { top:2px; right:3px; transform:none; }
+
+
+/* V0.4.8 — 파티 카드 탭은 턴 변경이 아니라 위치 확인만 한다. */
+.map-hero-token.focused {
+  position: relative;
+  z-index: 7;
+  animation: heroLocationPing .72s ease-in-out 2;
+  filter: drop-shadow(0 0 4px #f6d36b) drop-shadow(0 0 8px rgba(246,211,107,.72));
+}
+@keyframes heroLocationPing {
+  0%,100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.18); }
+}
+.party-member { cursor: pointer; }
+.party-member.active { cursor: default; }
+.turn-order-hint { line-height: 1.55; }
+
+/* V0.4.9 — 시작 위치 랜덤 및 지역 마을 부활은 기존 UI 스타일을 그대로 사용한다. */
