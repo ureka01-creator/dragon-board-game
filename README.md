@@ -1,6 +1,6 @@
-# DRAGON BOARD — Web Prototype V0.5.0
+# DRAGON BOARD — Web Prototype V0.5.1
 
-## V0.5.0 핵심 변경
+## V0.5.1 핵심 변경
 
 - `이동 안 함` 제거
   - D6을 굴린 뒤 반드시 1칸 이상 이동
@@ -49,7 +49,10 @@
 
 GitHub Pages에서 아래 값이 모두 맞는지 확인하면 최신 패치 여부를 알 수 있다.
 
-- 화면: `PROTOTYPE V0.5.0`
-- CSS: `style.css?v=050`
-- 모든 JS: `?v=050`
-- ZIP / README: `V0.5.0`
+- 화면: `PROTOTYPE V0.5.1`
+- CSS: `style.css?v=051`
+- 모든 JS: `?v=051`
+- ZIP / README: `V0.5.1`
+
+## V0.5.1 fix
+- 전투 종료 후 다음 영웅 차례가 되면 주사위를 굴리기 전 즉시 해당 영웅이 있는 지역으로 화면이 이동하도록 수정.
