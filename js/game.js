@@ -40,6 +40,8 @@
   const roundValue = $('#roundValue');
   const gameLog = $('#gameLog');
   const combatOverlay = $('#combatOverlay');
+  const combatStage = $('#combatStage');
+  const combatFxLayer = $('#combatFxLayer');
   const combatTitle = $('#combatTitle');
   const combatRoundLabel = $('#combatRoundLabel');
   const combatHeroTurn = $('#combatHeroTurn');
@@ -47,6 +49,8 @@
   const combatEnemies = $('#combatEnemies');
   const combatMessage = $('#combatMessage');
   const combatLog = $('#combatLog');
+  const combatLogToggle = $('#combatLogToggle');
+  const combatLogSummary = $('#combatLogSummary');
   const combatTargetHint = $('#combatTargetHint');
   const combatAttackBtn = $('#combatAttackBtn');
   const combatSkillBtn = $('#combatSkillBtn');
@@ -762,12 +766,135 @@
     entry.className = 'combat-log-entry';
     entry.innerHTML = message;
     combatLog.prepend(entry);
+
+    if (combatLogSummary) {
+      const lines = [...combatLog.querySelectorAll('.combat-log-entry')].slice(0, 3);
+      combatLogSummary.innerHTML = lines.map((line, index) => {
+        const text = line.textContent.replace(/\s+/g, ' ').trim();
+        return `<div class="combat-log-summary-line" data-rank="${index}">${text}</div>`;
+      }).join('');
+    }
   }
 
   function setCombatMessage(message, tone = '') {
     if (!combatMessage) return;
     combatMessage.textContent = message;
     combatMessage.dataset.tone = tone;
+  }
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  function heroActorElement(heroId) {
+    return combatHeroes?.querySelector(`[data-hero-id="${heroId}"]`) || null;
+  }
+
+  function enemyActorElement(enemyUid) {
+    return combatEnemies?.querySelector(`[data-enemy-id="${enemyUid}"]`) || null;
+  }
+
+  function fxAtElement(el, text, tone = '') {
+    if (!combatFxLayer || !combatStage || !el) return;
+    const stageRect = combatStage.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    const fx = document.createElement('div');
+    fx.className = `combat-float-text ${tone}`.trim();
+    fx.textContent = text;
+    fx.style.left = `${rect.left - stageRect.left + rect.width / 2}px`;
+    fx.style.top = `${rect.top - stageRect.top + rect.height * .34}px`;
+    combatFxLayer.appendChild(fx);
+    setTimeout(() => fx.remove(), 760);
+  }
+
+  async function animateActorWindup(el) {
+    if (!el) return;
+    el.classList.add('windup');
+    await sleep(165);
+    el.classList.remove('windup');
+  }
+
+  async function animateProjectile(fromEl, toEl, symbol) {
+    if (!combatFxLayer || !combatStage || !fromEl || !toEl) return;
+    const stageRect = combatStage.getBoundingClientRect();
+    const from = fromEl.getBoundingClientRect();
+    const to = toEl.getBoundingClientRect();
+    const projectile = document.createElement('div');
+    projectile.className = 'combat-projectile';
+    projectile.textContent = symbol;
+    projectile.style.left = `${from.left - stageRect.left + from.width * .72}px`;
+    projectile.style.top = `${from.top - stageRect.top + from.height * .43}px`;
+    combatFxLayer.appendChild(projectile);
+    void projectile.offsetWidth;
+    projectile.style.left = `${to.left - stageRect.left + to.width * .35}px`;
+    projectile.style.top = `${to.top - stageRect.top + to.height * .42}px`;
+    await sleep(300);
+    projectile.remove();
+  }
+
+  async function animateHeroResult(hero, enemy, result, mode = 'basic') {
+    const heroEl = heroActorElement(hero.id);
+    const enemyEl = enemyActorElement(enemy.uid);
+    if (!heroEl || !enemyEl) return;
+
+    const ranged = hero.id === 'archer' || hero.id === 'mage' || mode === 'ranged';
+    const cast = hero.id === 'mage' || mode === 'magic';
+    heroEl.classList.add(cast ? 'cast' : ranged ? 'strike-ranged' : 'strike-melee');
+
+    if (ranged) {
+      await sleep(90);
+      await animateProjectile(heroEl, enemyEl, cast ? '✦' : '➶');
+    } else {
+      await sleep(210);
+    }
+
+    if (result?.hit) {
+      enemyEl.classList.add('hit');
+      fxAtElement(enemyEl, result.crit ? `CRIT -${result.damage}` : `-${result.damage}`, 'damage');
+    } else {
+      fxAtElement(enemyEl, 'MISS', 'miss');
+    }
+    await sleep(ranged ? 170 : 220);
+    heroEl.classList.remove('cast', 'strike-ranged', 'strike-melee');
+    enemyEl.classList.remove('hit');
+  }
+
+  async function animateMagicBurst(hero, enemy, damage) {
+    const heroEl = heroActorElement(hero.id);
+    const enemyEl = enemyActorElement(enemy.uid);
+    if (!heroEl || !enemyEl) return;
+    heroEl.classList.add('cast');
+    await sleep(120);
+    await animateProjectile(heroEl, enemyEl, '✦');
+    enemyEl.classList.add('hit');
+    fxAtElement(enemyEl, `-${damage}`, 'damage');
+    await sleep(240);
+    heroEl.classList.remove('cast');
+    enemyEl.classList.remove('hit');
+  }
+
+  async function animateDefend(hero) {
+    const heroEl = heroActorElement(hero.id);
+    if (!heroEl) return;
+    heroEl.classList.add('guard');
+    fxAtElement(heroEl, 'GUARD', 'good');
+    await sleep(500);
+    heroEl.classList.remove('guard');
+  }
+
+  async function animateMonsterResult(enemy, hero, hit, damage = 0) {
+    const enemyEl = enemyActorElement(enemy.uid);
+    const heroEl = heroActorElement(hero.id);
+    if (!enemyEl || !heroEl) return;
+    enemyEl.classList.add('strike');
+    await sleep(230);
+    if (hit) {
+      heroEl.classList.add('hit');
+      fxAtElement(heroEl, `-${damage}`, 'damage');
+    } else {
+      fxAtElement(heroEl, 'MISS', 'miss');
+    }
+    await sleep(230);
+    enemyEl.classList.remove('strike');
+    heroEl.classList.remove('hit');
   }
 
   function skillName(hero) {
@@ -815,10 +942,13 @@
 
     combatTitle.textContent = `${c.node.icon} ${c.node.name}`;
     combatRoundLabel.textContent = `COMBAT ROUND ${c.round}`;
+    if (combatStage) combatStage.dataset.region = c.node.region || 'road';
+
     const currentHero = getCombatHero();
-    combatHeroTurn.textContent = currentHero ? `${currentHero.icon} ${currentHero.name} 행동` : 'MONSTER PHASE';
+    combatHeroTurn.textContent = currentHero ? `${currentHero.icon} ${currentHero.name} 턴` : '👹 MONSTER TURN';
 
     combatHeroes.innerHTML = '';
+    combatHeroes.dataset.count = String(c.participantIds.length);
     c.participantIds.forEach(id => {
       const hero = state.heroes.find(h => h.id === id);
       if (!hero) return;
@@ -826,21 +956,23 @@
       const active = id === c.currentHeroId && !c.busy;
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = `combat-hero-card ${active ? 'active' : ''} ${hs?.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
+      el.className = `stage-hero-actor ${active ? 'active' : ''} ${hs?.acted ? 'done' : ''} ${hero.down ? 'down' : ''}`;
       el.disabled = Boolean(c.busy || hs?.acted || hero.down);
       el.dataset.heroId = id;
       el.innerHTML = `
-        <div class="combat-card-title">${hero.icon} <strong>${hero.name}</strong> <span>${hero.down ? 'DOWN' : hs?.acted ? 'DONE' : 'READY'}</span></div>
-        <div class="combat-hp-row"><span>❤️ ${hero.currentHp}/${hero.hp}</span><span>🛡 ${effectiveHeroAc(hero)}</span></div>
-        <div class="combat-mini-bar"><i style="width:${Math.max(0, hero.currentHp / hero.hp * 100)}%"></i></div>
-        <div class="combat-status-row">
-          ${hs?.defending ? '<span>🛡 방어 +3</span>' : ''}
+        <div class="stage-actor-sprite">${heroSpriteHTML(hero, 'medium')}</div>
+        <div class="actor-name-row"><strong>${hero.name}</strong><span class="state">${hero.down ? 'DOWN' : hs?.acted ? 'DONE' : active ? 'TURN' : 'READY'}</span></div>
+        <div class="actor-hp-text">❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${effectiveHeroAc(hero)}</div>
+        <div class="actor-hp-bar"><i style="width:${Math.max(0, hero.currentHp / hero.hp * 100)}%"></i></div>
+        <div class="actor-status">
+          ${hs?.defending ? '<span>🛡 +3</span>' : ''}
           ${hero.attackPenalty ? `<span>☠ 명중 -${hero.attackPenalty}</span>` : ''}
           ${hero.currentMana !== null ? `<span>🔵 ${hero.currentMana}/3</span>` : ''}
         </div>`;
       el.addEventListener('click', () => {
         if (!c.busy && !hs?.acted && !hero.down) {
           c.currentHeroId = hero.id;
+          setCombatMessage(`${hero.name} 행동을 선택해`, '');
           renderCombat();
         }
       });
@@ -848,23 +980,24 @@
     });
 
     combatEnemies.innerHTML = '';
-    aliveCombatEnemies().forEach(enemy => {
+    const visibleEnemies = aliveCombatEnemies();
+    combatEnemies.dataset.count = String(visibleEnemies.length);
+    visibleEnemies.forEach(enemy => {
       const selected = enemy.uid === c.selectedEnemyId;
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = `combat-enemy-card tier-${enemy.tier} ${selected ? 'selected' : ''}`;
+      el.className = `stage-enemy-actor tier-${enemy.tier} ${selected ? 'selected' : ''}`;
       el.dataset.enemyId = enemy.uid;
+      el.title = enemy.trait || '';
       el.innerHTML = `
-        <div class="enemy-icon">${enemy.icon}</div>
-        <div class="enemy-main">
-          <div class="combat-card-title"><strong>${enemy.name}</strong><span>${enemy.tier === 'boss' ? 'BOSS' : enemy.tier === 'elite' ? 'ELITE' : 'NORMAL'}</span></div>
-          <div class="combat-hp-row"><span>❤️ ${enemy.currentHp}/${enemy.maxHp}</span><span>🛡 ${enemy.ac}</span></div>
-          <div class="combat-mini-bar enemy"><i style="width:${Math.max(0, enemy.currentHp / enemy.maxHp * 100)}%"></i></div>
-          <div class="enemy-trait">${enemy.trait}</div>
-        </div>`;
+        <div class="stage-enemy-visual">${enemy.icon}</div>
+        <div class="actor-name-row"><strong>${enemy.name}</strong><span class="state">${enemy.tier === 'boss' ? 'BOSS' : enemy.tier === 'elite' ? 'ELITE' : ''}</span></div>
+        <div class="actor-hp-text">❤️ ${enemy.currentHp}/${enemy.maxHp} · 🛡 ${enemy.ac}</div>
+        <div class="actor-hp-bar"><i style="width:${Math.max(0, enemy.currentHp / enemy.maxHp * 100)}%"></i></div>`;
       el.addEventListener('click', () => {
         if (!c.busy) {
           c.selectedEnemyId = enemy.uid;
+          setCombatMessage(`${enemy.name}을(를) 대상으로 선택`, '');
           renderCombat();
         }
       });
@@ -872,7 +1005,7 @@
     });
 
     const target = selectedCombatEnemy();
-    combatTargetHint.textContent = target ? `TARGET · ${target.icon} ${target.name}` : '적을 쓰러뜨렸다';
+    combatTargetHint.textContent = target ? `TARGET · ${target.name}` : 'ENEMIES DOWN';
     combatAttackBtn.disabled = Boolean(c.busy || !currentHero || combatHeroState(currentHero.id)?.acted || !target);
     combatDefendBtn.disabled = Boolean(c.busy || !currentHero || combatHeroState(currentHero.id)?.acted);
     combatSkillBtn.disabled = !canUseCombatSkill(currentHero) || !target;
@@ -1014,15 +1147,20 @@
 
     c.busy = true;
     renderCombat();
+    setCombatMessage(`${hero.name}이(가) 공격한다!`, '');
+    await animateActorWindup(heroActorElement(hero.id));
     const roll = Math.floor(Math.random() * 20) + 1;
     await animateCombatD20(roll, `${hero.icon} ${hero.name} 공격`);
     const damageSpec = heroBasicDamage(hero);
     const result = resolveHeroHit(hero, enemy, roll, heroMainStat(hero), damageSpec);
+    setCombatMessage(result.hit ? `${enemy.name}에게 ${result.damage} 피해!` : 'MISS!', result.hit ? 'good' : 'danger');
+    await animateHeroResult(hero, enemy, result, damageSpec.melee ? 'melee' : hero.id === 'mage' ? 'magic' : 'ranged');
 
     if (hero.id === 'knight' || hero.id === 'rogue') {
       if (enemy.id === 'slime' && result.hit && enemy.currentHp > 0) {
         damageHero(hero, 1, '슬라임 산성 몸체');
         combatLogEntry(`🟢 산성 몸체! ${hero.name}에게 1 피해.`);
+        fxAtElement(heroActorElement(hero.id), '-1', 'damage');
       }
     }
 
@@ -1041,6 +1179,8 @@
     const hs = combatHeroState(hero.id);
     c.busy = true;
     renderCombat();
+    setCombatMessage(`${hero.name} · ${skillName(hero)}!`, '');
+    await animateActorWindup(heroActorElement(hero.id));
 
     if (hero.id === 'mage') {
       hero.currentMana -= 2;
@@ -1050,20 +1190,29 @@
       combatD20Value.textContent = '✨';
       combatDiceLabel.textContent = '마력 폭발';
       combatLogEntry(`✨ ${hero.name} 마력 폭발 → ${enemy.name} <strong>${damage} 피해</strong> / MANA -2`);
+      setCombatMessage(`${enemy.name}에게 ${damage} 마법 피해!`, 'good');
+      await animateMagicBurst(hero, enemy, damage);
     } else {
       const roll = Math.floor(Math.random() * 20) + 1;
       await animateCombatD20(roll, `${hero.icon} ${skillName(hero)}`);
+      let result = null;
+      let mode = 'melee';
       if (hero.id === 'knight') {
-        const result = resolveHeroHit(hero, enemy, roll, hero.str, {count:1,sides:6,bonus:hero.str,type:'physical',melee:true});
+        result = resolveHeroHit(hero, enemy, roll, hero.str, {count:1,sides:6,bonus:hero.str,type:'physical',melee:true});
         if (result.hit && enemy.currentHp > 0) enemy.nextAttackPenalty = 2;
         hs.skillUsedBattle = true;
       } else if (hero.id === 'archer') {
-        resolveHeroHit(hero, enemy, roll, hero.dex, {count:2,sides:8,bonus:hero.dex,type:'physical',melee:false}, {hitBonus:2,noCrit:true});
+        result = resolveHeroHit(hero, enemy, roll, hero.dex, {count:2,sides:8,bonus:hero.dex,type:'physical',melee:false}, {hitBonus:2,noCrit:true});
+        mode = 'ranged';
         hs.skillUsedBattle = true;
       } else if (hero.id === 'rogue') {
         const sneak = rollDice(1, 6).total;
-        resolveHeroHit(hero, enemy, roll, hero.dex, {count:1,sides:6,bonus:hero.dex + sneak,type:'physical',melee:true});
+        result = resolveHeroHit(hero, enemy, roll, hero.dex, {count:1,sides:6,bonus:hero.dex + sneak,type:'physical',melee:true});
         hs.skillUsedRound = true;
+      }
+      if (result) {
+        setCombatMessage(result.hit ? `${skillName(hero)} · ${result.damage} 피해!` : `${skillName(hero)} MISS!`, result.hit ? 'good' : 'danger');
+        await animateHeroResult(hero, enemy, result, mode);
       }
     }
 
@@ -1080,12 +1229,16 @@
     if (!c || !hero || c.busy) return;
     const hs = combatHeroState(hero.id);
     if (!hs || hs.acted) return;
+    c.busy = true;
+    renderCombat();
     hs.defending = true;
+    combatLogEntry(`🛡 ${hero.name} 방어 태세 → 이번 몬스터 공격까지 AC +3`);
+    setCombatMessage(`${hero.name} 방어! AC +3`, 'good');
+    await animateDefend(hero);
     hs.acted = true;
     hero.acPenalty = 0;
     c.heroActionsThisRound += 1;
-    combatLogEntry(`🛡 ${hero.name} 방어 태세 → 이번 몬스터 공격까지 AC +3`);
-    setCombatMessage(`${hero.name} 방어!`, 'good');
+    c.busy = false;
     await afterHeroAction();
   }
 
@@ -1120,6 +1273,8 @@
     attackBonus -= enemy.nextAttackPenalty || 0;
     enemy.nextAttackPenalty = 0;
 
+    setCombatMessage(`${enemy.name}이(가) ${target.name}을 노린다!`, 'danger');
+    await animateActorWindup(enemyActorElement(enemy.uid));
     const roll = Math.floor(Math.random() * 20) + 1;
     await animateCombatD20(roll, `${enemy.icon} ${enemy.name} 공격`);
     const ac = effectiveHeroAc(target);
@@ -1128,6 +1283,8 @@
 
     if (!hit) {
       combatLogEntry(`🛡 ${enemy.name} 공격 빗나감 · D20 ${roll} + ${attackBonus} = ${total} / ${target.name} AC ${ac}`);
+      setCombatMessage(`${target.name} 회피!`, 'good');
+      await animateMonsterResult(enemy, target, false, 0);
       return;
     }
 
@@ -1136,6 +1293,8 @@
     if (enemy.id === 'trollKing' && enemy.currentHp <= 20) damage += 2;
     damageHero(target, damage, enemy.name);
     combatLogEntry(`💢 ${enemy.name} → ${target.name} <strong>${damage} 피해</strong>`);
+    setCombatMessage(`${target.name} ${damage} 피해!`, 'danger');
+    await animateMonsterResult(enemy, target, true, damage);
 
     if (enemy.id === 'spider' && !target.down) {
       target.attackPenalty = Math.max(target.attackPenalty || 0, 1);
@@ -1382,6 +1541,9 @@
       }
 
       combatLog.innerHTML = '';
+      combatLog.classList.remove('expanded');
+      if (combatLogSummary) combatLogSummary.innerHTML = '';
+      if (combatLogToggle) combatLogToggle.textContent = '전체 기록 보기 ▾';
       combatD20Value.textContent = '20';
       combatDiceLabel.textContent = 'D20';
       combatOverlay.classList.remove('hidden');
@@ -1596,6 +1758,10 @@
   combatAttackBtn?.addEventListener('click', heroBasicAttack);
   combatSkillBtn?.addEventListener('click', heroSkillAction);
   combatDefendBtn?.addEventListener('click', heroDefendAction);
+  combatLogToggle?.addEventListener('click', () => {
+    const expanded = combatLog?.classList.toggle('expanded');
+    if (combatLogToggle) combatLogToggle.textContent = expanded ? '전체 기록 닫기 ▴' : '전체 기록 보기 ▾';
+  });
   $('#resetBtn').addEventListener('click', resetGame);
   $('#clearLogBtn').addEventListener('click', () => gameLog.innerHTML = '');
   modalCloseBtn.addEventListener('click', () => modal.classList.add('hidden'));
