@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.4.7
+// DRAGON BOARD V0.4.9
 // 4개 지역은 같은 7x7 토폴로지를 공유하지만, 새 게임마다 테마와 타일 내용/배치가 다시 섞인다.
 window.PARTY_SYSTEM_ENABLED = false;
 
@@ -131,11 +131,14 @@ function generateWorld() {
 
     areas[areaId] = { id:areaId, name:`${areaId} 지역`, themeKey, themeLabel:theme.label, icon:theme.icon };
 
-    center.name = areaId === 'A' ? '왕국 마을' : `${theme.label} 야영지`;
-    center.short = areaId === 'A' ? '마을' : '야영지';
-    center.icon = areaId === 'A' ? '🏠' : '⛺';
-    center.type = areaId === 'A' ? '마을' : '휴식';
-    center.region = areaId === 'A' ? 'village' : theme.region;
+    // V0.4.9: 모든 확장 지역의 중앙 칸은 해당 지역의 '마을'이다.
+    // 영웅은 새 게임 시작 시 A~D 지역 중앙 마을 중 하나에서 랜덤 시작하고,
+    // 쓰러지면 쓰러졌던 지역의 중앙 마을에서 다음 라운드에 부활한다.
+    center.name = areaId === 'A' ? '왕국 마을' : `${theme.label} 마을`;
+    center.short = '마을';
+    center.icon = '🏠';
+    center.type = '마을';
+    center.region = 'village';
     center.areaId = areaId;
 
     const fillable = areaNodes.filter(n => n.localKey !== 'center' && !gatewayKeys.has(n.localKey));

@@ -7,6 +7,7 @@
     threat: 0,
     seals: 0,
     activeHeroId: null,
+    focusHeroId: null,
     rolled: null,
     isRolling: false,
     isMoving: false,
@@ -32,6 +33,7 @@
   const heroCount = $('#heroCount');
   const startGameBtn = $('#startGameBtn');
   const partyList = $('#partyList');
+  const turnOrderHint = $('#turnOrderHint');
   const activeHeroLabel = $('#activeHeroLabel');
   const resourceSummary = $('#resourceSummary');
   const worldMap = $('#worldMap');
@@ -138,22 +140,39 @@
     renderSetup();
   }
 
+  function getAreaCenterNodeId(areaId) {
+    const id = `${String(areaId || 'A').toLowerCase()}-center`;
+    return WORLD_NODES.some(n => n.id === id) ? id : (window.WORLD_START_NODE_ID || 'a-center');
+  }
+
+  function getRandomStartNodeId() {
+    const areaIds = Object.keys(window.WORLD_AREAS || {});
+    const pool = areaIds.length ? areaIds : ['A','B','C','D'];
+    const areaId = pool[Math.floor(Math.random() * pool.length)];
+    return getAreaCenterNodeId(areaId);
+  }
+
   function startGame() {
     window.resetWorldMap?.();
     state.viewAreaId = 'A';
     state.dragonCastleNodeId = null;
     state.dragonCastleSpawned = false;
     state.dragonSpawnNoticePending = null;
-    state.heroes = state.selectedHeroIds.map(id => {
-      const src = HEROES.find(h => h.id === id);
+    // V0.4.9: 월드 턴 순서는 직업 고정 순서(기사→궁수→마법사→도적)를 따른다.
+    // 각 영웅의 시작 위치는 새 게임마다 A~D 지역의 중앙 마을 중 하나로 독립 랜덤 배정한다.
+    // 따라서 같은 마을에서 시작할 수도, 서로 다른 지역에서 시작할 수도 있다.
+    const selectedSet = new Set(state.selectedHeroIds);
+    state.heroes = HEROES.filter(src => selectedSet.has(src.id)).map(src => {
+      const randomStartNodeId = getRandomStartNodeId();
       return {
         ...src,
         currentHp: src.hp,
         currentMana: src.mana ?? null,
-        position: window.WORLD_START_NODE_ID || 'a-center',
+        position: randomStartNodeId,
         acted: false,
         down: false,
         reviveRound: null,
+        reviveAreaId: null,
         attackPenalty: 0,
         acPenalty: 0,
         equipment: { armor: null, weapon: null, accessory: null },
@@ -165,6 +184,8 @@
     state.threat = 0;
     state.seals = 0;
     state.activeHeroId = state.heroes[0].id;
+    state.viewAreaId = getNodeAreaId(state.heroes[0].position);
+    state.focusHeroId = null;
     state.rolled = null;
     state.isRolling = false;
     state.isMoving = false;
@@ -180,7 +201,9 @@
     log(`<strong>모험 시작!</strong> ${state.heroes.map(h => h.icon + h.name).join(', ')} 출발.`);
     log('👕 모든 영웅은 기본 장비가 없는 상태다. 이후 얻은 장비가 캐릭터 외형에 표시된다.');
     log('🗺️ 4개 지역의 타일 내용과 테마가 이번 게임용으로 새롭게 생성되었다.');
+    log(`🎲 시작 위치 랜덤 · ${state.heroes.map(h => `${h.icon}${h.name}:${getNodeAreaId(h.position)}지역 마을`).join(' · ')}`);
     log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
+    log(`🔁 월드 턴은 <strong>${state.heroes.map(h => h.name).join(' → ')}</strong> 고정 순서로 진행된다.`);
     renderAll();
   }
 
@@ -371,24 +394,36 @@
           <div>❤️ ${hero.currentHp}/${hero.hp} · 🛡 ${Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0))}${hero.currentMana !== null ? ` · 🔵 ${hero.currentMana}/3` : ''} · 🎒 ${bagCount}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${hero.currentHp/hero.hp*100}%"></div></div>
           ${party ? `<div class="party-link-note">🤝 ${partyDisplayName(party)}${isLeader ? ' · 리더' : ''}</div>` : ''}
-          ${hero.down ? `<div class="down-note">다음 라운드 마을에서 부활</div>` : ''}
+          ${hero.down ? `<div class="down-note">다음 라운드 ${hero.reviveAreaId || getNodeAreaId(hero.position)} 지역 마을에서 부활</div>` : ''}
         </div>
       `;
       el.querySelector('.party-status-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
         openHeroStatus(hero);
       });
+      // V0.4.8: 영웅 카드를 눌러도 턴은 바뀌지 않는다.
+      // 해당 영웅이 있는 지역으로 카메라만 이동하고 토큰을 잠깐 강조한다.
       el.addEventListener('click', () => {
-        if (!hero.down && !hero.acted && state.rolled === null && !state.gameOver && !state.combat) {
-          const targetParty = getHeroParty(hero);
-          state.activeHeroId = targetParty?.leaderId || hero.id;
-          const heroNode = WORLD_NODES.find(n => n.id === hero.position);
-          if (heroNode?.areaId) state.viewAreaId = heroNode.areaId;
-          renderAll();
-        }
+        if (state.isRolling || state.isMoving || state.combat) return;
+        const heroNode = WORLD_NODES.find(n => n.id === hero.position);
+        if (heroNode?.areaId) state.viewAreaId = heroNode.areaId;
+        state.focusHeroId = hero.id;
+        renderMap();
+        renderRegionNavigator();
+        window.clearTimeout(state.focusHeroTimer);
+        state.focusHeroTimer = window.setTimeout(() => {
+          if (state.focusHeroId === hero.id) {
+            state.focusHeroId = null;
+            renderMap();
+          }
+        }, 1450);
       });
       partyList.appendChild(el);
     });
+    if (turnOrderHint) {
+      const order = state.heroes.map(h => `${h.icon} ${h.name}`).join(' → ');
+      turnOrderHint.innerHTML = `<strong>고정 턴 순서</strong> · ${order}<br><span>영웅 카드를 누르면 위치만 확인하고 턴은 바뀌지 않아.</span>`;
+    }
     const normalizedActive = getActiveHero();
     const party = getHeroParty(normalizedActive);
     activeHeroLabel.textContent = normalizedActive
@@ -417,8 +452,7 @@
     const occupied = new Set(state.heroes.filter(h => !h.down).map(h => h.position));
     let candidates = WORLD_NODES.filter(n =>
       !occupied.has(n.id) &&
-      !['마을','입구','보스','드래곤성'].includes(n.type) &&
-      n.id !== (window.WORLD_START_NODE_ID || 'a-center')
+      !['마을','입구','보스','드래곤성'].includes(n.type)
     );
     if (!candidates.length) candidates = WORLD_NODES.filter(n => !['마을','입구','보스','드래곤성'].includes(n.type));
     const node = candidates[Math.floor(Math.random() * candidates.length)];
@@ -501,7 +535,7 @@
         <div class="node-icon">${node.icon}</div>
         <div class="node-name">${node.short || node.name}</div>
         <div class="node-type">${node.type}</div>
-        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
+        ${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
       `;
       if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
       worldMap.appendChild(el);
@@ -1624,15 +1658,18 @@
 
   function knockOutHero(hero, sourceName) {
     if (hero.down) return;
+    // V0.4.9: 쓰러진 순간의 지역을 기억한다. 다음 라운드에는 그 지역 중앙 마을에서 부활한다.
+    const deathAreaId = getNodeAreaId(hero.position);
     hero.down = true;
     hero.currentHp = 0;
     removeHeroFromParty(hero);
-    hero.position = window.WORLD_START_NODE_ID || 'a-center';
+    hero.reviveAreaId = deathAreaId;
+    hero.position = getAreaCenterNodeId(deathAreaId);
     hero.acted = true;
     hero.reviveRound = state.round + 1;
     state.threat = Math.min(12, state.threat + 1);
-    combatLogEntry(`💀 <strong>${hero.name}</strong> 쓰러짐 → 마을 귀환 / THREAT +1`);
-    log(`💀 ${hero.icon} <strong>${hero.name}</strong> 쓰러짐 (${sourceName}) → 마을 귀환 / 🔥 THREAT +1`);
+    combatLogEntry(`💀 <strong>${hero.name}</strong> 쓰러짐 → ${deathAreaId} 지역 마을 귀환 / THREAT +1`);
+    log(`💀 ${hero.icon} <strong>${hero.name}</strong> 쓰러짐 (${sourceName}) → ${deathAreaId} 지역 마을 귀환 / 🔥 THREAT +1`);
     checkDragonCastleSpawn('threat');
   }
 
@@ -2111,8 +2148,8 @@
       }
     } else {
       setCombatMessage(state.gameOver ? 'KINGDOM FALLS' : 'DEFEAT', 'danger');
-      combatLogEntry('☠️ 전투 패배. 쓰러진 영웅은 마을로 귀환한다.');
-      log('☠️ 전투 패배. 살아남지 못한 영웅은 다음 라운드 마을에서 부활한다.');
+      combatLogEntry('☠️ 전투 패배. 쓰러진 영웅은 해당 지역의 중앙 마을로 귀환한다.');
+      log('☠️ 전투 패배. 살아남지 못한 영웅은 다음 라운드에 쓰러졌던 지역의 중앙 마을에서 부활한다.');
     }
 
     renderCombat();
@@ -2136,7 +2173,7 @@
         return;
       }
 
-      // V0.4.7: 파티 기능 잠금. 같은 칸에 다른 영웅이 있어도 전투는 현재 영웅 SOLO로 진행한다.
+      // V0.4.8: 파티 기능 잠금. 같은 칸에 다른 영웅이 있어도 전투는 현재 영웅 SOLO로 진행한다.
       // 파티 코드는 이후 다시 켤 수 있도록 유지하지만 PARTY_SYSTEM_ENABLED=false에서는 참가하지 않는다.
       const party = getHeroParty(hero);
       const participants = party
@@ -2340,14 +2377,16 @@
 
     state.heroes.forEach(h => {
       if (h.down && h.reviveRound !== null && h.reviveRound <= state.round) {
+        const reviveAreaId = h.reviveAreaId || getNodeAreaId(h.position);
         h.down = false;
         h.currentHp = h.hp;
         h.reviveRound = null;
-        h.position = window.WORLD_START_NODE_ID || 'a-center';
+        h.position = getAreaCenterNodeId(reviveAreaId);
+        h.reviveAreaId = null;
         h.attackPenalty = 0;
         h.acPenalty = 0;
         if (h.currentMana !== null) h.currentMana = 3;
-        log(`✨ ${h.icon} <strong>${h.name}</strong>이 마을에서 부활했다.`);
+        log(`✨ ${h.icon} <strong>${h.name}</strong>이 ${reviveAreaId} 지역 마을에서 부활했다.`);
       }
       h.acted = false;
       if (!window.PARTY_SYSTEM_ENABLED) h.partyId = null;
