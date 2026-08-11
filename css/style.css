@@ -560,3 +560,73 @@ h2 { font-size: 17px; margin: 0; }
   .hero-portrait-wrap { height: 132px; }
   .pixel-hero.large { --u: 3.35px; }
 }
+
+
+/* V0.3.8 — 현재 행동 중인 영웅을 보드 위에 크게 표시 */
+.current-turn-banner {
+  margin: 8px 0 10px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 2px solid #6d5434;
+  background: linear-gradient(180deg, rgba(43,33,23,.96), rgba(24,19,14,.96));
+  box-shadow: inset 0 0 0 1px rgba(240,189,79,.08), 0 3px 0 rgba(0,0,0,.28);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+.current-turn-banner::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: #d9a13a;
+}
+.current-turn-banner .turn-kicker {
+  margin-left: 4px;
+  font-size: 8px;
+  letter-spacing: 1.25px;
+  color: #9f916f;
+  white-space: nowrap;
+}
+.current-turn-banner strong {
+  color: #f0bd4f;
+  font-size: clamp(14px, 2.4vw, 20px);
+  letter-spacing: .4px;
+  text-shadow: 1px 2px 0 #000;
+  white-space: nowrap;
+}
+.current-turn-banner .turn-guide {
+  font-size: 9px;
+  color: #b9aa8b;
+  text-align: right;
+  white-space: nowrap;
+}
+.current-turn-banner[data-hero="knight"]::before { background:#9da7ad; }
+.current-turn-banner[data-hero="archer"]::before { background:#7fa65c; }
+.current-turn-banner[data-hero="mage"]::before { background:#9a82d0; }
+.current-turn-banner[data-hero="rogue"]::before { background:#bd7462; }
+.current-turn-banner.game-over { border-color:#7f3730; }
+.current-turn-banner.game-over::before { background:#b84135; }
+.current-turn-banner.game-over strong { color:#e36c5d; }
+
+@media (max-width: 700px) {
+  .current-turn-banner {
+    min-height: 42px;
+    margin: 6px 0 8px;
+    padding: 7px 8px;
+    grid-template-columns: auto 1fr;
+    gap: 6px 8px;
+  }
+  .current-turn-banner .turn-kicker { font-size: 7px; }
+  .current-turn-banner strong { font-size: 13px; }
+  .current-turn-banner .turn-guide {
+    grid-column: 1 / -1;
+    font-size: 8px;
+    text-align: left;
+    margin-left: 4px;
+    margin-top: -2px;
+  }
+}
