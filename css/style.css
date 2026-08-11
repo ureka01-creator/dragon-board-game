@@ -1803,3 +1803,20 @@ body.combat-open .combat-overlay {
 .seal-quest-row strong,.seal-quest-row small{display:block}
 .seal-quest-row small{margin-top:4px;color:#bba98c;line-height:1.4}
 .seal-quest-row b{color:#e5bb50;white-space:nowrap}
+
+/* V0.5.4.1 — lock the world behind every modal on iOS Safari. */
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+.modal:not(.hidden) {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.modal:not(.hidden) .modal-card {
+  max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
