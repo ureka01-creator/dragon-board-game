@@ -15,7 +15,7 @@
     return `
       <div class="pixel-hero ${size} hero-${hero.id} body-${v.body || 'lean'}"
            style="--skin:${v.skin || '#c98b63'};--hair:${v.hair || '#4a2b1f'};--hair2:${v.hair2 || '#261710'};--eye:${v.eye || '#ddd'}"
-           data-armor="${armor}" data-weapon="${weapon}" data-accessory="${accessory}"
+           data-hero-id="${hero.id}" data-armor="${armor}" data-weapon="${weapon}" data-accessory="${accessory}"
            aria-label="${hero.name} 캐릭터">
         <span class="px shadow"></span>
         <span class="px leg leg-l"></span><span class="px leg leg-r"></span>

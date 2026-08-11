@@ -9,6 +9,7 @@
     activeHeroId: null,
     rolled: null,
     isRolling: false,
+    isMoving: false,
     gameOver: false,
   };
 
@@ -110,6 +111,7 @@
     state.activeHeroId = state.heroes[0].id;
     state.rolled = null;
     state.isRolling = false;
+    state.isMoving = false;
     state.gameOver = false;
     gameLog.innerHTML = '';
 
@@ -167,6 +169,7 @@
       const isCurrent = getActiveHero()?.position === node.id;
       const locked = node.locked && state.seals < 3 && state.threat < 9;
       el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${locked ? 'locked' : ''}`;
+      el.dataset.nodeId = node.id;
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
       el.innerHTML = `
@@ -183,10 +186,12 @@
   function renderControls() {
     const active = getActiveHero();
     const canAct = active && !active.acted && !state.gameOver;
-    rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling;
-    stayBtn.disabled = !canAct || state.rolled === null || state.isRolling;
+    rollBtn.disabled = !canAct || state.rolled !== null || state.isRolling || state.isMoving;
+    stayBtn.disabled = !canAct || state.rolled === null || state.isRolling || state.isMoving;
     diceValue.textContent = state.isRolling ? '…' : (state.rolled === null ? '-' : `${DICE_FACES[state.rolled - 1]} ${state.rolled}`);
-    if (state.isRolling) {
+    if (state.isMoving) {
+      moveHint.textContent = '영웅 이동 중…';
+    } else if (state.isRolling) {
       moveHint.textContent = '주사위 굴리는 중…';
     } else {
       moveHint.textContent = state.rolled === null ? '주사위를 굴려 이동' : `0~${state.rolled}칸 이동 가능`;
@@ -195,6 +200,12 @@
 
   const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
   let diceAnimationFrame = null;
+
+  function setRollingDieFace(value) {
+    if (!diceRoller) return;
+    const face = Math.max(1, Math.min(6, Number(value) || 1));
+    diceRoller.dataset.face = String(face);
+  }
 
   function clearDiceDisplay() {
     if (diceAnimationFrame) {
@@ -257,7 +268,7 @@
       // 모션 감소 설정에서는 연출을 짧게 하고 바로 결과를 남긴다.
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
       if (reduced) {
-        diceRoller.textContent = DICE_FACES[finalValue - 1];
+        setRollingDieFace(finalValue);
         diceRoller.style.transform = `translate3d(${endX}px, ${groundY}px, 0) rotate(0deg) scale(1)`;
         diceRoller.classList.remove('rolling');
         diceRoller.classList.add('landed');
@@ -338,9 +349,9 @@
         if (elapsed - lastFaceAt > (t < 0.72 ? 78 : 118)) {
           lastFaceAt = elapsed;
           if (t < 0.88) {
-            diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+            setRollingDieFace(Math.floor(Math.random() * 6) + 1);
           } else {
-            diceRoller.textContent = DICE_FACES[finalValue - 1];
+            setRollingDieFace(finalValue);
           }
         }
 
@@ -358,7 +369,7 @@
         }
 
         diceAnimationFrame = null;
-        diceRoller.textContent = DICE_FACES[finalValue - 1];
+        setRollingDieFace(finalValue);
         diceRoller.style.transform = `translate3d(${endX}px, ${groundY}px, 0) rotate(${Math.round(angle / 90) * 90}deg) scale(1)`;
         diceRoller.classList.remove('rolling');
         diceRoller.classList.add('landed');
@@ -368,13 +379,13 @@
         setTimeout(resolve, 180);
       }
 
-      diceRoller.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+      setRollingDieFace(Math.floor(Math.random() * 6) + 1);
       diceAnimationFrame = requestAnimationFrame(draw);
     });
   }
 
   async function rollD6() {
-    if (state.rolled !== null || state.isRolling || state.gameOver) return;
+    if (state.rolled !== null || state.isRolling || state.isMoving || state.gameOver) return;
     const hero = getActiveHero();
     const result = Math.floor(Math.random() * 6) + 1;
     state.isRolling = true;
@@ -420,19 +431,200 @@
     return result;
   }
 
-  function moveActiveHero(nodeId) {
+  function nodeIsLocked(node) {
+    return Boolean(node?.locked && state.seals < 3 && state.threat < 9);
+  }
+
+  function getShortestPath(startId, targetId, maxDepth = Infinity) {
+    if (startId === targetId) return [startId];
+    const queue = [{ id: startId, path: [startId] }];
+    const visited = new Set([startId]);
+
+    while (queue.length) {
+      const current = queue.shift();
+      const depth = current.path.length - 1;
+      if (depth >= maxDepth) continue;
+      const node = WORLD_NODES.find(n => n.id === current.id);
+      if (!node) continue;
+
+      for (const nextId of node.links) {
+        if (visited.has(nextId)) continue;
+        const nextNode = WORLD_NODES.find(n => n.id === nextId);
+        if (!nextNode || nodeIsLocked(nextNode)) continue;
+        const path = [...current.path, nextId];
+        if (nextId === targetId) return path;
+        visited.add(nextId);
+        queue.push({ id: nextId, path });
+      }
+    }
+    return null;
+  }
+
+  function getNodeLandingPoint(nodeId) {
+    const nodeEl = worldMap.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!nodeEl) return null;
+    const mapRect = worldMap.getBoundingClientRect();
+    const rect = nodeEl.getBoundingClientRect();
+    return {
+      x: rect.left - mapRect.left + rect.width * 0.5,
+      y: rect.top - mapRect.top + rect.height * 0.82,
+      cell: Math.min(rect.width, rect.height),
+    };
+  }
+
+  function animateHeroHop(hero, path) {
+    return new Promise(resolve => {
+      if (!worldMap || !path || path.length < 2) {
+        resolve();
+        return;
+      }
+
+      const points = path.map(getNodeLandingPoint);
+      if (points.some(p => !p)) {
+        resolve();
+        return;
+      }
+
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) {
+        resolve();
+        return;
+      }
+
+      const sourceSprite = worldMap.querySelector(`.map-token-stack .pixel-hero[data-hero-id="${hero.id}"]`);
+      sourceSprite?.classList.add('movement-source-hidden');
+
+      const shadow = document.createElement('div');
+      shadow.className = 'hero-hop-shadow';
+      worldMap.appendChild(shadow);
+
+      const mover = document.createElement('div');
+      mover.className = 'hero-hop-mover';
+      mover.innerHTML = heroSpriteHTML(hero, 'mini');
+      const sprite = mover.querySelector('.pixel-hero');
+      worldMap.appendChild(mover);
+      worldMap.classList.add('movement-lock');
+
+      const hopMs = 215;
+      const pauseMs = 34;
+      let segment = 0;
+
+      const clamp01 = v => Math.max(0, Math.min(1, v));
+      const smooth = v => {
+        const x = clamp01(v);
+        return x * x * (3 - 2 * x);
+      };
+      const lerp = (a, b, v) => a + (b - a) * v;
+
+      function place(point, lift = 0, scaleX = 1, scaleY = 1, shadowScale = 1, shadowOpacity = .34) {
+        mover.style.transform = `translate3d(${point.x}px, ${point.y - lift}px, 0)`;
+        if (sprite) sprite.style.transform = `translate(-50%, -100%) scale(${scaleX}, ${scaleY})`;
+        shadow.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) translate(-50%, -50%) scale(${shadowScale})`;
+        shadow.style.opacity = String(shadowOpacity);
+      }
+
+      place(points[0]);
+
+      function runSegment() {
+        if (segment >= points.length - 1) {
+          const lastNode = worldMap.querySelector(`[data-node-id="${path[path.length - 1]}"]`);
+          lastNode?.classList.remove('hero-step-land');
+          void lastNode?.offsetWidth;
+          lastNode?.classList.add('hero-step-land');
+          setTimeout(() => lastNode?.classList.remove('hero-step-land'), 220);
+
+          setTimeout(() => {
+            mover.remove();
+            shadow.remove();
+            sourceSprite?.classList.remove('movement-source-hidden');
+            worldMap.classList.remove('movement-lock');
+            resolve();
+          }, 95);
+          return;
+        }
+
+        const from = points[segment];
+        const to = points[segment + 1];
+        const hopHeight = Math.max(12, Math.min(25, ((from.cell + to.cell) * 0.5) * 0.42));
+        let started = null;
+
+        function frame(now) {
+          if (started === null) started = now;
+          const t = clamp01((now - started) / hopMs);
+          const travel = smooth(t);
+          const ground = {
+            x: lerp(from.x, to.x, travel),
+            y: lerp(from.y, to.y, travel),
+          };
+          const arc = Math.sin(Math.PI * t);
+          const lift = arc * hopHeight;
+
+          // 이륙할 때 살짝 늘어나고, 착지 직전에 아주 조금 눌린다.
+          const stretch = Math.sin(Math.PI * clamp01(t * 1.6)) * 0.045;
+          const landingSquash = t > .84 ? Math.sin((t - .84) / .16 * Math.PI) * 0.075 : 0;
+          const sx = 1 + landingSquash * .7 - stretch * .35;
+          const sy = 1 + stretch - landingSquash;
+          const shadowScale = 1 - arc * .38;
+          const shadowOpacity = .36 - arc * .18;
+          place(ground, lift, sx, sy, shadowScale, shadowOpacity);
+
+          if (t < 1) {
+            requestAnimationFrame(frame);
+            return;
+          }
+
+          place(to, 0, 1.045, .94, 1.05, .38);
+          const landedNode = worldMap.querySelector(`[data-node-id="${path[segment + 1]}"]`);
+          landedNode?.classList.remove('hero-step-land');
+          void landedNode?.offsetWidth;
+          landedNode?.classList.add('hero-step-land');
+          setTimeout(() => landedNode?.classList.remove('hero-step-land'), 180);
+
+          segment += 1;
+          setTimeout(() => {
+            place(points[segment], 0, 1, 1, 1, .34);
+            runSegment();
+          }, pauseMs);
+        }
+
+        requestAnimationFrame(frame);
+      }
+
+      // 첫 점프 전에 보드게임 말을 집어 올리는 듯 아주 짧게 준비 동작.
+      if (sprite) {
+        sprite.style.transition = 'transform 70ms ease-out';
+        sprite.style.transform = 'translate(-50%, -100%) scale(1.06, .92)';
+      }
+      setTimeout(() => {
+        if (sprite) sprite.style.transition = 'none';
+        runSegment();
+      }, 72);
+    });
+  }
+
+  async function moveActiveHero(nodeId) {
+    if (state.isMoving || state.isRolling || state.gameOver) return;
     const reachable = getReachableNodeIds();
     if (!reachable.has(nodeId)) return;
     const hero = getActiveHero();
+    if (!hero) return;
+    const path = getShortestPath(hero.position, nodeId, state.rolled ?? 0);
+    if (!path) return;
     const node = WORLD_NODES.find(n => n.id === nodeId);
+
+    state.isMoving = true;
+    renderControls();
+    await animateHeroHop(hero, path);
     hero.position = nodeId;
-    log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name}`);
+    state.isMoving = false;
+
+    log(`${hero.icon} <strong>${hero.name}</strong> → ${node.icon} ${node.name} <span class="move-steps">(${path.length - 1}칸)</span>`);
     resolveNode(hero, node);
     finishHeroTurn(hero);
   }
 
   function stayPut() {
-    if (state.rolled === null) return;
+    if (state.rolled === null || state.isMoving || state.isRolling) return;
     const hero = getActiveHero();
     const node = WORLD_NODES.find(n => n.id === hero.position);
     log(`${hero.icon} <strong>${hero.name}</strong> 이동하지 않음 → ${node.icon} ${node.name} 행동`);
