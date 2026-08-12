@@ -61,9 +61,9 @@ h2 { font-size: 17px; margin: 0; }
 .hud { display: grid; grid-template-columns: 100px 1fr auto; gap: 18px; padding: 12px 16px; align-items: center; margin-bottom: 16px; }
 .hud-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
 .hud-value { font-size: 26px; color: var(--gold); }
-.threat-row { display: flex; gap: 8px; align-items: center; }
-.threat-bar { height: 12px; background: #16110d; border: 2px solid #4e3624; margin-top: 4px; }
-#threatFill { height: 100%; width: 0%; background: linear-gradient(90deg, #7f4931, #bb3a2b); transition: width .2s; }
+.seal-row { display: flex; gap: 8px; align-items: center; }
+.seal-bar { height: 12px; background: #16110d; border: 2px solid #4e3624; margin-top: 4px; }
+#sealFill { height: 100%; width: 0%; background: linear-gradient(90deg, #8a6a32, var(--gold)); transition: width .2s; }
 
 .game-grid { display: grid; grid-template-columns: 230px minmax(0, 1fr) 260px; gap: 14px; }
 .party-panel, .board-panel, .log-panel { padding: 14px; min-height: 650px; }

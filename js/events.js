@@ -3,12 +3,12 @@
     { id:'lostMerchant', icon:'🧳', name:'길 잃은 상인', kind:'check', stat:'luck', dc:12,
       text:'짐을 잃어버린 상인이 도움을 청한다.',
       success:{ text:'상인은 고마움의 표시로 보답했다.', effects:[{type:'gold',value:5},{type:'loot'}] },
-      fail:{ text:'시간만 허비하고 빈손으로 돌아섰다.', effects:[{type:'threat',value:1}] } },
+      fail:{ text:'시간만 허비하고 빈손으로 돌아섰다.', effects:[] } },
     { id:'cursedWell', icon:'🕳️', name:'저주받은 우물', kind:'choice', text:'검은 물이 고요하게 출렁인다.',
       options:[
         { label:'물을 마신다', desc:'회복을 노리지만 저주가 있을 수 있다.', random:[
           { weight:65, text:'차가운 기운이 상처를 아물게 했다.', effects:[{type:'heal',value:7}] },
-          { weight:35, text:'저주가 몸을 파고든다.', effects:[{type:'damage',value:4},{type:'threat',value:1}] }
+          { weight:35, text:'저주가 몸을 파고든다.', effects:[{type:'damage',value:5}] }
         ]},
         { label:'떠난다', desc:'아무 일도 일어나지 않는다.', effects:[] }
       ] },
@@ -20,7 +20,7 @@
     { id:'burningHamlet', icon:'🔥', name:'불타는 마을', kind:'choice', text:'작은 마을이 마물의 습격을 받고 있다.',
       options:[
         { label:'구하러 간다', desc:'전투에서 승리하면 보상을 얻는다.', effects:[{type:'combat',monsterId:'orc'}] },
-        { label:'지나친다', desc:'왕국의 불안이 커진다.', effects:[{type:'threat',value:1}] }
+        { label:'지나친다', desc:'전투를 피하고 길을 떠난다.', effects:[] }
       ] },
     { id:'ancientShrine', icon:'🗿', name:'고대의 기도', kind:'check', stat:'magic', dc:13,
       text:'희미한 룬이 새겨진 제단이 반응한다.',
@@ -42,7 +42,7 @@
     { id:'fortuneStone', icon:'🔮', name:'운명의 돌', kind:'check', stat:'luck', dc:14,
       text:'손을 대자 미래의 파편이 스쳐 지나간다.',
       success:{ text:'좋은 징조다. 귀중한 물건의 위치를 알아냈다.', effects:[{type:'loot'}] },
-      fail:{ text:'불길한 미래를 보고 말았다.', effects:[{type:'threat',value:1}] } },
+      fail:{ text:'불길한 미래가 정신을 흔든다.', effects:[{type:'damage',value:2}] } },
     { id:'collapsedBridge', icon:'🌉', name:'무너진 다리', kind:'check', stat:'dex', dc:13,
       text:'썩은 다리를 건너야 한다.',
       success:{ text:'균형을 잡아 무사히 건넜다.', effects:[{type:'gold',value:3}] },
@@ -64,7 +64,7 @@
         ]},
         { label:'무시한다', desc:'그 길을 지나친다.', effects:[] }
       ] },
-    { id:'bloodMoon', icon:'🌕', name:'핏빛 달', kind:'simple', text:'붉은 달이 떠오르며 마물들이 날뛴다.', effects:[{type:'threat',value:1},{type:'damage',value:2}] },
+    { id:'bloodMoon', icon:'🌕', name:'핏빛 달', kind:'simple', text:'붉은 달이 떠오르며 마물들이 날뛴다.', effects:[{type:'damage',value:4}] },
     { id:'quietChapel', icon:'⛪', name:'고요한 예배당', kind:'simple', text:'잠시 숨을 돌릴 수 있는 안전한 장소다.', effects:[{type:'heal',value:8},{type:'mana',value:1}] },
     { id:'sealedChest', icon:'🔐', name:'봉인된 상자', kind:'check', stat:'str', dc:13,
       text:'무거운 쇠사슬로 감긴 상자가 있다.',
@@ -74,7 +74,7 @@
       options:[
         { label:'따라간다', desc:'행운을 믿어본다.', random:[
           {weight:70,text:'작은 금화 더미를 발견했다.',effects:[{type:'gold',value:5}]},
-          {weight:30,text:'길을 헤매는 동안 시간이 흘렀다.',effects:[{type:'threat',value:1}]}
+          {weight:30,text:'길을 헤매다 소지품 일부를 잃었다.',effects:[{type:'gold',value:-2}]}
         ]},
         { label:'다른 길로 간다', desc:'아무 일도 없다.', effects:[] }
       ] },
@@ -90,7 +90,7 @@
     { id:'dragonWhisper', icon:'🐉', name:'드래곤의 속삭임', kind:'check', stat:'magic', dc:15,
       text:'머릿속에 거대한 존재의 목소리가 울린다.',
       success:{ text:'의지를 지켜내고 드래곤의 힘을 역으로 흡수했다.', effects:[{type:'heal',value:4},{type:'mana',value:2}] },
-      fail:{ text:'공포가 왕국에 번진다.', effects:[{type:'threat',value:2}] } }
+      fail:{ text:'드래곤의 공포가 정신을 짓누른다.', effects:[{type:'damage',value:6}] } }
   ];
 
   window.EVENT_CARDS = cards;
