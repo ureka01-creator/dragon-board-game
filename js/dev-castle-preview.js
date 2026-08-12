@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.1 — DEV castle locator/preview
+// DRAGON BOARD V0.6.3.2 — DEV castle locator/preview
 (() => {
   if (new URLSearchParams(location.search).get('dev') !== '1') return;
 
@@ -8,7 +8,8 @@
     const heroSel = document.querySelector('[data-dev-hero]');
     const message = document.querySelector('[data-dev-message]');
     const overlay = document.querySelector('.dev-overlay');
-    if (!api || !grid || !heroSel || !message || grid.querySelector('[data-dev-castle-preview]')) return false;
+    const closeBtn = document.querySelector('[data-dev-close]');
+    if (!api || !grid || !heroSel || !message || !overlay || !closeBtn || grid.querySelector('[data-dev-castle-preview]')) return false;
 
     const enterBtn = grid.querySelector('[data-act="dragonEnter"]');
     const btn = document.createElement('button');
@@ -26,6 +27,7 @@
         message.style.borderLeftColor = '#ae574d';
         return;
       }
+
       const heroId = heroSel.value;
       let found = null;
       let foundArea = null;
@@ -35,6 +37,7 @@
         const tile = document.querySelector('#worldMap .map-node.region-dragon');
         if (tile) { found = tile; foundArea = area; break; }
       }
+
       if (!found) {
         message.textContent = '드래곤 성 타일을 찾지 못했어.';
         message.style.borderLeftColor = '#ae574d';
@@ -45,12 +48,18 @@
       window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
       message.textContent = `드래곤 성 위치: ${foundArea?.name || '현재 지역'} · 해당 지역 마을로 이동 완료`;
       message.style.borderLeftColor = '#82a854';
-      if (overlay) overlay.hidden = true;
-      setTimeout(() => {
+
+      // DEV 패널의 공식 닫기 경로를 그대로 사용한다.
+      // iPhone Safari에서 hidden 속성만 직접 바꿨을 때 오버레이가 남는 경우를 피한다.
+      closeBtn.click();
+      if (!overlay.hidden) overlay.hidden = true;
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
         const tile = document.querySelector('#worldMap .map-node.region-dragon');
         window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
         tile?.scrollIntoView?.({ behavior:'smooth', block:'center', inline:'center' });
-      }, 80);
+        tile?.classList.add('castle-ux-reveal');
+      }));
     });
     return true;
   }
