@@ -1,16 +1,14 @@
-// DRAGON BOARD V0.6.3.3 — DEV castle locator/preview
+// DRAGON BOARD V0.6.3.4 — DEV castle locator/preview without mutating game state
 (() => {
   if (new URLSearchParams(location.search).get('dev') !== '1') return;
 
   function install() {
     const api = window.DRAGON_BOARD_DEV_API;
     const grid = document.querySelector('.dev-grid');
-    const heroSel = document.querySelector('[data-dev-hero]');
     const message = document.querySelector('[data-dev-message]');
     const overlay = document.querySelector('.dev-overlay');
     const closeBtn = document.querySelector('[data-dev-close]');
-    const activeHeroLabel = document.querySelector('#activeHeroLabel');
-    if (!api || !grid || !heroSel || !message || !overlay || !closeBtn || grid.querySelector('[data-dev-castle-preview]')) return false;
+    if (!api || !grid || !message || !overlay || !closeBtn || grid.querySelector('[data-dev-castle-preview]')) return false;
 
     const enterBtn = grid.querySelector('[data-act="dragonEnter"]');
     const btn = document.createElement('button');
@@ -34,8 +32,10 @@
         font:'700 11px ui-monospace, monospace', textAlign:'center'
       });
       document.body.appendChild(el);
-      setTimeout(() => el.remove(), 1800);
+      setTimeout(() => el.remove(), 2000);
     }
+
+    const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     btn.addEventListener('click', async () => {
       const snapshot = api.snapshot();
@@ -45,41 +45,39 @@
         return;
       }
 
-      // 먼저 DEV 패널을 닫는다. 이후 위치 탐색이 실패해도 오버레이가 남지 않는다.
+      // 위치 보기는 게임 상태를 절대 바꾸지 않는다.
+      // 먼저 DEV 패널을 닫고, 지역 네비게이터의 🐉 표시만 이용해 화면을 전환한다.
       closeBtn.click();
       overlay.hidden = true;
       overlay.setAttribute('hidden', '');
 
-      // 현재 턴 영웅을 찾아서 그 영웅으로 지역 뷰를 넘긴다.
-      // 선택된 DEV 대상이 현재 턴 영웅이 아닐 때 viewAreaId가 바뀌지 않던 문제를 피한다.
-      const activeText = activeHeroLabel?.textContent || '';
-      const activeHero = (snapshot.heroes || []).find(h => activeText.includes(h.name)) || (snapshot.heroes || [])[0] || null;
-      const heroId = activeHero?.id || heroSel.value;
+      await nextFrame();
+      const regionButtons = [...document.querySelectorAll('#regionNavigator .region-nav-btn')];
+      const dragonRegionBtn = regionButtons.find(regionBtn =>
+        (regionBtn.querySelector('.region-icon')?.textContent || '').includes('🐉')
+      );
 
-      let found = null;
-      let foundArea = null;
-      for (const area of (snapshot.areas || [])) {
-        api.teleportVillage(heroId, area.id);
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        const tile = document.querySelector('#worldMap .map-node.region-dragon');
-        if (tile) { found = tile; foundArea = area; break; }
-      }
-
-      if (!found) {
-        toast('드래곤 성 타일을 찾지 못했어.', true);
+      if (!dragonRegionBtn) {
+        toast('드래곤 성이 있는 지역 표시를 찾지 못했어.', true);
         return;
       }
 
-      found.classList.add('castle-ux-reveal');
-      window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
-      toast(`🐉 드래곤 성 위치 · ${foundArea?.name || '현재 지역'}`);
+      const areaName = dragonRegionBtn.querySelector('small')?.textContent?.replace(/\s*·.*$/, '') || '드래곤 성 지역';
+      dragonRegionBtn.click();
+      await nextFrame();
 
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const tile = document.querySelector('#worldMap .map-node.region-dragon');
-        window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
-        tile?.classList.add('castle-ux-reveal');
-        tile?.scrollIntoView?.({ behavior:'smooth', block:'center', inline:'center' });
-      }));
+      const tile = document.querySelector('#worldMap .map-node.region-dragon');
+      if (!tile) {
+        toast('현재 이동/전투 상태라 지역 화면을 바꿀 수 없어.', true);
+        return;
+      }
+
+      // DEV 미리보기에서만 성의 외형을 보이게 한다. 실제 탐험/영웅 위치는 변경하지 않는다.
+      tile.classList.add('castle-ux-reveal');
+      window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
+      tile.classList.add('castle-ux-reveal');
+      tile.scrollIntoView?.({ behavior:'smooth', block:'center', inline:'center' });
+      toast(`🐉 드래곤 성 위치 · ${areaName}`);
     });
     return true;
   }
