@@ -1,0 +1,29 @@
+name: Apply V0.6.1.5 dice smoothing
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/patch_v0615.py'
+      - '.github/workflows/apply-v0615.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply smoother 3D dice patch
+        run: |
+          python .github/patch_v0615.py
+          node --check js/board3d.js
+          node --check js/board3d-play.js
+          grep -q 'PROTOTYPE V0.6.1.5' index.html
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/board3d.js js/board3d-play.js index.html README.md
+          git commit -m 'Patch V0.6.1.5' || exit 0
+          git push origin main
