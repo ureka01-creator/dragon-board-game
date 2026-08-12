@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.6.7
+// DRAGON BOARD V0.5.7.0
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -188,7 +188,8 @@
         <div class="stat-line"><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div>
         <div class="stat-line"><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div>
         <div class="stat-line"><span>🛡 AC</span><strong>${hero.ac}</strong></div>
-        <div class="skill-line">${hero.passive}</div>
+        <div class="skill-line">🧩 <strong>패시브</strong> · ${hero.passive}</div>
+        <div class="skill-line">✨ <strong>고유기</strong> · ${hero.skill}</div>
       `;
       el.addEventListener('click', () => toggleHero(hero.id));
       heroGrid.appendChild(el);
@@ -1866,7 +1867,10 @@
     const hs = combatHeroState(hero?.id);
     if (!hero || !hs || hs.acted || state.combat?.busy) return false;
     if (hero.id === 'rogue') {
-      return !hs.skillUsedRound && aliveCombatHeroes().filter(h => h.id !== hero.id).length > 0;
+      // V0.5.7.0: SOLO에서도 급소 공격을 사용할 수 있게 한다.
+      // 기본 공격을 항상 대체하지 않도록, 이미 피해를 입은 적에게만 활성화한다.
+      const target = selectedCombatEnemy();
+      return !hs.skillUsedRound && Boolean(target && target.currentHp < target.maxHp);
     }
     if (hs.skillUsedBattle) return false;
     if (hero.id === 'mage' && (hero.currentMana ?? 0) < 2) return false;
@@ -2049,6 +2053,12 @@
       const reduced = Math.min(damage, equipmentEffect(hero, 'fireReduction'));
       damage -= reduced;
       if (reduced > 0) combatLogEntry(`🐲 용비늘 갑옷 · 화염 피해 ${reduced} 감소.`);
+    }
+    if (damage > 0 && hero.id === 'knight' && hs && !hs.knightGuardUsedRound) {
+      const reduced = Math.min(damage, 2);
+      damage -= reduced;
+      hs.knightGuardUsedRound = true;
+      if (reduced > 0) combatLogEntry(`🛡 철벽 · ${hero.name}이 이번 라운드 첫 피해 ${reduced} 감소.`);
     }
     if (damage > 0 && hs && !hs.guardianCharmUsed && equipmentEffect(hero, 'firstDamageReduction') > 0) {
       const reduced = Math.min(damage, equipmentEffect(hero, 'firstDamageReduction'));
@@ -2495,6 +2505,7 @@
       hs.acted = false;
       hs.defending = false;
       hs.skillUsedRound = false;
+      hs.knightGuardUsedRound = false;
       hs.itemUsed = false;
     });
     const next = c.participantIds
@@ -2852,7 +2863,7 @@
       const isBoss = node.type === '보스';
       const heroStates = {};
       participants.forEach(h => {
-        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false };
+        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false, knightGuardUsedRound:false };
         h.nextAttackBonus = 0;
       });
 

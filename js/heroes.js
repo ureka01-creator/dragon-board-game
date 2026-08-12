@@ -1,8 +1,8 @@
 window.HEROES = [
   {
-    id: 'knight', name: '기사', icon: '🛡️', role: '탱커 / 근접 / 동료 보호',
+    id: 'knight', name: '기사', icon: '🛡️', role: '탱커 / 근접 / 피해 경감',
     hp: 26, str: 3, dex: 0, magic: -1, luck: 0, ac: 14,
-    passive: '수호: 라운드당 1회, 같은 지역 동료의 공격 대상을 기사로 변경.',
+    passive: '철벽: 전투 라운드마다 처음 받는 피해를 2 감소.',
     skill: '방패 강타: 전투당 1회, D6+힘 피해 및 적의 다음 공격 -2.',
     visual: { skin: '#c98b63', hair: '#4a2b1f', hair2: '#2c1712', eye: '#d7c48d', body: 'broad' }
   },
@@ -24,7 +24,7 @@ window.HEROES = [
     id: 'rogue', name: '도적', icon: '🗡️', role: '탐험 / 보물 / 급소 공격',
     hp: 18, str: 0, dex: 3, magic: -1, luck: 3, ac: 12,
     passive: '손재주: 보물/함정/자물쇠 판정에서 D20 2개 중 높은 값 사용.',
-    skill: '급소 공격: 같은 적을 아군도 상대 중이면 라운드당 1회 +D6 피해.',
+    skill: '급소 공격: 이미 피해를 입은 적에게 라운드당 1회, 명중 시 +D6 피해.',
     visual: { skin: '#b87857', hair: '#202025', hair2: '#0e0e12', eye: '#dfb966', body: 'compact' }
   }
 ];
