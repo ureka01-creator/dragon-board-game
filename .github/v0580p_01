@@ -1,0 +1,138 @@
+1회 안에서 2~3개의 짧은 방을 연속으로 해결한다.
++  // 실패/도주 시 필드로 돌아오며, 이미 완료한 방의 진행도는 유지해 보상 반복 파밍을 막는다.
++  const DUNGEON_REGION_RULES = {
++    grave: {
++      normal:['skeleton','ghost'], elite:['darkKnight'],
++      trap:{ name:'저주받은 석관', text:'봉인이 깨진 석관 사이로 검은 손이 뻗어 나온다.', stat:'luck', dc:12 },
++      rest:{ name:'꺼지지 않는 촛불', text:'작은 제단의 촛불이 아직 따뜻하다.' }
++    },
++    forest: {
++      normal:['wolf','spider','goblin'], elite:['ogre'],
++      trap:{ name:'포식 식물', text:'바닥의 덩굴이 갑자기 발목을 휘감는다.', stat:'dex', dc:12 },
++      rest:{ name:'고요한 지하샘', text:'뿌리 사이에서 맑은 물이 솟아난다.' }
++    },
++    war: {
++      normal:['goblin','orc'], elite:['darkKnight','ogre'],
++      trap:{ name:'녹슨 살상 장치', text:'무너진 병기고의 발판이 철컥 내려앉는다.', stat:'dex', dc:13 },
++      rest:{ name:'버려진 의무실', text:'먼지 쌓인 붕대와 약품이 조금 남아 있다.' }
++    },
++    volcano: {
++      normal:['fireImp','orc'], elite:['minotaur','wyvern'],
++      trap:{ name:'용암 균열', text:'발밑의 바위가 갈라지며 뜨거운 열기가 솟구친다.', stat:'dex', dc:13 },
++      rest:{ name:'광부의 피난소', text:'두꺼운 암벽 뒤 작은 대피 공간을 발견했다.' }
++    },
++  };
++
++  function dungeonRuleFor(node) {
++    return DUNGEON_REGION_RULES[node?.region] || DUNGEON_REGION_RULES.war;
++  }
++
++  function pickDungeonMonster(node, tier = 'normal') {
++    const rule = dungeonRuleFor(node);
++    const pool = tier === 'elite' ? rule.elite : rule.normal;
++    return pool[Math.floor(Math.random() * pool.length)] || (tier === 'elite' ? 'ogre' : 'goblin');
++  }
++
++  function buildDungeonPlan(node) {
++    const roomCount = Math.random() < 0.58 ? 2 : 3;
++    const plan = [];
++    // 첫 방: 던전에 들어왔다는 긴장감을 위해 전투 비중을 높인다.
++    if (Math.random() < 0.68) plan.push({ type:'combat', monsterId:pickDungeonMonster(node,'normal') });
++    else plan.push({ type:'trap' });
++
++    // 3룸일 때만 중간 방을 추가. 보물/휴식/함정/일반전투 중 하나라 길어지지 않는다.
++    if (roomCount === 3) {
++      const roll = Math.random();
++      if (roll < 0.38) plan.push({ type:'treasure' });
++      else if (roll < 0.62) plan.push({ type:'rest' });
++      else if (roll < 0.82) plan.push({ type:'trap' });
++      else plan.push({ type:'combat', monsterId:pickDungeonMonster(node,'normal') });
++    }
++
++    // 마지막 방은 정예전 또는 보상방. 최종 보상/결정이 분명하도록 일반 방으로 끝나지 않는다.
++    if (Math.random() < 0.68) plan.push({ type:'elite', monsterId:pickDungeonMonster(node,'elite') });
++    else plan.push({ type:'treasure', final:true });
++    return plan;
++  }
++
++  function ensureDungeonState(node) {
++    if (!node.dungeonState || !Array.isArray(node.dungeonState.plan)) {
++      node.dungeonState = { plan:buildDungeonPlan(node), index:0 };
++    }
++    node.dungeonState.index = Math.max(0, Math.min(node.dungeonState.plan.length, Number(node.dungeonState.index || 0)));
++    return node.dungeonState;
++  }
++
++  function dungeonRoomTitle(room) {
++    if (room?.type === 'combat') return '마물의 방';
++    if (room?.type === 'elite') return '최심부의 수호자';
++    if (room?.type === 'trap') return '함정 구역';
++    if (room?.type === 'rest') return '숨겨진 휴식처';
++    if (room?.type === 'treasure') return room.final ? '봉인된 보물고' : '숨겨진 보물방';
++    return '미지의 방';
++  }
++
++  function dungeonRoomIcon(room) {
++    if (room?.type === 'combat') return '⚔️';
++    if (room?.type === 'elite') return '👹';
++    if (room?.type === 'trap') return '⚠️';
++    if (room?.type === 'rest') return '❤️';
++    if (room?.type === 'treasure') return '🎁';
++    return '🕳️';
++  }
++
++  function askDungeonEntry(hero, node, dungeonState) {
++    return new Promise(resolve => {
++      const total = dungeonState.plan.length;
++      const current = Math.min(total, dungeonState.index + 1);
++      const resumed = dungeonState.index > 0;
++      modalCloseAction = null;
++      modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal','shop-modal');
++      modalCloseBtn.hidden = true;
++      modalContent.innerHTML = `
++        <div class="event-sheet dungeon-sheet">
++          <div class="status-kicker">MINI DUNGEON · ${current}/${total}</div>
++          <div class="event-card-head"><span class="event-card-icon">🕳️</span><div><h3>${node.name}</h3><p>${resumed ? `이전에 ${dungeonState.index}개 방을 돌파했다. 최심부 탐사를 이어갈 수 있어.` : '짧은 소형 던전이다. 2~3개의 방을 돌파하면 보상을 얻을 수 있어.'}</p></div></div>
++          <div class="dungeon-progress">${dungeonState.plan.map((room,index)=>`<span class="${index < dungeonState.index ? 'done' : index === dungeonState.index ? 'current' : ''}">${index < dungeonState.index ? '✓' : index + 1}</span>`).join('')}</div>
++          <div class="event-choice-grid">
++            <button type="button" class="event-choice-btn dungeon-enter-btn"><strong>⚔️ 던전 진입</strong><small>이번 월드 턴 안에서 남은 방을 이어서 탐사</small></button>
++            <button type="button" class="event-choice-btn dungeon-leave-btn"><strong>↩️ 지나간다</strong><small>이 칸에 머물고 이번 턴 종료</small></button>
++          </div>
++        </div>`;
++      modal.classList.remove('hidden');
++      modalContent.querySelector('.dungeon-enter-btn')?.addEventListener('click',()=>{ closeModalPanel(); resolve(true); },{once:true});
++      modalContent.querySelector('.dungeon-leave-btn')?.addEventListener('click',()=>{ closeModalPanel(); resolve(false); },{once:true});
++    });
++  }
++
++  function showDungeonRoomPrompt(node, room, index, total) {
++    return new Promise(resolve => {
++      const monster = room?.monsterId ? MONSTERS?.[room.monsterId] : null;
++      const detail = room.type === 'combat'
++        ? `${monster?.icon || '👹'} ${monster?.name || '마물'}의 기척이 가까워진다.`
++        : room.type === 'elite'
++          ? `${monster?.icon || '👹'} ${monster?.name || '정예 마물'}이(가) 최심부를 지키고 있다.`
++          : room.type === 'treasure'
++            ? '낡은 봉인 너머로 보물 상자가 보인다.'
++            : '앞쪽에서 심상치 않은 기척이 느껴진다.';
++      modalCloseAction = null;
++      modalCloseBtn.hidden = true;
++      modalContent.innerHTML = `<div class="event-sheet dungeon-sheet">
++        <div class="status-kicker">${node.name} · ROOM ${index+1}/${total}</div>
++        <div class="event-card-head"><span class="event-card-icon">${dungeonRoomIcon(room)}</span><div><h3>${dungeonRoomTitle(room)}</h3><p>${detail}</p></div></div>
++        <button type="button" class="pixel-btn primary event-main-btn" data-dungeon-room-go>${room.type === 'treasure' ? '보물 확인' : '진행'}</button>
++      </div>`;
++      modal.classList.remove('hidden');
++      modalContent.querySelector('[data-dungeon-room-go]')?.addEventListener('click',()=>{ closeModalPanel(); resolve(); },{once:true});
++    });
++  }
++
++  function resolveDungeonTrap(hero, node, room, index, total) {
++    return new Promise(resolve => {
++      const rule = dungeonRuleFor(node);
++      const trap = rule.trap;
++      modalCloseAction = null;
++      modalCloseBtn.hidden = true;
++      modalContent.innerHTML = `<div class="event-sheet dungeon-sheet">
++        <div class="status-kicker">${node.name} · ROOM ${index+1}/${total}</div>
++        <div class="event-card-head"><span class="event-card-icon">⚠️</span><div><h3>${trap.name}</h3><p>${trap.text}</p><
