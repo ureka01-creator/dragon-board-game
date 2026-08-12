@@ -1,0 +1,29 @@
+name: Apply V0.6.2.0 final dungeon
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/patch_v0620.py'
+      - '.github/workflows/apply-v0620.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply final dungeon patch
+        run: |
+          python .github/patch_v0620.py
+          node --check js/game.js
+          node --check js/monsters.js
+          grep -q 'PROTOTYPE V0.6.2.0' index.html
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/game.js js/monsters.js index.html README.md
+          git commit -m 'Patch V0.6.2.0' || exit 0
+          git push origin main
