@@ -1,0 +1,473 @@
+--- a/README.md
++++ b/README.md
+@@ -1,8 +1,8 @@
+-# DRAGON BOARD — Web Prototype V0.5.6.2
++# DRAGON BOARD — Web Prototype V0.5.6.3
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ 
+-### V0.5.6.2
++### V0.5.6.3
+ - 각 지역의 마을 위치를 중앙 고정에서 랜덤 배치로 변경
+ - 마을은 지역 입구 칸을 제외한 타일 중 새 게임마다 무작위로 생성
+ - 시작 위치와 사망 후 부활 위치도 해당 판의 실제 마을 위치를 사용
+@@ -123,7 +123,7 @@
+ GitHub Pages에서 아래 값이 모두 맞는지 확인하면 최신 패치 여부를 알 수 있다.
+ 
+ - 화면: `PROTOTYPE V0.5.2`
+-- CSS: `style.css?v=0562`
++- CSS: `style.css?v=0563`
+ - 모든 JS: `?v=052`
+ - ZIP / README: `V0.5.2`
+ 
+@@ -158,24 +158,24 @@
+ - 전투 진입 시 문서(body) 스크롤을 잠그고, 전투 오버레이 자체의 세로 스크롤도 제거. 전투 종료 시 원래 문서 스크롤 상태 복원.
+ - 모바일 전투 화면 높이를 100dvh 안에 맞추도록 레이아웃을 압축.
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 일반 전투칸 최초 승리 후 재방문 시 랜덤 위험 지역 판정
+ - 45% 아무 일 없음 / 35% 지역 일반 몬스터 / 15% 정예 몬스터 / 5% 작은 발견
+ - 지역 보스는 기존처럼 재생성되지 않음
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 전투 승리 직후 화면이 멈추는 런타임 오류 수정
+ - 일반 전투칸 승리 기록 시 존재하지 않는 nodeById() 호출 제거
+ - WORLD_NODES에서 실제 보드 노드를 직접 찾아 combatCleared 상태 저장
+ - V0.5.5.9 위험 지역 재방문 랜덤 시스템 유지
+ 
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 이동 중 '이동 종료' 제거
+ - 주사위 결과만큼 반드시 한 칸씩 이동 후 최종 칸에서만 사건/전투/상점 처리
+ - 이동 중에는 D6 버튼 비활성화
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 지역 입구에서 `이동한다 / 지나간다` 선택
+ - 지역 이동 후에도 남은 주사위 이동력 계속 사용
+ - 지나가기를 선택해도 현재 지역에서 남은 이동 계속
+@@ -183,7 +183,7 @@
+ - 새 게임마다 내부 길 구조 다시 생성
+ - 외곽 링은 유지
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 외곽 24칸도 지역마다/새 게임마다 랜덤 실루엣 생성
+ - 모서리 1~3곳이 안쪽으로 꺾이는 방식으로 외곽 형태가 달라짐
+ - 총 33칸 구조는 유지해 기존 밸런스와 탐험 목표 유지
+@@ -192,7 +192,7 @@
+ - 경유 중 상점/몬스터/사건/지역 입구도 발동하지 않음
+ - 지역 입구는 최종 도착칸일 때만 이동 여부 확인
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 주사위 이동 중 막다른 길 도착 시 즉시 이동 종료
+ - 방금 지나온 칸을 제외하고 갈 수 있는 연결 칸이 없으면 막다른 길로 판정
+ - 남은 이동 수는 소멸
+@@ -200,7 +200,7 @@
+ - 경유 칸은 기존대로 공개/이벤트 발동 없음
+ - 막다른 길 최종칸의 전투/상점/사건 등만 정상 처리
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 한 번의 주사위 이동 중 같은 칸 재방문 금지
+ - A→B→A 같은 즉시 왕복 및 A→B→C→D→B 같은 루프 이동 방지
+ - 이미 이번 이동에서 지나간 칸은 다음 이동 후보에서 제외
+@@ -208,13 +208,13 @@
+ - 막다른 길에서는 남은 이동력 소멸, 최종 칸만 공개/효과 발동
+ - 새 주사위를 굴리면 방문 경로 기록 초기화
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 주사위 애니메이션 중 상단 턴 표기에서 영웅 이름/직업을 숨기고 `주사위 굴리는 중…`만 표시
+ - 주사위 결과 확정 후 즉시 `기사 턴` 등 현재 영웅 턴 표기로 복귀
+ - MOVE 숫자를 최초 주사위 결과가 아닌 남은 이동 횟수로 변경
+ - 한 칸 이동할 때마다 MOVE를 즉시 1씩 감소 표시
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 주사위 굴리는 동안 상단에 `주사위 굴리는 중…`만 표시
+ - 결과 확정 후 즉시 `기사 턴` 등 현재 영웅 턴으로 복귀
+ - MOVE를 최초 주사위 숫자가 아니라 남은 이동 횟수로 표시
+@@ -222,24 +222,26 @@
+ - 대형 주사위는 결과 확인 후 0.32초 뒤 사라져 이동 중 맵을 가리지 않음
+ - 대형 주사위가 맵 터치를 막지 않도록 pointer-events 제거
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 주사위 확정 후 정면에서 크게 확대되어 약 0.76초 흔들리는 결과 강조 연출 추가
+ - 결과 연출 종료 후 주사위 제거, 이동 중 맵 가림 방지 유지
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 확정 주사위 결과 연출 위치를 월드맵 정중앙으로 수정
+ - 맵 중앙의 지역명/탐험 중 워터마크 제거
+ - 좌측 상단 월드 제목에 지역 이모지 + 지역명 표시
+ - 버전 번호는 마지막 자리를 두 자리로 늘리지 않고 0.5.6.0으로 승급
+ 
+-## V0.5.6.2
++## V0.5.6.3
+ - 0.5.6.0에서 asset cache query가 05519로 남아 있던 문제 수정
+ - 모든 JS/CSS cache query를 0561로 강제 갱신
+ - 확정 주사위를 viewport 기준 실제 맵 정중앙에 표시
+ - 중앙 지역명 워터마크 DOM/CSS 완전 제거
+ - 좌측 상단 지역 이모지 + 지역명 표기 유지
+ 
+-## V0.5.6.2
+-- 주사위 좌표계를 worldMap으로 통일
+-- 굴림 중 맵 밖 이탈 방지
+-- 동일 주사위가 중앙으로 이동 후 확대/흔들림
++## V0.5.6.3
++- V0.5.6.2의 맵 내부 고정 굴림 방식 폐기
++- 기존처럼 주사위가 맵 위쪽에서 높게 던져져 떨어지는 포물선 연출 복원
++- 굴림 중 좌우 이탈만 제한
++- 착지한 동일 주사위가 맵 중앙으로 부드럽게 이동
++- 중앙에서 정면 확대 + 흔들림 결과 강조 후 사라짐
+--- a/css/style.css
++++ b/css/style.css
+@@ -1865,7 +1865,7 @@
+ }
+ .modal.shop-modal .modal-card::-webkit-scrollbar { width:0; height:0; display:none; }
+ 
+-/* V0.5.6.2 — 탐험 목표 + Fog of War */
++/* V0.5.6.3 — 탐험 목표 + Fog of War */
+ .current-objective {
+   display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 7px;
+   padding:6px 8px; border:2px solid #4e432d; background:#17140f; color:#d8ccb1;
+@@ -1959,7 +1959,7 @@
+ }
+ 
+ 
+-/* V0.5.6.2 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
++/* V0.5.6.3 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
+ .map-node.fogged .node-icon,
+ .map-node.fogged .node-name,
+ .map-node.fogged .node-type,
+@@ -2011,7 +2011,7 @@
+ @media (prefers-reduced-motion: reduce) {
+   .map-node.tile-flip-out, .map-node.tile-flip-in { animation-duration:.01ms !important; }
+ }
+-\n\n/* V0.5.6.2 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
++\n\n/* V0.5.6.3 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
+ .map-node.reachable {
+   animation: nextStepPulse .9s steps(2,end) infinite !important;
+   border-color:#8aa05d !important;
+@@ -2024,32 +2024,58 @@
+ }
+ @keyframes nextStepPulse { 50% { filter:brightness(1.10); } }
+ 
+-/* V0.5.6.2 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
++/* V0.5.6.3 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
+ .world-map::before,
+ .world-map::after { display:none !important; }
+ 
+-/* V0.5.6.2 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
++/* V0.5.6.3 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
+ .dice-roller { pointer-events: none !important; }
+ 
+-/* V0.5.6.2 — 같은 주사위가 맵 중앙으로 이동 후 결과 강조 */
+-.dice-roller.dice-to-center {
+-  display:grid !important; opacity:1 !important; z-index:32 !important;
+-  transition:transform 260ms cubic-bezier(.2,.8,.25,1) !important;
+-}
++/* V0.5.6.3 — 확정 주사위는 월드맵 정중앙에서 정면 결과 강조 */
+ .dice-roller.dice-result-show {
+-  display:grid !important; opacity:1 !important; z-index:32 !important;
+-  animation:dice-result-punch-v0562 760ms cubic-bezier(.2,.9,.25,1) both !important;
++  display:grid !important;
++  opacity:1 !important;
++  z-index:32 !important;
++  transform-origin:center center !important;
++  animation:dice-result-punch-v0560 760ms cubic-bezier(.2,.9,.25,1) both !important;
++}
++@keyframes dice-result-punch-v0560 {
++  0%   { transform:translate(-50%,-50%) rotate(0deg) scale(.90); opacity:1; }
++  18%  { transform:translate(calc(-50% - 7px),-50%) rotate(-5deg) scale(1.48); }
++  34%  { transform:translate(calc(-50% + 7px),-50%) rotate(4deg) scale(1.43); }
++  50%  { transform:translate(calc(-50% - 5px),-50%) rotate(-3deg) scale(1.46); }
++  66%  { transform:translate(calc(-50% + 3px),-50%) rotate(2deg) scale(1.43); }
++  82%  { transform:translate(-50%,-50%) rotate(0deg) scale(1.43); opacity:1; }
++  100% { transform:translate(-50%,-50%) rotate(0deg) scale(1.36); opacity:0; }
+ }
+-@keyframes dice-result-punch-v0562 {
+-  0%{scale:1;rotate:0deg;opacity:1} 18%{scale:1.48;rotate:-5deg}
+-  34%{scale:1.43;rotate:4deg} 50%{scale:1.46;rotate:-3deg}
+-  66%{scale:1.43;rotate:2deg} 82%{scale:1.43;rotate:0deg;opacity:1}
+-  100%{scale:1.36;rotate:0deg;opacity:0}
+-}
+-.world-map > .dice-roller { position:absolute !important; left:0 !important; top:0 !important; }
+ 
+ /* 맵 중앙에는 지역명을 중복 표시하지 않는다. */
+ .map-watermark { display:none !important; }
+ 
+-/* V0.5.6.2 — 중앙 지역명 워터마크 완전 제거 */
++/* V0.5.6.3 — 중앙 지역명 워터마크 완전 제거 */
+ .area-watermark { display:none !important; }
++
++/* V0.5.6.3 — 원래의 높은 낙하 연출을 유지하고, 같은 주사위가 중앙으로 이동 후 결과 강조 */
++.dice-roller.dice-to-center {
++  display:grid !important;
++  opacity:1 !important;
++  z-index:32 !important;
++  transition:transform 280ms cubic-bezier(.2,.82,.25,1) !important;
++  scale:1 !important;
++  rotate:0deg !important;
++}
++.dice-roller.dice-result-show {
++  display:grid !important;
++  opacity:1 !important;
++  z-index:32 !important;
++  animation:dice-result-punch-v0563 760ms cubic-bezier(.2,.9,.25,1) both !important;
++}
++@keyframes dice-result-punch-v0563 {
++  0%   { scale:1; rotate:0deg; opacity:1; }
++  18%  { scale:1.50; rotate:-5deg; }
++  34%  { scale:1.44; rotate:4deg; }
++  50%  { scale:1.48; rotate:-3deg; }
++  66%  { scale:1.44; rotate:2deg; }
++  84%  { scale:1.44; rotate:0deg; opacity:1; }
++  100% { scale:1.36; rotate:0deg; opacity:0; }
++}
+--- a/index.html
++++ b/index.html
+@@ -5,7 +5,7 @@
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+   <meta name="theme-color" content="#120f0c" />
+   <title>Dragon Board Prototype</title>
+-  <link rel="stylesheet" href="css/style.css?v=0562" />
++  <link rel="stylesheet" href="css/style.css?v=0563" />
+ </head>
+ <body>
+   <main class="app-shell">
+@@ -22,7 +22,7 @@
+           <h1>DRAGON<br>BOARD</h1>
+           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
+           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
+-          <div class="version-label">PROTOTYPE V0.5.6.2</div>
++          <div class="version-label">PROTOTYPE V0.5.6.3</div>
+         </div>
+       </div>
+     </section>
+@@ -183,12 +183,12 @@
+     </div>
+   </div>
+ 
+-  <script src="js/heroes.js?v=0562"></script>
+-  <script src="js/items.js?v=0562"></script>
+-  <script src="js/sprites.js?v=0562"></script>
+-  <script src="js/map.js?v=0562"></script>
+-  <script src="js/monsters.js?v=0562"></script>
+-  <script src="js/events.js?v=0562"></script>
+-  <script src="js/game.js?v=0562"></script>
++  <script src="js/heroes.js?v=0563"></script>
++  <script src="js/items.js?v=0563"></script>
++  <script src="js/sprites.js?v=0563"></script>
++  <script src="js/map.js?v=0563"></script>
++  <script src="js/monsters.js?v=0563"></script>
++  <script src="js/events.js?v=0563"></script>
++  <script src="js/game.js?v=0563"></script>
+ </body>
+ </html>
+--- a/js/game.js
++++ b/js/game.js
+@@ -1,4 +1,4 @@
+-// DRAGON BOARD V0.5.6.2
++// DRAGON BOARD V0.5.6.3
+ (() => {
+   const $ = (sel) => document.querySelector(sel);
+   const state = {
+@@ -613,7 +613,7 @@
+     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
+   }
+ 
+-  // V0.5.6.2 — 탐험 시야 규칙.
++  // V0.5.6.3 — 탐험 시야 규칙.
+   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
+   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
+   function revealFromNode(startNodeId) {
+@@ -729,7 +729,7 @@
+     const party = getHeroParty(active);
+     const unit = getWorldUnitMembers(active);
+     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
+-    // V0.5.6.2: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
++    // V0.5.6.3: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
+     rollBtn.disabled = state.rolled !== null || !canAct || state.isRolling || state.isMoving;
+     rollBtn.textContent = '🎲 D6 굴리기';
+ 
+@@ -1125,24 +1125,32 @@
+         return;
+       }
+ 
++      const boardPanel = worldMap.closest('.board-panel');
++      if (!boardPanel) {
++        resolve();
++        return;
++      }
++
+       clearDiceDisplay();
+-      if (diceRoller.parentElement !== worldMap) worldMap.appendChild(diceRoller);
++
++      const panelRect = boardPanel.getBoundingClientRect();
+       const mapRect = worldMap.getBoundingClientRect();
+       const dieSize = Math.max(42, Math.min(58, mapRect.width * 0.09));
+       const fromLeft = Math.random() < 0.5;
+       const dir = fromLeft ? 1 : -1;
+ 
+-      const mapLeft = 0;
+-      const mapTop = 0;
+-      const mapW = worldMap.clientWidth;
+-      const mapH = worldMap.clientHeight;
++      const mapLeft = mapRect.left - panelRect.left;
++      const mapTop = mapRect.top - panelRect.top;
++      const mapW = mapRect.width;
++      const mapH = mapRect.height;
+ 
+       // 손에서 높게 던진 뒤 보드 중앙 쪽으로 들어오는 시작/정점/착지 위치.
+-      const inset = Math.max(5, dieSize * 0.10);
+-      const startX = fromLeft ? inset : mapW - dieSize - inset;
+-      const startY = inset;
++      const startX = fromLeft
++        ? mapLeft - dieSize * 0.18
++        : mapLeft + mapW - dieSize * 0.82;
++      const startY = mapTop - dieSize * (1.0 + Math.random() * 0.35);
+       const apexX = startX + dir * mapW * (0.18 + Math.random() * 0.08);
+-      const apexY = inset;
++      const apexY = mapTop - dieSize * (2.7 + Math.random() * 0.55);
+       const groundY = mapTop + mapH * (0.54 + Math.random() * 0.17) - dieSize / 2;
+       const impactX = mapLeft + mapW * (fromLeft ? 0.34 : 0.58) - dieSize / 2;
+       const endX = impactX + dir * mapW * (0.16 + Math.random() * 0.08);
+@@ -1231,9 +1239,10 @@
+         const totalRotation = dir * (1510 + Math.random() * 0); // 프레임마다 난수 방지용 상수식
+         const angle = -dir * 24 + totalRotation * rotationProgress;
+         const squash = (t > impactAt - 0.012 && t < impactAt + 0.025) ? 0.94 : 1;
+-        const safePad = dieSize * 0.12;
+-        x = Math.max(safePad, Math.min(mapW - dieSize - safePad, x));
+-        y = Math.max(safePad, Math.min(mapH - dieSize - safePad, y));
++        // 높은 포물선은 그대로 유지하고, 좌우로만 맵 범위를 과하게 벗어나지 않게 제한한다.
++        const minX = mapLeft - dieSize * 0.12;
++        const maxX = mapLeft + mapW - dieSize * 0.88;
++        x = Math.max(minX, Math.min(maxX, x));
+         diceRoller.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${angle}deg) scale(${scale}, ${scale * squash})`;
+ 
+         // 날아가는 동안 면을 바꾸되, 막판에는 최종 면을 먼저 보여줘 눈으로 결과를 따라갈 수 있게 한다.
+@@ -1304,21 +1313,31 @@
+     // 결과 확정 즉시 상단은 다시 영웅 턴, MOVE는 전체 남은 횟수를 표시.
+     renderAll();
+ 
+-    // V0.5.6.2: 같은 주사위가 맵 안에서 중앙으로 이동한 뒤 결과를 강조한다.
++    // V0.5.6.3: 확정된 눈을 정면으로 크게 한 번 보여준다.
+     if (diceRoller && worldMap) {
+-      if (diceRoller.parentElement !== worldMap) worldMap.appendChild(diceRoller);
+-      const dieSize = parseFloat(getComputedStyle(diceRoller).getPropertyValue('--die-size')) || 48;
+-      const centerX = (worldMap.clientWidth - dieSize) / 2;
+-      const centerY = (worldMap.clientHeight - dieSize) / 2;
+-      diceRoller.classList.remove('rolling', 'landed', 'settling');
+-      diceRoller.classList.add('dice-to-center');
+-      diceRoller.style.transform = `translate3d(${centerX}px, ${centerY}px, 0) rotate(0deg) scale(1)`;
+-      setRollingDieFace(result);
+-      await waitMs(260);
+-      diceRoller.classList.remove('dice-to-center');
+-      diceRoller.classList.add('dice-result-show');
+-      await waitMs(760);
+-      diceRoller.classList.remove('dice-result-show');
++      const boardPanel = worldMap.closest('.board-panel');
++      const panelRect = boardPanel?.getBoundingClientRect();
++      const mapRect = worldMap.getBoundingClientRect();
++
++      // V0.5.6.3:
++      // 위에서 떨어진 '같은 주사위'를 기존 boardPanel 좌표계 그대로 맵 중앙으로 부드럽게 이동시킨다.
++      // fixed 좌표계로 바꾸지 않아서 순간이동처럼 보이지 않는다.
++      if (panelRect) {
++        const dieSize = parseFloat(getComputedStyle(diceRoller).getPropertyValue('--die-size')) || 48;
++        const centerX = mapRect.left - panelRect.left + (mapRect.width - dieSize) / 2;
++        const centerY = mapRect.top - panelRect.top + (mapRect.height - dieSize) / 2;
++
++        diceRoller.classList.remove('rolling', 'landed', 'settling');
++        diceRoller.classList.add('dice-to-center');
++        setRollingDieFace(result);
++        diceRoller.style.transform = `translate3d(${centerX}px, ${centerY}px, 0) rotate(0deg) scale(1)`;
++        await waitMs(280);
++
++        diceRoller.classList.remove('dice-to-center');
++        diceRoller.classList.add('dice-result-show');
++        await waitMs(760);
++        diceRoller.classList.remove('dice-result-show');
++      }
+     }
+     clearDiceDisplay();
+ 
+@@ -1355,7 +1374,7 @@
+     const unit = getWorldUnitMembers(hero);
+     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
+ 
+-    // V0.5.6.2: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
++    // V0.5.6.3: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+     // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
+     const node = WORLD_NODES.find(n => n.id === hero.position);
+     const visitedThisMove = state.moveVisitedNodeIds instanceof Set
+@@ -1365,7 +1384,7 @@
+     for (const nextId of (node?.links || [])) {
+       const nextNode = WORLD_NODES.find(n => n.id === nextId);
+       if (!nextNode || nodeIsLocked(nextNode)) continue;
+-      // V0.5.6.2: 한 번의 주사위 이동에서 이미 지나간 칸은 다시 밟을 수 없다.
++      // V0.5.6.3: 한 번의 주사위 이동에서 이미 지나간 칸은 다시 밟을 수 없다.
+       if (visitedThisMove.has(nextId)) continue;
+       result.add(nextId);
+     }
+@@ -2763,7 +2782,7 @@
+       });
+ 
+       addQuestProgress('combatWin', 1);
+-      // V0.5.6.2: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
++      // V0.5.6.3: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
+       if (!c.isBoss && c.node?.type === '전투' && !String(c.node.id || '').startsWith('event-')) {
+         const boardNode = WORLD_NODES.find(n => n.id === c.node.id);
+         if (boardNode) {
+@@ -3028,7 +3047,7 @@
+     // 한 칸 도착한 순간 오른쪽 MOVE를 즉시 1 감소시킨다.
+     renderControls();
+ 
+-    // V0.5.6.2:
++    // V0.5.6.3:
+     // 주사위가 6이어도 이동 도중 막다른 길에 도달하면 즉시 정지한다.
+     // 방금 지나온 칸을 제외하고 갈 곳이 없을 때만 막다른 길로 판정한다.
+     const hitDeadEnd = state.moveRemaining > 0 && isMovementDeadEnd(node);
+@@ -3445,7 +3464,7 @@
+         return false;
+ 
+       case '전투': {
+-        // V0.5.6.2: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
++        // V0.5.6.3: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
+         // 보스/사건 전투는 이 로직을 사용하지 않는다.
+         if (node.combatCleared) {
+           const roll = Math.random();
+--- a/js/map.js
++++ b/js/map.js
+@@ -1,4 +1,4 @@
+-// DRAGON BOARD V0.5.6.2
++// DRAGON BOARD V0.5.6.3
+ // 외곽 실루엣과 내부 길 구조/테마/타일 배치 모두 지역마다, 새 게임마다 다시 생성된다.
+ window.PARTY_SYSTEM_ENABLED = false;
+ 
+@@ -45,7 +45,7 @@
+   }
+ };
+ 
+-// V0.5.6.2: 외곽도 고정 사각형이 아니다.
++// V0.5.6.3: 외곽도 고정 사각형이 아니다.
+ // 네 모서리 중 1~3곳을 안쪽으로 꺾어서, 지역마다/새 게임마다 실루엣이 달라진다.
+ // 노드 수는 24칸으로 유지해 기존 보드 밸런스(총 33칸)를 깨지 않는다.
+ function makeRandomOuterShape() {
+@@ -77,7 +77,7 @@
+   return coords;
+ }
+ 
+-// V0.5.6.2: 내부 9칸의 모양은 더 이상 고정 십자가가 아니다.
++// V0.5.6.3: 내부 9칸의 모양은 더 이상 고정 십자가가 아니다.
+ // 각 지역/새 게임마다 5x5 내부에서 연결된 9칸을 새로 생성한다.
+ const INNER_CELLS = [];
+ for (let y=2; y<=6; y++) {
