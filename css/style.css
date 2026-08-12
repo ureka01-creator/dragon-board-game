@@ -1865,7 +1865,7 @@ body.modal-open {
 }
 .modal.shop-modal .modal-card::-webkit-scrollbar { width:0; height:0; display:none; }
 
-/* V0.5.6.2 — 탐험 목표 + Fog of War */
+/* V0.5.6.3 — 탐험 목표 + Fog of War */
 .current-objective {
   display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 7px;
   padding:6px 8px; border:2px solid #4e432d; background:#17140f; color:#d8ccb1;
@@ -1959,7 +1959,7 @@ body.modal-open {
 }
 
 
-/* V0.5.6.2 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
+/* V0.5.6.3 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
 .map-node.fogged .node-icon,
 .map-node.fogged .node-name,
 .map-node.fogged .node-type,
@@ -2011,7 +2011,7 @@ body.modal-open {
 @media (prefers-reduced-motion: reduce) {
   .map-node.tile-flip-out, .map-node.tile-flip-in { animation-duration:.01ms !important; }
 }
-\n\n/* V0.5.6.2 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
+\n\n/* V0.5.6.3 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
 .map-node.reachable {
   animation: nextStepPulse .9s steps(2,end) infinite !important;
   border-color:#8aa05d !important;
@@ -2024,32 +2024,58 @@ body.modal-open {
 }
 @keyframes nextStepPulse { 50% { filter:brightness(1.10); } }
 
-/* V0.5.6.2 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
+/* V0.5.6.3 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
 .world-map::before,
 .world-map::after { display:none !important; }
 
-/* V0.5.6.2 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
+/* V0.5.6.3 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
 .dice-roller { pointer-events: none !important; }
 
-/* V0.5.6.2 — 같은 주사위가 맵 중앙으로 이동 후 결과 강조 */
-.dice-roller.dice-to-center {
-  display:grid !important; opacity:1 !important; z-index:32 !important;
-  transition:transform 260ms cubic-bezier(.2,.8,.25,1) !important;
-}
+/* V0.5.6.3 — 확정 주사위는 월드맵 정중앙에서 정면 결과 강조 */
 .dice-roller.dice-result-show {
-  display:grid !important; opacity:1 !important; z-index:32 !important;
-  animation:dice-result-punch-v0562 760ms cubic-bezier(.2,.9,.25,1) both !important;
+  display:grid !important;
+  opacity:1 !important;
+  z-index:32 !important;
+  transform-origin:center center !important;
+  animation:dice-result-punch-v0560 760ms cubic-bezier(.2,.9,.25,1) both !important;
 }
-@keyframes dice-result-punch-v0562 {
-  0%{scale:1;rotate:0deg;opacity:1} 18%{scale:1.48;rotate:-5deg}
-  34%{scale:1.43;rotate:4deg} 50%{scale:1.46;rotate:-3deg}
-  66%{scale:1.43;rotate:2deg} 82%{scale:1.43;rotate:0deg;opacity:1}
-  100%{scale:1.36;rotate:0deg;opacity:0}
+@keyframes dice-result-punch-v0560 {
+  0%   { transform:translate(-50%,-50%) rotate(0deg) scale(.90); opacity:1; }
+  18%  { transform:translate(calc(-50% - 7px),-50%) rotate(-5deg) scale(1.48); }
+  34%  { transform:translate(calc(-50% + 7px),-50%) rotate(4deg) scale(1.43); }
+  50%  { transform:translate(calc(-50% - 5px),-50%) rotate(-3deg) scale(1.46); }
+  66%  { transform:translate(calc(-50% + 3px),-50%) rotate(2deg) scale(1.43); }
+  82%  { transform:translate(-50%,-50%) rotate(0deg) scale(1.43); opacity:1; }
+  100% { transform:translate(-50%,-50%) rotate(0deg) scale(1.36); opacity:0; }
 }
-.world-map > .dice-roller { position:absolute !important; left:0 !important; top:0 !important; }
 
 /* 맵 중앙에는 지역명을 중복 표시하지 않는다. */
 .map-watermark { display:none !important; }
 
-/* V0.5.6.2 — 중앙 지역명 워터마크 완전 제거 */
+/* V0.5.6.3 — 중앙 지역명 워터마크 완전 제거 */
 .area-watermark { display:none !important; }
+
+/* V0.5.6.3 — 원래의 높은 낙하 연출을 유지하고, 같은 주사위가 중앙으로 이동 후 결과 강조 */
+.dice-roller.dice-to-center {
+  display:grid !important;
+  opacity:1 !important;
+  z-index:32 !important;
+  transition:transform 280ms cubic-bezier(.2,.82,.25,1) !important;
+  scale:1 !important;
+  rotate:0deg !important;
+}
+.dice-roller.dice-result-show {
+  display:grid !important;
+  opacity:1 !important;
+  z-index:32 !important;
+  animation:dice-result-punch-v0563 760ms cubic-bezier(.2,.9,.25,1) both !important;
+}
+@keyframes dice-result-punch-v0563 {
+  0%   { scale:1; rotate:0deg; opacity:1; }
+  18%  { scale:1.50; rotate:-5deg; }
+  34%  { scale:1.44; rotate:4deg; }
+  50%  { scale:1.48; rotate:-3deg; }
+  66%  { scale:1.44; rotate:2deg; }
+  84%  { scale:1.44; rotate:0deg; opacity:1; }
+  100% { scale:1.36; rotate:0deg; opacity:0; }
+}
