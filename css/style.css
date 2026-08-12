@@ -2118,3 +2118,49 @@ body.modal-open {
 .dungeon-complete-sheet .event-card-icon {
   border-color:#9b7436;
 }
+
+
+/* V0.5.9.2 — 목표 진행도 상시 표시 + 상태창 아이템 길게 누르기 */
+.current-objective .objective-explore { flex:0 1 auto; color:#ad9d7b; white-space:nowrap; }
+.current-objective .objective-help-btn { margin-left:auto; flex:0 0 auto; }
+.status-item-row.has-item,
+.personal-bag-row[data-status-bag-index] {
+  -webkit-touch-callout:none;
+  user-select:none;
+  touch-action:pan-y;
+  transition:border-color .12s, background .12s, transform .12s;
+}
+.status-item-row.long-press-arming,
+.personal-bag-row.long-press-arming { border-color:#8a6a3d; background:#21180f; }
+.status-item-row.long-press-fired,
+.personal-bag-row.long-press-fired { border-color:#d3aa53; background:#2a2014; transform:scale(.992); }
+.status-item-hint { margin-top:5px; color:#8f8067; font-size:6.5px; line-height:1.45; }
+.modal.status-item-detail-modal .modal-card { width:min(560px,100%); }
+.status-item-detail-sheet { color:#e7d8b4; }
+.status-item-detail-head { display:grid; grid-template-columns:58px 1fr; gap:10px; align-items:center; margin-top:5px; padding:9px; border:1px solid #5b432c; background:#18120e; }
+.status-item-detail-head>span { font-size:38px; text-align:center; }
+.status-item-detail-head h3 { margin:0 0 3px; color:#e4c36f; font-size:18px; }
+.status-item-detail-head p { margin:0; color:#9f8e6f; font-size:8px; }
+.status-item-detail-desc { margin-top:8px; padding:9px; background:#17110d; border-left:2px solid #8a6738; font-size:9px; line-height:1.55; }
+.status-item-detail-stat,.status-item-detail-meta { margin-top:5px; padding:7px 9px; border:1px solid #493727; background:#15100c; color:#bfae88; font-size:8px; }
+.status-item-swap-section { margin-top:11px; }
+.status-item-swap-section h4 { margin:0 0 6px; color:#8daa7f; letter-spacing:1px; font-size:8px; }
+.status-item-swap-list { display:grid; gap:5px; }
+.status-item-swap-btn { display:grid; grid-template-columns:28px 1fr auto; gap:7px; align-items:center; width:100%; padding:7px 8px; border:1px solid #57402b; background:#17110d; color:#ddc99d; font:inherit; text-align:left; }
+.status-item-swap-btn>span { font-size:19px; text-align:center; }
+.status-item-swap-btn>div { min-width:0; display:grid; gap:2px; }
+.status-item-swap-btn strong { font-size:8px; color:#e5c989; }
+.status-item-swap-btn small { font-size:6.5px; color:#99896c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.status-item-swap-btn b { font-size:7px; color:#a9cc7b; }
+.status-item-no-swap { padding:8px; border:1px dashed #493727; color:#8f8067; font-size:7px; }
+.status-item-detail-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:10px; }
+.status-item-detail-actions:empty { display:none; }
+.status-item-detail-actions .pixel-btn { min-height:40px; padding:7px; font-size:8px; }
+@media (max-width:700px) {
+  .current-objective { gap:4px; }
+  .current-objective .objective-explore { font-size:7px; }
+  .status-item-detail-head { grid-template-columns:48px 1fr; }
+  .status-item-detail-head>span { font-size:31px; }
+  .status-item-detail-head h3 { font-size:15px; }
+  .status-item-detail-actions { grid-template-columns:1fr; }
+}

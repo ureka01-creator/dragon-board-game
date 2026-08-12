@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.9.1
+// DRAGON BOARD V0.5.9.2
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -637,29 +637,30 @@
   }
 
   function renderCurrentObjective() {
-  if (!currentObjective) return;
-  const areaNodes = WORLD_NODES.filter(n => n.areaId === state.viewAreaId);
-  const discovered = areaNodes.filter(n => state.discoveredNodeIds?.has(n.id)).length;
-  const boss = getAreaBossNode(state.viewAreaId);
-  const bossDefeated = Boolean(boss && state.defeatedBosses.has(boss.id));
-  const title = state.dragonCastleSpawned
-    ? `🐉 현재 목표 ${state.seals}/4`
-    : `🗿 현재 목표 ${state.seals}/4`;
-  const detailText = state.dragonCastleSpawned
-    ? '봉인석 4개 완성 · 출현한 드래곤의 성을 찾아가자.'
-    : (bossDefeated
-      ? `🗿 ${getAreaDisplayName(state.viewAreaId)} 봉인석 획득 완료 · 탐험 ${discovered}/${areaNodes.length}`
-      : `👑 ${boss?.name || '지역 보스'} 토벌 → 봉인석 획득 · 탐험 ${discovered}/${areaNodes.length}`);
+    if (!currentObjective) return;
+    const areaNodes = WORLD_NODES.filter(n => n.areaId === state.viewAreaId);
+    const discovered = areaNodes.filter(n => state.discoveredNodeIds?.has(n.id)).length;
+    const boss = getAreaBossNode(state.viewAreaId);
+    const bossDefeated = Boolean(boss && state.defeatedBosses.has(boss.id));
+    const title = state.dragonCastleSpawned
+      ? `🐉 현재 목표 ${state.seals}/4`
+      : `🗿 현재 목표 ${state.seals}/4`;
+    const explorationText = `탐험 ${discovered}/${areaNodes.length}`;
+    const detailText = state.dragonCastleSpawned
+      ? '봉인석 4개를 모두 모았다. 출현한 드래곤의 성을 찾아가자.'
+      : (bossDefeated
+        ? `👑 ${boss?.name || '지역 보스'} 토벌 완료 · 봉인석 획득 완료.`
+        : `👑 ${boss?.name || '지역 보스'} 토벌하여 봉인석 획득하자.`);
 
-  currentObjective.innerHTML = `<strong>${title}</strong><button class="objective-help-btn" type="button" aria-label="현재 목표 상세 보기">?</button>`;
-  const helpBtn = currentObjective.querySelector('.objective-help-btn');
-  helpBtn?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    showModal(state.dragonCastleSpawned ? '🐉 현재 목표' : '🗿 현재 목표', detailText);
-  });
-}
+    currentObjective.innerHTML = `<strong>${title}</strong><span class="objective-explore">· ${explorationText}</span><button class="objective-help-btn" type="button" aria-label="현재 목표 상세 보기">?</button>`;
+    const helpBtn = currentObjective.querySelector('.objective-help-btn');
+    helpBtn?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      showModal(state.dragonCastleSpawned ? '🐉 현재 목표' : '🗿 현재 목표', detailText);
+    });
+  }
 
-function renderMap() {
+  function renderMap() {
     worldMap.innerHTML = '';
     const activeHero = getActiveHero();
     const activeArea = activeHero ? getNodeAreaId(activeHero.position) : state.viewAreaId;
@@ -3977,8 +3978,101 @@ function renderMap() {
     return true;
   }
 
+  function bindStatusItemLongPress(element, callback) {
+    if (!element || typeof callback !== 'function') return;
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    const cancel = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      element.classList.remove('long-press-arming');
+    };
+    element.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('button')) return;
+      cancel();
+      startX = event.clientX;
+      startY = event.clientY;
+      element.classList.add('long-press-arming');
+      timer = setTimeout(() => {
+        timer = null;
+        element.classList.remove('long-press-arming');
+        element.classList.add('long-press-fired');
+        setTimeout(() => element.classList.remove('long-press-fired'), 180);
+        try { navigator.vibrate?.(12); } catch (_) {}
+        callback();
+      }, 520);
+    });
+    element.addEventListener('pointermove', (event) => {
+      if (!timer) return;
+      if (Math.hypot(event.clientX - startX, event.clientY - startY) > 10) cancel();
+    });
+    ['pointerup','pointercancel','pointerleave'].forEach(type => element.addEventListener(type, cancel));
+    element.addEventListener('contextmenu', (event) => {
+      if (!event.target.closest('button')) event.preventDefault();
+    });
+  }
+
+  function openStatusItemDetail(hero, itemId, { source = 'inventory', index = null, slot = null } = {}) {
+    const item = window.getItemCard?.(itemId);
+    if (!hero || !item) return;
+    const active = getActiveHero();
+    const canManage = canUseWorldPrepActions() && getWorldUnitMembers(active).some(h => h.id === hero.id);
+    const statText = itemStatsText(item);
+    const rarityText = item.rarity === 'legendary' ? 'LEGENDARY' : item.rarity === 'rare' ? 'RARE' : 'COMMON';
+    const typeText = item.type === 'equipment' ? itemSlotLabel(item.slot) : '소비 아이템';
+    const equipNames = Array.isArray(item.equip)
+      ? item.equip.map(id => HEROES.find(h => h.id === id)?.name).filter(Boolean).join(' / ')
+      : '';
+    const isEquipped = source === 'equipment';
+    const swapCandidates = isEquipped && item.type === 'equipment' && canManage
+      ? heroInventory(hero).map((id, invIndex) => ({ id, invIndex, item:window.getItemCard?.(id) })).filter(entry => entry.item?.type === 'equipment' && entry.item.slot === item.slot && canHeroEquip(hero, entry.item))
+      : [];
+    const canEquipFromBag = source === 'inventory' && item.type === 'equipment' && canManage && canHeroEquip(hero, item);
+    const canUseFromBag = source === 'inventory' && canUseWorldConsumable(hero, item);
+    const currentSlotItem = item.type === 'equipment' ? equippedItem(hero, item.slot) : null;
+    const equipActionLabel = currentSlotItem ? '교체 장착' : '장착';
+
+    modalCloseAction = () => openHeroStatus(hero);
+    modal.classList.remove('party-manage-modal','item-transfer-modal','combat-item-modal','shop-modal','equip-compare-modal');
+    modal.classList.add('hero-status-modal','status-item-detail-modal');
+    modalCloseBtn.textContent = '상태로 돌아가기';
+    modalCloseBtn.hidden = false;
+    modalContent.innerHTML = `
+      <div class="status-item-detail-sheet">
+        <div class="status-kicker">ITEM DETAIL · ${rarityText}</div>
+        <div class="status-item-detail-head"><span>${item.icon || '🎁'}</span><div><h3>${item.name}</h3><p>${typeText}${isEquipped ? ' · 현재 장착 중' : ' · 가방 보관 중'}</p></div></div>
+        <div class="status-item-detail-desc">${item.desc || '설명 없음'}</div>
+        ${statText ? `<div class="status-item-detail-stat">📊 ${statText}</div>` : ''}
+        ${equipNames ? `<div class="status-item-detail-meta">장착 가능 · ${equipNames}</div>` : ''}
+        ${item.type === 'equipment' && isEquipped ? `<div class="status-item-swap-section"><h4>교체 장비</h4>${swapCandidates.length ? `<div class="status-item-swap-list">${swapCandidates.map(entry => `<button type="button" class="status-item-swap-btn" data-status-swap-index="${entry.invIndex}"><span>${entry.item.icon || '🎁'}</span><div><strong>${entry.item.name}</strong><small>${entry.item.desc}</small></div><b>교체</b></button>`).join('')}</div>` : '<div class="status-item-no-swap">가방에 교체 가능한 같은 슬롯 장비가 없어.</div>'}</div>` : ''}
+        <div class="status-item-detail-actions">
+          ${canEquipFromBag ? `<button type="button" class="pixel-btn primary" data-status-equip-detail>${equipActionLabel}</button>` : ''}
+          ${canUseFromBag ? '<button type="button" class="pixel-btn primary" data-status-use-detail>사용</button>' : ''}
+        </div>
+      </div>`;
+    modal.classList.remove('hidden');
+
+    modalContent.querySelector('[data-status-equip-detail]')?.addEventListener('click', () => {
+      modalCloseAction = null;
+      openEquipComparison(hero, itemId, Number(index));
+    }, { once:true });
+    modalContent.querySelector('[data-status-use-detail]')?.addEventListener('click', () => {
+      modalCloseAction = null;
+      useWorldConsumable(hero, Number(index));
+    }, { once:true });
+    modalContent.querySelectorAll('[data-status-swap-index]').forEach(btn => btn.addEventListener('click', () => {
+      const invIndex = Number(btn.dataset.statusSwapIndex);
+      const newItemId = heroInventory(hero)[invIndex];
+      if (!newItemId) return;
+      modalCloseAction = null;
+      openEquipComparison(hero, newItemId, invIndex);
+    }));
+  }
+
   function openHeroStatus(hero) {
     if (!hero) return;
+    modalCloseAction = null;
     const totalAc = Math.max(1, hero.ac + equipmentStat(hero, 'ac') - (hero.acPenalty || 0));
     const attackBonus = equipmentStat(hero, 'attack');
     const damageBonus = equipmentStat(hero, 'damage');
@@ -3989,15 +4083,30 @@ function renderMap() {
     const active = getActiveHero();
     const canEquipNow = canUseWorldPrepActions() && getWorldUnitMembers(active).some(h => h.id === hero.id);
     const canUseFieldItemNow = canEquipNow;
+    const equipmentRow = (slot, icon, label) => {
+      const itemId = hero.equipment?.[slot] || null;
+      return `<div class="status-item-row ${itemId ? 'has-item' : ''}" data-status-equipped-slot="${slot}" aria-label="${itemId ? `${equipmentName(hero,slot)} · 길게 눌러 상세 정보` : `${label} 장비 없음`}"><span>${icon} ${label}</span><strong>${equipmentName(hero,slot)}</strong><small>${equipmentBonusText(hero,slot)}</small></div>`;
+    };
     modalContent.innerHTML = `
       <div class="hero-status-sheet">
         <div class="hero-status-top"><div class="hero-status-portrait">${heroSpriteHTML(hero, 'large')}</div><div class="hero-status-title"><div class="status-kicker">CHARACTER STATUS</div><h3>${hero.icon} ${hero.name}</h3><p>${hero.role}</p><div class="status-now">${stateText}${pos ? ` · 📍 ${pos.name}` : ''}</div></div></div>
         <div class="hero-status-bars"><div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/${maxMana(hero)}</strong></div>` : ''}</div>
         <div class="hero-status-stats"><div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div><div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div><div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div><div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div><div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div><div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div><div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div></div>
-        <div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list"><div><span>⚔ 무기</span><strong>${equipmentName(hero,'weapon')}</strong><small>${equipmentBonusText(hero,'weapon')}</small></div><div><span>🛡 방어구</span><strong>${equipmentName(hero,'armor')}</strong><small>${equipmentBonusText(hero,'armor')}</small></div><div><span>💍 장신구</span><strong>${equipmentName(hero,'accessory')}</strong><small>${equipmentBonusText(hero,'accessory')}</small></div></div></div>
-        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=window.getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); const canUseItem=canUseFieldItemNow && canUseWorldConsumable(hero,item); const fieldOnlyLabel=item.type==='consumable' && !['heal','mana','autoRevive'].includes(item.effect) ? ' · 전투 전용' : ''; return `<div class="personal-bag-row"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}${fieldOnlyLabel}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">장착</button>` : ''}${canUseItem ? `<button type="button" class="text-btn bag-use-btn" data-use-index="${index}">사용</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">가방은 최대 ${BAG_LIMIT}칸. 회복약·마나 물약은 <strong>주사위를 굴리기 전 필드에서 사용</strong>할 수 있고 월드 턴은 소모하지 않아. 폭탄·연막탄·집중 비약은 전투 전용이야.</div></div>
+        <div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list">${equipmentRow('weapon','⚔','무기')}${equipmentRow('armor','🛡','방어구')}${equipmentRow('accessory','💍','장신구')}</div><div class="status-item-hint">장착 아이템을 길게 누르면 정보와 교체 가능한 장비를 볼 수 있어.</div></div>
+        <div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=window.getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); const canUseItem=canUseFieldItemNow && canUseWorldConsumable(hero,item); const fieldOnlyLabel=item.type==='consumable' && !['heal','mana','autoRevive'].includes(item.effect) ? ' · 전투 전용' : ''; const equipLabel=hero.equipment?.[item.slot] ? '교체' : '장착'; return `<div class="personal-bag-row" data-status-bag-index="${index}" aria-label="${item.name} · 길게 눌러 상세 정보"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}${fieldOnlyLabel}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">${equipLabel}</button>` : ''}${canUseItem ? `<button type="button" class="text-btn bag-use-btn" data-use-index="${index}">사용</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">아이템을 <strong>길게 누르면 상세 정보</strong>를 볼 수 있어. 가방은 최대 ${BAG_LIMIT}칸. 회복약·마나 물약은 주사위를 굴리기 전 필드에서 사용할 수 있고 월드 턴은 소모하지 않아.</div></div>
         <div class="hero-status-section skill-status"><h4>ABILITY</h4><p><strong>패시브</strong> ${hero.passive}</p><p><strong>고유기</strong> ${hero.skill}</p></div>
       </div>`;
+
+    modalContent.querySelectorAll('[data-status-equipped-slot]').forEach(row => {
+      const slot = row.dataset.statusEquippedSlot;
+      const itemId = hero.equipment?.[slot];
+      if (itemId) bindStatusItemLongPress(row, () => openStatusItemDetail(hero, itemId, { source:'equipment', slot }));
+    });
+    modalContent.querySelectorAll('[data-status-bag-index]').forEach(row => {
+      const index = Number(row.dataset.statusBagIndex);
+      const itemId = heroInventory(hero)[index];
+      if (itemId) bindStatusItemLongPress(row, () => openStatusItemDetail(hero, itemId, { source:'inventory', index }));
+    });
     modalContent.querySelectorAll('[data-equip-index]').forEach(btn => btn.addEventListener('click',()=>{
       if(!canUseWorldPrepActions())return; const activeUnit=getWorldUnitMembers(getActiveHero()); if(!activeUnit.some(h=>h.id===hero.id))return; const index=Number(btn.dataset.equipIndex); const itemId=heroInventory(hero)[index]; if(!itemId)return; openEquipComparison(hero,itemId,index);
     }));
@@ -4005,7 +4114,7 @@ function renderMap() {
       const index = Number(btn.dataset.useIndex);
       useWorldConsumable(hero, index);
     }));
-    modalCloseBtn.textContent='닫기'; modal.classList.remove('party-manage-modal','item-transfer-modal'); modal.classList.add('hero-status-modal'); modal.classList.remove('hidden');
+    modalCloseBtn.textContent='닫기'; modal.classList.remove('party-manage-modal','item-transfer-modal','status-item-detail-modal'); modal.classList.add('hero-status-modal'); modal.classList.remove('hidden');
   }
 
   function showModal(title, body) {
