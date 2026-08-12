@@ -1,0 +1,32 @@
+name: Fix V0.6.1.2 syntax
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.event.head_commit.message == 'stage V0.6.1.2 syntax fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix and verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('js/board3d.js')
+          s=p.read_text()
+          s=s.replace('metalness:current?.16:.04','metalness:current ? .16 : .04')
+          s=s.replace('opacity:deepFog?.25:.82','opacity:deepFog ? .25 : .82')
+          p.write_text(s)
+          PY
+          node --check js/board3d.js
+          node --check js/board3d-play.js
+          git rm .github/workflows/fix-v0612-syntax.yml
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/board3d.js
+          git commit -m "Patch V0.6.1.2"
+          git push
