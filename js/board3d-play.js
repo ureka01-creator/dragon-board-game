@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.1.2 — persistent playable 3D exploration
+// DRAGON BOARD V0.6.1.3 — persistent playable 3D exploration
 const worldMap = document.querySelector('#worldMap');
 const rollBtn = document.querySelector('#rollBtn');
 const diceValue = document.querySelector('#diceValue');
@@ -11,14 +11,12 @@ let syncTimer = 0;
 let actionInFlight = false;
 let lastWorldMutation = Date.now();
 const pointerStarts = new Map();
-const movingHeroIds = new Set();
 
 injectStyles();
 observe3DOverlay();
 
 const worldObserver = new MutationObserver(() => {
   lastWorldMutation = Date.now();
-  mirrorUnderlyingMovement();
 });
 worldObserver.observe(worldMap, { childList:true, subtree:true, attributes:true, characterData:true });
 
@@ -95,7 +93,7 @@ function setupOverlay(overlay) {
   syncTimer=window.setInterval(syncGamebar,120);
 }
 
-function cleanupOverlay(){activeOverlay=null;clearInterval(syncTimer);syncTimer=0;pointerStarts.clear();movingHeroIds.clear();}
+function cleanupOverlay(){activeOverlay=null;clearInterval(syncTimer);syncTimer=0;pointerStarts.clear();}
 
 function currentTheme(){
   const title=boardTitle.textContent||'';
@@ -186,19 +184,6 @@ function finishAction(){
   if(activeOverlay)activeOverlay.dataset.actionBusy='false';
   if(hasForegroundGameUI()){api()?.close?.();return;}
   setTimeout(()=>{api()?.refresh?.();syncGamebar();},40);
-}
-
-function parseTranslate3d(value){const m=(value||'').match(/translate3d\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px/i);return m?{x:Number(m[1]),y:Number(m[2])}:null;}
-function mirrorUnderlyingMovement(){
-  if(!activeOverlay?.isConnected||!api()?.isActive?.())return;
-  const mover=worldMap.querySelector('.hero-hop-mover');
-  const shadow=worldMap.querySelector('.hero-hop-shadow');
-  if(mover&&shadow){
-    const token=mover.querySelector('.map-hero-token[data-hero-id]');const heroId=token?.dataset.heroId;const mp=parseTranslate3d(mover.style.transform);const sp=parseTranslate3d(shadow.style.transform);
-    if(heroId&&mp&&sp){movingHeroIds.add(heroId);api().setHeroFromMapPixel(heroId,sp.x,sp.y,Math.max(0,sp.y-mp.y));}
-    return;
-  }
-  if(movingHeroIds.size){const ids=[...movingHeroIds];movingHeroIds.clear();ids.forEach(id=>api()?.endHeroMotion?.(id));setTimeout(()=>api()?.refresh?.(),70);}
 }
 
 function bind3DTileTap(canvas){

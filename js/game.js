@@ -1452,6 +1452,10 @@
             ? [[0,-offsetUnit],[-offsetUnit,offsetUnit],[offsetUnit,offsetUnit]]
             : [[-offsetUnit,-offsetUnit],[offsetUnit,-offsetUnit],[-offsetUnit,offsetUnit],[offsetUnit,offsetUnit]];
       const unitOffset = offsets[Math.min(unitIndex, offsets.length - 1)] || [0,0];
+      // V0.6.1.3: 3D VIEW가 열려 있으면 DOM 감지가 아니라 실제 이동 프레임에서
+      // 같은 좌표를 직접 전달한다. 2D/3D 말이 정확히 같은 타이밍으로 움직인다.
+      const board3d = window.DRAGON_BOARD_3D_API;
+      const board3dActive = Boolean(board3d?.isActive?.());
 
       const sourceToken = worldMap.querySelector(`.map-hero-token[data-hero-id="${hero.id}"]`);
       sourceToken?.classList.add('movement-source-hidden');
@@ -1467,8 +1471,8 @@
       worldMap.appendChild(mover);
       worldMap.classList.add('movement-lock');
 
-      const hopMs = 215;
-      const pauseMs = 34;
+      const hopMs = board3dActive ? 285 : 215;
+      const pauseMs = board3dActive ? 42 : 34;
       let segment = 0;
 
       const clamp01 = v => Math.max(0, Math.min(1, v));
@@ -1485,6 +1489,9 @@
         if (token) token.style.transform = `translate(-50%, -50%) scale(${scaleX}, ${scaleY})`;
         shadow.style.transform = `translate3d(${px}px, ${py}px, 0) translate(-50%, -50%) scale(${shadowScale})`;
         shadow.style.opacity = String(shadowOpacity);
+        if (board3dActive) {
+          board3d.setHeroFromMapPixel?.(hero.id, px, py, lift);
+        }
       }
 
       place(points[0]);
@@ -1498,6 +1505,10 @@
           setTimeout(() => lastNode?.classList.remove('hero-step-land'), 220);
 
           setTimeout(() => {
+            if (board3dActive) {
+              board3d.snapHeroToNode?.(hero.id, path[path.length - 1]);
+              board3d.endHeroMotion?.(hero.id);
+            }
             mover.remove();
             shadow.remove();
             sourceToken?.classList.remove('movement-source-hidden');
@@ -1538,6 +1549,7 @@
           }
 
           place(to, 0, 1.045, .94, 1.05, .38);
+          if (board3dActive) board3d.snapHeroToNode?.(hero.id, path[segment + 1]);
           const landedNode = worldMap.querySelector(`[data-node-id="${path[segment + 1]}"]`);
           landedNode?.classList.remove('hero-step-land');
           void landedNode?.offsetWidth;

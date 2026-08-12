@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.1.2 — persistent WebGL board + live movement bridge
+// DRAGON BOARD V0.6.1.3 — persistent WebGL board + live movement bridge
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js';
 
 const worldMap = document.querySelector('#worldMap');
@@ -414,6 +414,16 @@ function endHeroMotion(heroId) {
   if(piece)piece.userData.motionLocked=false;
 }
 
+function snapHeroToNode(heroId,nodeId) {
+  const piece=heroPieces.get(heroId);
+  const rec=tileRecords.get(nodeId);
+  if(!piece||!rec)return;
+  const y=rec.height+.03;
+  piece.position.set(rec.x,y,rec.z);
+  piece.userData.baseY=y;
+  piece.userData.motionLocked=true;
+}
+
 function pickNodeAt(clientX,clientY,nodeIds=[]) {
   if(!camera||!renderer)return null;
   const allowed=new Set(nodeIds);
@@ -446,6 +456,7 @@ function installPublicApi() {
     isActive:()=>Boolean(overlay?.isConnected&&scene&&renderer),
     refresh:()=>{if(overlay?.isConnected)rebuildBoardFromDOM();},
     setHeroFromMapPixel,
+    snapHeroToNode,
     endHeroMotion,
     pickNodeAt,
     close:close3D,
