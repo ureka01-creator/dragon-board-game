@@ -1,4 +1,10 @@
-# DRAGON BOARD — Web Prototype V0.5.6.3
+# DRAGON BOARD — Web Prototype V0.5.6.4
+
+## V0.5.6.4
+- iOS/Safari에서 결과 주사위 확대 시 중앙 좌표까지 같이 스케일되어 우하단으로 튀던 문제 수정
+- 착지한 같은 주사위가 월드맵 중앙으로 이동한 뒤 그 자리에서만 확대/흔들림하도록 변경
+- 결과 강조용 중복 CSS 규칙 정리
+
 
 ## V0.5.6.3
 

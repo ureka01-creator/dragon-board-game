@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.6.3
+// DRAGON BOARD V0.5.6.4
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -1109,7 +1109,7 @@
       diceAnimationFrame = null;
     }
     if (!diceRoller) return;
-    diceRoller.classList.remove('rolling', 'landed');
+    diceRoller.classList.remove('rolling', 'landed', 'dice-to-center', 'dice-result-show');
     diceRoller.style.display = 'none';
     diceRoller.style.transform = '';
     diceRoller.style.filter = '';
@@ -1327,13 +1327,17 @@
         const centerX = mapRect.left - panelRect.left + (mapRect.width - dieSize) / 2;
         const centerY = mapRect.top - panelRect.top + (mapRect.height - dieSize) / 2;
 
-        diceRoller.classList.remove('rolling', 'landed', 'settling');
+        diceRoller.classList.remove('rolling', 'landed', 'settling', 'dice-result-show');
+        diceRoller.style.setProperty('--dice-center-x', `${centerX}px`);
+        diceRoller.style.setProperty('--dice-center-y', `${centerY}px`);
         diceRoller.classList.add('dice-to-center');
         setRollingDieFace(result);
         diceRoller.style.transform = `translate3d(${centerX}px, ${centerY}px, 0) rotate(0deg) scale(1)`;
         await waitMs(280);
 
         diceRoller.classList.remove('dice-to-center');
+        // V0.5.6.4: 확대는 중앙 translate까지 한 transform 안에서 애니메이션한다.
+        // Safari에서 개별 scale 속성이 translate 좌표까지 확대해 우하단으로 튀던 문제를 방지한다.
         diceRoller.classList.add('dice-result-show');
         await waitMs(760);
         diceRoller.classList.remove('dice-result-show');

@@ -2031,51 +2031,32 @@ body.modal-open {
 /* V0.5.6.3 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
 .dice-roller { pointer-events: none !important; }
 
-/* V0.5.6.3 — 확정 주사위는 월드맵 정중앙에서 정면 결과 강조 */
-.dice-roller.dice-result-show {
-  display:grid !important;
-  opacity:1 !important;
-  z-index:32 !important;
-  transform-origin:center center !important;
-  animation:dice-result-punch-v0560 760ms cubic-bezier(.2,.9,.25,1) both !important;
-}
-@keyframes dice-result-punch-v0560 {
-  0%   { transform:translate(-50%,-50%) rotate(0deg) scale(.90); opacity:1; }
-  18%  { transform:translate(calc(-50% - 7px),-50%) rotate(-5deg) scale(1.48); }
-  34%  { transform:translate(calc(-50% + 7px),-50%) rotate(4deg) scale(1.43); }
-  50%  { transform:translate(calc(-50% - 5px),-50%) rotate(-3deg) scale(1.46); }
-  66%  { transform:translate(calc(-50% + 3px),-50%) rotate(2deg) scale(1.43); }
-  82%  { transform:translate(-50%,-50%) rotate(0deg) scale(1.43); opacity:1; }
-  100% { transform:translate(-50%,-50%) rotate(0deg) scale(1.36); opacity:0; }
-}
-
 /* 맵 중앙에는 지역명을 중복 표시하지 않는다. */
 .map-watermark { display:none !important; }
 
 /* V0.5.6.3 — 중앙 지역명 워터마크 완전 제거 */
 .area-watermark { display:none !important; }
 
-/* V0.5.6.3 — 원래의 높은 낙하 연출을 유지하고, 같은 주사위가 중앙으로 이동 후 결과 강조 */
+/* V0.5.6.4 — 같은 주사위가 중앙으로 이동한 뒤, 중앙 좌표를 유지한 채 결과 강조 */
 .dice-roller.dice-to-center {
   display:grid !important;
   opacity:1 !important;
   z-index:32 !important;
   transition:transform 280ms cubic-bezier(.2,.82,.25,1) !important;
-  scale:1 !important;
-  rotate:0deg !important;
 }
 .dice-roller.dice-result-show {
   display:grid !important;
   opacity:1 !important;
   z-index:32 !important;
-  animation:dice-result-punch-v0563 760ms cubic-bezier(.2,.9,.25,1) both !important;
+  transform-origin:center center !important;
+  animation:dice-result-punch-v0564 760ms cubic-bezier(.2,.9,.25,1) both !important;
 }
-@keyframes dice-result-punch-v0563 {
-  0%   { scale:1; rotate:0deg; opacity:1; }
-  18%  { scale:1.50; rotate:-5deg; }
-  34%  { scale:1.44; rotate:4deg; }
-  50%  { scale:1.48; rotate:-3deg; }
-  66%  { scale:1.44; rotate:2deg; }
-  84%  { scale:1.44; rotate:0deg; opacity:1; }
-  100% { scale:1.36; rotate:0deg; opacity:0; }
+@keyframes dice-result-punch-v0564 {
+  0%   { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(0deg) scale(1); opacity:1; }
+  18%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(-5deg) scale(1.50); }
+  34%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(4deg) scale(1.44); }
+  50%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(-3deg) scale(1.48); }
+  66%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(2deg) scale(1.44); }
+  84%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(0deg) scale(1.44); opacity:1; }
+  100% { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(0deg) scale(1.36); opacity:0; }
 }
