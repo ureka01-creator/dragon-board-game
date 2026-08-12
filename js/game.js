@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.9.0
+// DRAGON BOARD V0.5.9.1
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -637,22 +637,29 @@
   }
 
   function renderCurrentObjective() {
-    if (!currentObjective) return;
-    const areaNodes = WORLD_NODES.filter(n => n.areaId === state.viewAreaId);
-    const discovered = areaNodes.filter(n => state.discoveredNodeIds?.has(n.id)).length;
-    const boss = getAreaBossNode(state.viewAreaId);
-    const bossDefeated = Boolean(boss && state.defeatedBosses.has(boss.id));
-    if (state.dragonCastleSpawned) {
-      currentObjective.innerHTML = `<strong>🐉 현재 목표</strong><span>봉인석 4개 완성 · 출현한 드래곤의 성을 찾아가자.</span>`;
-    } else {
-      const bossText = bossDefeated
-        ? `🗿 ${getAreaDisplayName(state.viewAreaId)} 봉인석 획득 완료`
-        : `👑 ${boss?.name || '지역 보스'} 토벌 → 봉인석 획득`;
-      currentObjective.innerHTML = `<strong>🗿 현재 목표 ${state.seals}/4</strong><span>${bossText} · 탐험 ${discovered}/${areaNodes.length}</span>`;
-    }
-  }
+  if (!currentObjective) return;
+  const areaNodes = WORLD_NODES.filter(n => n.areaId === state.viewAreaId);
+  const discovered = areaNodes.filter(n => state.discoveredNodeIds?.has(n.id)).length;
+  const boss = getAreaBossNode(state.viewAreaId);
+  const bossDefeated = Boolean(boss && state.defeatedBosses.has(boss.id));
+  const title = state.dragonCastleSpawned
+    ? `🐉 현재 목표 ${state.seals}/4`
+    : `🗿 현재 목표 ${state.seals}/4`;
+  const detailText = state.dragonCastleSpawned
+    ? '봉인석 4개 완성 · 출현한 드래곤의 성을 찾아가자.'
+    : (bossDefeated
+      ? `🗿 ${getAreaDisplayName(state.viewAreaId)} 봉인석 획득 완료 · 탐험 ${discovered}/${areaNodes.length}`
+      : `👑 ${boss?.name || '지역 보스'} 토벌 → 봉인석 획득 · 탐험 ${discovered}/${areaNodes.length}`);
 
-  function renderMap() {
+  currentObjective.innerHTML = `<strong>${title}</strong><button class="objective-help-btn" type="button" aria-label="현재 목표 상세 보기">?</button>`;
+  const helpBtn = currentObjective.querySelector('.objective-help-btn');
+  helpBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    showModal(state.dragonCastleSpawned ? '🐉 현재 목표' : '🗿 현재 목표', detailText);
+  });
+}
+
+function renderMap() {
     worldMap.innerHTML = '';
     const activeHero = getActiveHero();
     const activeArea = activeHero ? getNodeAreaId(activeHero.position) : state.viewAreaId;
