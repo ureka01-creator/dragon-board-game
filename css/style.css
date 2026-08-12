@@ -1865,7 +1865,7 @@ body.modal-open {
 }
 .modal.shop-modal .modal-card::-webkit-scrollbar { width:0; height:0; display:none; }
 
-/* V0.5.5.18 — 탐험 목표 + Fog of War */
+/* V0.5.5.19 — 탐험 목표 + Fog of War */
 .current-objective {
   display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 7px;
   padding:6px 8px; border:2px solid #4e432d; background:#17140f; color:#d8ccb1;
@@ -1959,7 +1959,7 @@ body.modal-open {
 }
 
 
-/* V0.5.5.18 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
+/* V0.5.5.19 — 미탐험 타일은 물음표가 아닌 타일 뒷면으로 표시 */
 .map-node.fogged .node-icon,
 .map-node.fogged .node-name,
 .map-node.fogged .node-type,
@@ -2011,7 +2011,7 @@ body.modal-open {
 @media (prefers-reduced-motion: reduce) {
   .map-node.tile-flip-out, .map-node.tile-flip-in { animation-duration:.01ms !important; }
 }
-\n\n/* V0.5.5.18 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
+\n\n/* V0.5.5.19 — 이동 범위 전체가 아니라 현재 위치에서 다음 한 칸만 안내 */
 .map-node.reachable {
   animation: nextStepPulse .9s steps(2,end) infinite !important;
   border-color:#8aa05d !important;
@@ -2024,9 +2024,24 @@ body.modal-open {
 }
 @keyframes nextStepPulse { 50% { filter:brightness(1.10); } }
 
-/* V0.5.5.18 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
+/* V0.5.5.19 — 랜덤 외곽/내부 구조에서는 고정 십자 가이드가 실제 길처럼 오해될 수 있어 숨긴다. */
 .world-map::before,
 .world-map::after { display:none !important; }
 
-/* V0.5.5.18 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
+/* V0.5.5.19 — 대형 주사위는 연출 전용이며 맵 조작을 막지 않는다. */
 .dice-roller { pointer-events: none !important; }
+
+/* V0.5.5.19 — 확정 주사위 결과 강조 */
+.dice-roller.dice-result-show {
+  display:block !important; opacity:1 !important; z-index:32 !important;
+  animation:dice-result-punch-v05519 760ms cubic-bezier(.2,.9,.25,1) both !important;
+}
+@keyframes dice-result-punch-v05519 {
+  0%{transform:translate(-50%,-50%) rotate(0deg) scale(.88);opacity:1}
+  18%{transform:translate(calc(-50% - 8px),-50%) rotate(-5deg) scale(1.42)}
+  34%{transform:translate(calc(-50% + 7px),-50%) rotate(4deg) scale(1.38)}
+  50%{transform:translate(calc(-50% - 5px),-50%) rotate(-3deg) scale(1.40)}
+  66%{transform:translate(calc(-50% + 3px),-50%) rotate(2deg) scale(1.38)}
+  82%{transform:translate(-50%,-50%) rotate(0deg) scale(1.38);opacity:1}
+  100%{transform:translate(-50%,-50%) rotate(0deg) scale(1.30);opacity:0}
+}
