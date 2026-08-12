@@ -19,4 +19,5 @@
     }
   `;
   document.head.appendChild(style);
+  // Dedicated module so the 3D lighting/readability tuning can evolve independently.
 })();
