@@ -16,6 +16,7 @@ window.MONSTERS = {
   necromancer: { id:'necromancer', name:'네크로맨서', icon:'☠️', tier:'boss', hp:42, ac:13, attack:4, damage:{count:1,sides:8,bonus:2}, ai:'highMagic', trait:'망자의 군대: 전투 시작 시 해골 1체, HP 절반 이하에서 해골 1체 추가 소환.' },
   trollKing: { id:'trollKing', name:'트롤 왕', icon:'👑', tier:'boss', hp:50, ac:13, attack:5, damage:{count:1,sides:10,bonus:3}, ai:'highHp', trait:'재생: 몬스터 페이즈 시작 시 HP +3. HP 20 이하에서는 피해 +2.' },
   demonKnight: { id:'demonKnight', name:'악마 기사', icon:'😈', tier:'boss', hp:46, ac:15, attack:5, damage:{count:1,sides:8,bonus:3}, ai:'lowHp', trait:'지옥의 갑주: 한 번의 공격으로 받는 피해는 최대 10. HP 15 이하 영웅 공격 시 명중 +2.' },
+  dragon: { id:'dragon', name:'고대 드래곤', icon:'🐉', tier:'boss', hp:90, ac:16, attack:6, damage:{count:2,sides:8,bonus:3}, damageType:'fire', ai:'highHp', trait:'고대의 용염: 강력한 화염 공격. 용비늘 갑옷의 화염 피해 감소가 적용된다.' },
 };
 
 window.NODE_ENCOUNTERS = {
