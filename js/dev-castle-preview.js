@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.2 — DEV castle locator/preview
+// DRAGON BOARD V0.6.3.3 — DEV castle locator/preview
 (() => {
   if (new URLSearchParams(location.search).get('dev') !== '1') return;
 
@@ -9,6 +9,7 @@
     const message = document.querySelector('[data-dev-message]');
     const overlay = document.querySelector('.dev-overlay');
     const closeBtn = document.querySelector('[data-dev-close]');
+    const activeHeroLabel = document.querySelector('#activeHeroLabel');
     if (!api || !grid || !heroSel || !message || !overlay || !closeBtn || grid.querySelector('[data-dev-castle-preview]')) return false;
 
     const enterBtn = grid.querySelector('[data-act="dragonEnter"]');
@@ -20,6 +21,22 @@
     if (enterBtn) enterBtn.insertAdjacentElement('afterend', btn);
     else grid.appendChild(btn);
 
+    function toast(text, bad = false) {
+      document.querySelector('.dev-castle-toast')?.remove();
+      const el = document.createElement('div');
+      el.className = 'dev-castle-toast';
+      el.textContent = text;
+      Object.assign(el.style, {
+        position:'fixed', left:'50%', top:'max(16px, env(safe-area-inset-top))', zIndex:'13050',
+        transform:'translateX(-50%)', padding:'9px 12px', maxWidth:'88vw',
+        border:`2px solid ${bad ? '#ae574d' : '#82a854'}`,
+        background:'#21170f', color:'#f3e4b8', boxShadow:'3px 3px 0 #090705',
+        font:'700 11px ui-monospace, monospace', textAlign:'center'
+      });
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1800);
+    }
+
     btn.addEventListener('click', async () => {
       const snapshot = api.snapshot();
       if (!snapshot.dragonCastleSpawned) {
@@ -28,7 +45,17 @@
         return;
       }
 
-      const heroId = heroSel.value;
+      // 먼저 DEV 패널을 닫는다. 이후 위치 탐색이 실패해도 오버레이가 남지 않는다.
+      closeBtn.click();
+      overlay.hidden = true;
+      overlay.setAttribute('hidden', '');
+
+      // 현재 턴 영웅을 찾아서 그 영웅으로 지역 뷰를 넘긴다.
+      // 선택된 DEV 대상이 현재 턴 영웅이 아닐 때 viewAreaId가 바뀌지 않던 문제를 피한다.
+      const activeText = activeHeroLabel?.textContent || '';
+      const activeHero = (snapshot.heroes || []).find(h => activeText.includes(h.name)) || (snapshot.heroes || [])[0] || null;
+      const heroId = activeHero?.id || heroSel.value;
+
       let found = null;
       let foundArea = null;
       for (const area of (snapshot.areas || [])) {
@@ -39,26 +66,19 @@
       }
 
       if (!found) {
-        message.textContent = '드래곤 성 타일을 찾지 못했어.';
-        message.style.borderLeftColor = '#ae574d';
+        toast('드래곤 성 타일을 찾지 못했어.', true);
         return;
       }
 
       found.classList.add('castle-ux-reveal');
       window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
-      message.textContent = `드래곤 성 위치: ${foundArea?.name || '현재 지역'} · 해당 지역 마을로 이동 완료`;
-      message.style.borderLeftColor = '#82a854';
-
-      // DEV 패널의 공식 닫기 경로를 그대로 사용한다.
-      // iPhone Safari에서 hidden 속성만 직접 바꿨을 때 오버레이가 남는 경우를 피한다.
-      closeBtn.click();
-      if (!overlay.hidden) overlay.hidden = true;
+      toast(`🐉 드래곤 성 위치 · ${foundArea?.name || '현재 지역'}`);
 
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const tile = document.querySelector('#worldMap .map-node.region-dragon');
         window.DRAGON_CASTLE_UX?.revealVisibleCastle?.();
-        tile?.scrollIntoView?.({ behavior:'smooth', block:'center', inline:'center' });
         tile?.classList.add('castle-ux-reveal');
+        tile?.scrollIntoView?.({ behavior:'smooth', block:'center', inline:'center' });
       }));
     });
     return true;
