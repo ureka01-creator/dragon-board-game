@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.7.1
+// DRAGON BOARD V0.5.7.2
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -1354,6 +1354,9 @@
     const party = getHeroParty(hero);
     log(`${party ? '🤝 <strong>' + partyDisplayName(party) + '</strong>' : hero.icon + ' <strong>' + hero.name + '</strong>'} 이동 주사위 → 🎲 <strong>${state.rolled}</strong>`);
     renderControls();
+
+    // V0.5.7.2: 현재 칸에서 갈 수 있는 길이 하나뿐이면 첫 이동도 자동 시작한다.
+    await continueStraightMovementIfPossible();
   }
 
   function getActiveHero() {
@@ -1378,26 +1381,28 @@
     }
   }
 
+  function getMovementForwardNodeIds(node) {
+    if (!node) return [];
+    const visitedThisMove = state.moveVisitedNodeIds instanceof Set
+      ? state.moveVisitedNodeIds
+      : new Set(state.moveVisitedNodeIds || []);
+
+    return (node.links || []).filter(nextId => {
+      if (visitedThisMove.has(nextId)) return false;
+      const nextNode = WORLD_NODES.find(n => n.id === nextId);
+      return Boolean(nextNode && !nodeIsLocked(nextNode));
+    });
+  }
+
   function getReachableNodeIds() {
     const result = new Set();
     const hero = getWorldUnitLeader(getActiveHero());
     const unit = getWorldUnitMembers(hero);
     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    // V0.5.6.3: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
-    // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
+    // V0.5.7.2: 선택이 필요한 다음 칸만 노출한다. 외길은 자동 이동에서 같은 후보 계산을 공유한다.
     const node = WORLD_NODES.find(n => n.id === hero.position);
-    const visitedThisMove = state.moveVisitedNodeIds instanceof Set
-      ? state.moveVisitedNodeIds
-      : new Set(state.moveVisitedNodeIds || []);
-
-    for (const nextId of (node?.links || [])) {
-      const nextNode = WORLD_NODES.find(n => n.id === nextId);
-      if (!nextNode || nodeIsLocked(nextNode)) continue;
-      // V0.5.6.3: 한 번의 주사위 이동에서 이미 지나간 칸은 다시 밟을 수 없다.
-      if (visitedThisMove.has(nextId)) continue;
-      result.add(nextId);
-    }
+    getMovementForwardNodeIds(node).forEach(nextId => result.add(nextId));
     return result;
   }
 
@@ -1910,6 +1915,7 @@
         <div class="actor-hp-bar"><i style="width:${Math.max(0, hero.currentHp / hero.hp * 100)}%"></i></div>
         <div class="actor-status">
           ${hs?.defending ? '<span>🛡 +3</span>' : ''}
+          ${hero.id === 'knight' ? `<span>${hs?.knightGuardUsedRound ? '🛡 철벽 사용' : '🛡 철벽 준비'}</span>` : ''}
           ${hero.attackPenalty ? `<span>☠ 명중 -${hero.attackPenalty}</span>` : ''}
           ${hero.currentMana !== null ? `<span>🔵 ${hero.currentMana}/${maxMana(hero)}</span>` : ''}
         </div>`;
@@ -2051,6 +2057,7 @@
   function damageHero(hero, amount, sourceName = '몬스터', damageType = 'physical') {
     let damage = Math.max(0, amount);
     const hs = combatHeroState(hero.id);
+    if (hs) hs.lastKnightGuardReduction = 0;
     if (damageType === 'fire' && equipmentEffect(hero, 'fireReduction') > 0) {
       const reduced = Math.min(damage, equipmentEffect(hero, 'fireReduction'));
       damage -= reduced;
@@ -2060,6 +2067,7 @@
       const reduced = Math.min(damage, 2);
       damage -= reduced;
       hs.knightGuardUsedRound = true;
+      hs.lastKnightGuardReduction = reduced;
       if (reduced > 0) combatLogEntry(`🛡 철벽 · ${hero.name}이 이번 라운드 첫 피해 ${reduced} 감소.`);
     }
     if (damage > 0 && hs && !hs.guardianCharmUsed && equipmentEffect(hero, 'firstDamageReduction') > 0) {
@@ -2412,8 +2420,9 @@
     let damage = dmgRoll.total + damageBonus;
     if (enemy.id === 'trollKing' && enemy.currentHp <= 20) damage += 2;
     const dealt = damageHero(target, damage, enemy.name, enemy.damageType || (enemy.id === 'fireImp' ? 'fire' : 'physical'));
-    combatLogEntry(`💢 ${enemy.name} → ${target.name} <strong>${dealt} 피해</strong>`);
-    setCombatMessage(`${target.name} ${dealt} 피해!`, 'danger');
+    const guardReduced = Number(combatHeroState(target.id)?.lastKnightGuardReduction || 0);
+    combatLogEntry(`💢 ${enemy.name} → ${target.name} <strong>${dealt} 피해</strong>${guardReduced > 0 ? ` · 🛡 철벽 -${guardReduced}` : ''}`);
+    setCombatMessage(guardReduced > 0 ? `${target.name} ${dealt} 피해 · 🛡 철벽 -${guardReduced}!` : `${target.name} ${dealt} 피해!`, guardReduced > 0 ? 'good' : 'danger');
     await animateMonsterResult(enemy, target, true, dealt);
 
     if (enemy.id === 'spider' && !target.down) {
@@ -2508,6 +2517,7 @@
       hs.defending = false;
       hs.skillUsedRound = false;
       hs.knightGuardUsedRound = false;
+      hs.lastKnightGuardReduction = 0;
       hs.itemUsed = false;
     });
     const next = c.participantIds
@@ -2865,7 +2875,7 @@
       const isBoss = node.type === '보스';
       const heroStates = {};
       participants.forEach(h => {
-        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false, knightGuardUsedRound:false };
+        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false, knightGuardUsedRound:false, lastKnightGuardReduction:0 };
         h.nextAttackBonus = 0;
       });
 
@@ -3024,21 +3034,21 @@
 
 
   function isMovementDeadEnd(node) {
-    if (!node) return false;
+    return Boolean(node) && getMovementForwardNodeIds(node).length === 0;
+  }
 
-    const visitedThisMove = state.moveVisitedNodeIds instanceof Set
-      ? state.moveVisitedNodeIds
-      : new Set(state.moveVisitedNodeIds || []);
+  async function continueStraightMovementIfPossible() {
+    if (state.isMoving || state.isRolling || state.gameOver || state.combat || state.moveRemaining <= 0) return false;
+    const hero = getWorldUnitLeader(getActiveHero());
+    if (!hero || hero.down || hero.acted) return false;
+    const node = WORLD_NODES.find(n => n.id === hero.position);
+    const forward = getMovementForwardNodeIds(node);
 
-    // 이미 이번 이동에서 밟은 모든 칸은 다시 갈 수 없다.
-    // 따라서 미방문 + 잠기지 않은 연결 칸이 하나도 없으면 이동 종료.
-    const forwardLinks = (node.links || []).filter(nextId => {
-      if (visitedThisMove.has(nextId)) return false;
-      const next = WORLD_NODES.find(n => n.id === nextId);
-      return next && !nodeIsLocked(next);
-    });
-
-    return forwardLinks.length === 0;
+    // V0.5.7.2: 선택지가 정확히 하나면 클릭을 요구하지 않고 즉시 다음 칸으로 간다.
+    // 2개 이상이면 진짜 갈림길이므로 멈추고 플레이어 선택을 기다린다.
+    if (forward.length !== 1) return false;
+    await moveActiveHero(forward[0]);
+    return true;
   }
 
   async function moveActiveHero(nodeId) {
@@ -3079,9 +3089,11 @@
       log(`🧱 <strong>${node.name || '막다른 길'}</strong>에 도착 · 남은 이동 ${lostSteps}칸 소멸.`);
     }
 
-    // 경유 중이고 막다른 길도 아니라면 정체를 공개하지 않고 계속 이동한다.
+    // 경유 중이고 막다른 길도 아니라면 정체를 공개하지 않는다.
+    // 외길이면 다음 칸으로 자동 진행하고, 갈림길에서만 플레이어 선택을 기다린다.
     if (state.moveRemaining > 0) {
       renderAll();
+      await continueStraightMovementIfPossible();
       return;
     }
 
