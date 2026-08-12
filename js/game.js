@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.6.4
+// DRAGON BOARD V0.5.6.5
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -1144,16 +1144,23 @@
       const mapW = mapRect.width;
       const mapH = mapRect.height;
 
-      // 손에서 높게 던진 뒤 보드 중앙 쪽으로 들어오는 시작/정점/착지 위치.
+      // V0.5.6.5 — 낙하/바운스의 마지막 구간 자체가 맵 중앙 착지로 끝난다.
+      // 결과 확정 직전에 별도 좌표 보정으로 주사위를 끌어당기지 않는다.
+      const centerX = mapLeft + (mapW - dieSize) / 2;
+      const centerY = mapTop + (mapH - dieSize) / 2;
       const startX = fromLeft
         ? mapLeft - dieSize * 0.18
         : mapLeft + mapW - dieSize * 0.82;
       const startY = mapTop - dieSize * (1.0 + Math.random() * 0.35);
       const apexX = startX + dir * mapW * (0.18 + Math.random() * 0.08);
       const apexY = mapTop - dieSize * (2.7 + Math.random() * 0.55);
-      const groundY = mapTop + mapH * (0.54 + Math.random() * 0.17) - dieSize / 2;
-      const impactX = mapLeft + mapW * (fromLeft ? 0.34 : 0.58) - dieSize / 2;
-      const endX = impactX + dir * mapW * (0.16 + Math.random() * 0.08);
+      const groundY = centerY + mapH * (0.08 + Math.random() * 0.05);
+      const impactX = centerX - dir * mapW * (0.18 + Math.random() * 0.05);
+      const endX = centerX;
+      const endY = centerY;
+
+      diceRoller.style.setProperty('--dice-center-x', `${centerX}px`);
+      diceRoller.style.setProperty('--dice-center-y', `${centerY}px`);
 
       diceRoller.style.setProperty('--die-size', `${dieSize}px`);
       diceRoller.style.display = 'grid';
@@ -1165,7 +1172,7 @@
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
       if (reduced) {
         setRollingDieFace(finalValue);
-        diceRoller.style.transform = `translate3d(${endX}px, ${groundY}px, 0) rotate(0deg) scale(1)`;
+        diceRoller.style.transform = `translate3d(${endX}px, ${endY}px, 0) rotate(0deg) scale(1)`;
         diceRoller.classList.remove('rolling');
         diceRoller.classList.add('landed');
         diceRoller.setAttribute('aria-label', `주사위 결과 ${finalValue}`);
@@ -1175,8 +1182,8 @@
 
       const totalMs = 1500;
       const impactAt = 0.54;
-      const bounce1End = 0.73;
-      const bounce2End = 0.86;
+      const bounce1End = 0.72;
+      const bounce2End = 0.82;
       let startTime = null;
       let impactDone = false;
       let lastFaceAt = -1000;
@@ -1225,19 +1232,28 @@
           y = groundY - Math.sin(Math.PI * u) * dieSize * 0.31;
           scale = 1 - Math.sin(Math.PI * u) * 0.018;
         } else {
-          // 마지막은 미끄러지는 게 아니라 짧게 또르륵 굴러가며 마찰로 감속한다.
+          // 마지막 또르륵 구간에서 중앙으로 자연스럽게 수렴한다.
+          // 여기서 x/y를 함께 감속시켜 확정 직전 별도 이동이 보이지 않게 한다.
           const u = (t - bounce2End) / (1 - bounce2End);
           const fromX = impactX + dir * mapW * 0.135;
-          x = lerp(fromX, endX, easeOut(u));
-          const microBounce = Math.abs(Math.sin(u * Math.PI * 3)) * (1 - u) * dieSize * 0.055;
-          y = groundY - microBounce;
+          const travel = easeOut(u);
+          x = lerp(fromX, endX, travel);
+          const microBounce = Math.abs(Math.sin(u * Math.PI * 3)) * (1 - u) * dieSize * 0.045;
+          y = lerp(groundY, endY, travel) - microBounce;
           scale = 1;
         }
 
-        // 회전량도 마지막으로 갈수록 자연스럽게 줄어든다.
+        // 회전도 마지막 또르륵 구간에서 가장 가까운 360도 정렬로 부드럽게 수렴한다.
+        const totalRotation = dir * 1510;
         const rotationProgress = 1 - Math.pow(1 - t, 1.65);
-        const totalRotation = dir * (1510 + Math.random() * 0); // 프레임마다 난수 방지용 상수식
-        const angle = -dir * 24 + totalRotation * rotationProgress;
+        let angle = -dir * 24 + totalRotation * rotationProgress;
+        if (t >= bounce2End) {
+          const u = (t - bounce2End) / (1 - bounce2End);
+          const settleProgress = 1 - Math.pow(1 - bounce2End, 1.65);
+          const settleFrom = -dir * 24 + totalRotation * settleProgress;
+          const settleTo = Math.round(settleFrom / 360) * 360;
+          angle = lerp(settleFrom, settleTo, smooth(u));
+        }
         const squash = (t > impactAt - 0.012 && t < impactAt + 0.025) ? 0.94 : 1;
         // 높은 포물선은 그대로 유지하고, 좌우로만 맵 범위를 과하게 벗어나지 않게 제한한다.
         const minX = mapLeft - dieSize * 0.12;
@@ -1270,7 +1286,7 @@
 
         diceAnimationFrame = null;
         setRollingDieFace(finalValue);
-        diceRoller.style.transform = `translate3d(${endX}px, ${groundY}px, 0) rotate(${Math.round(angle / 90) * 90}deg) scale(1)`;
+        diceRoller.style.transform = `translate3d(${endX}px, ${endY}px, 0) rotate(${Math.round(angle / 360) * 360}deg) scale(1)`;
         diceRoller.classList.remove('rolling');
         diceRoller.classList.add('landed');
         diceRoller.setAttribute('aria-label', `주사위 결과 ${finalValue}`);
@@ -1313,35 +1329,14 @@
     // 결과 확정 즉시 상단은 다시 영웅 턴, MOVE는 전체 남은 횟수를 표시.
     renderAll();
 
-    // V0.5.6.3: 확정된 눈을 정면으로 크게 한 번 보여준다.
+    // V0.5.6.5: 굴림 애니메이션이 이미 맵 중앙에서 끝난다.
+    // 별도의 280ms 중앙 이동 없이, 같은 자리에서 곧바로 결과를 확대한다.
     if (diceRoller && worldMap) {
-      const boardPanel = worldMap.closest('.board-panel');
-      const panelRect = boardPanel?.getBoundingClientRect();
-      const mapRect = worldMap.getBoundingClientRect();
-
-      // V0.5.6.3:
-      // 위에서 떨어진 '같은 주사위'를 기존 boardPanel 좌표계 그대로 맵 중앙으로 부드럽게 이동시킨다.
-      // fixed 좌표계로 바꾸지 않아서 순간이동처럼 보이지 않는다.
-      if (panelRect) {
-        const dieSize = parseFloat(getComputedStyle(diceRoller).getPropertyValue('--die-size')) || 48;
-        const centerX = mapRect.left - panelRect.left + (mapRect.width - dieSize) / 2;
-        const centerY = mapRect.top - panelRect.top + (mapRect.height - dieSize) / 2;
-
-        diceRoller.classList.remove('rolling', 'landed', 'settling', 'dice-result-show');
-        diceRoller.style.setProperty('--dice-center-x', `${centerX}px`);
-        diceRoller.style.setProperty('--dice-center-y', `${centerY}px`);
-        diceRoller.classList.add('dice-to-center');
-        setRollingDieFace(result);
-        diceRoller.style.transform = `translate3d(${centerX}px, ${centerY}px, 0) rotate(0deg) scale(1)`;
-        await waitMs(280);
-
-        diceRoller.classList.remove('dice-to-center');
-        // V0.5.6.4: 확대는 중앙 translate까지 한 transform 안에서 애니메이션한다.
-        // Safari에서 개별 scale 속성이 translate 좌표까지 확대해 우하단으로 튀던 문제를 방지한다.
-        diceRoller.classList.add('dice-result-show');
-        await waitMs(760);
-        diceRoller.classList.remove('dice-result-show');
-      }
+      diceRoller.classList.remove('rolling', 'landed', 'settling', 'dice-to-center', 'dice-result-show');
+      setRollingDieFace(result);
+      diceRoller.classList.add('dice-result-show');
+      await waitMs(760);
+      diceRoller.classList.remove('dice-result-show');
     }
     clearDiceDisplay();
 

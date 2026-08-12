@@ -2037,21 +2037,15 @@ body.modal-open {
 /* V0.5.6.3 — 중앙 지역명 워터마크 완전 제거 */
 .area-watermark { display:none !important; }
 
-/* V0.5.6.4 — 같은 주사위가 중앙으로 이동한 뒤, 중앙 좌표를 유지한 채 결과 강조 */
-.dice-roller.dice-to-center {
-  display:grid !important;
-  opacity:1 !important;
-  z-index:32 !important;
-  transition:transform 280ms cubic-bezier(.2,.82,.25,1) !important;
-}
+/* V0.5.6.5 — 굴림이 중앙 착지로 끝나므로 별도 중앙 이동 없이 즉시 결과 강조 */
 .dice-roller.dice-result-show {
   display:grid !important;
   opacity:1 !important;
   z-index:32 !important;
   transform-origin:center center !important;
-  animation:dice-result-punch-v0564 760ms cubic-bezier(.2,.9,.25,1) both !important;
+  animation:dice-result-punch-v0565 760ms cubic-bezier(.2,.9,.25,1) both !important;
 }
-@keyframes dice-result-punch-v0564 {
+@keyframes dice-result-punch-v0565 {
   0%   { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(0deg) scale(1); opacity:1; }
   18%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(-5deg) scale(1.50); }
   34%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(4deg) scale(1.44); }
