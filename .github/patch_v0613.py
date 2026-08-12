@@ -132,9 +132,11 @@ Path('js/board3d-play.js').write_text(text)
 for f in ['js/board3d.js','js/board3d-play.js']:
     p=Path(f); t=p.read_text(); t=t.replace('V0.6.1.2','V0.6.1.3',1); p.write_text(t)
 
-p=Path('index.html'); t=p.read_text();
-t=t.replace('PROTOTYPE V0.6.1.1','PROTOTYPE V0.6.1.3')
-t=t.replace('?v=0611','?v=0613')
+p=Path('index.html'); t=p.read_text()
+for old in ['PROTOTYPE V0.6.1.1','PROTOTYPE V0.6.1.2']:
+    t=t.replace(old,'PROTOTYPE V0.6.1.3')
+for old in ['?v=0611','?v=0612']:
+    t=t.replace(old,'?v=0613')
 p.write_text(t)
 
 # Keep a concise version note.
