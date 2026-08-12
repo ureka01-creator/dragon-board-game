@@ -1,0 +1,31 @@
+name: Apply V0.5.8.0 patch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'stage V0.5.8.0 patch workflow'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Rebuild and apply V0.5.8.0 patch
+        run: |
+          cat .github/v0580b64_00 .github/v0580b64_01 .github/v0580b64_02 .github/v0580b64_03 .github/v0580b64_04 .github/v0580b64_05 .github/v0580b64_06 > /tmp/v0580.patch.b64
+          base64 -d /tmp/v0580.patch.b64 > /tmp/v0580.patch
+          git apply -p1 --check /tmp/v0580.patch
+          git apply -p1 /tmp/v0580.patch
+          git rm .github/v0580b64_00 .github/v0580b64_01 .github/v0580b64_02 .github/v0580b64_03 .github/v0580b64_04 .github/v0580b64_05 .github/v0580b64_06 .github/workflows/apply-v0580.yml
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md css/style.css index.html js/game.js js/map.js
+          git commit -m "Patch V0.5.8.0"
+          git push
