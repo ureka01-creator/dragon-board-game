@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.1.3 — persistent WebGL board + live movement bridge
+// DRAGON BOARD V0.6.1.4 — persistent WebGL board + live movement bridge
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js';
 
 const worldMap = document.querySelector('#worldMap');
@@ -35,6 +35,8 @@ const pointers = new Map();
 let lastPinchDistance = 0;
 const heroPieces = new Map();
 const tileRecords = new Map();
+let sceneDie = null;
+let sceneDieRollToken = 0;
 
 injectStyles();
 installButton();
@@ -114,6 +116,12 @@ function close3D() {
     renderer.dispose();
     renderer.forceContextLoss?.();
   }
+  if (sceneDie) {
+    scene?.remove(sceneDie);
+    disposeObject(sceneDie);
+    sceneDie = null;
+  }
+  sceneDieRollToken += 1;
   disposeObject(boardRoot);
   boardRoot = null;
   heroPieces.clear();
@@ -424,6 +432,127 @@ function snapHeroToNode(heroId,nodeId) {
   piece.userData.motionLocked=true;
 }
 
+
+function makeDieFaceTexture(value) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#f3e2bd';
+  ctx.fillRect(0,0,256,256);
+  ctx.strokeStyle = '#6b5434';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(5,5,246,246);
+  ctx.fillStyle = '#30261b';
+  const p = {
+    tl:[70,70], tc:[128,70], tr:[186,70],
+    ml:[70,128], mc:[128,128], mr:[186,128],
+    bl:[70,186], bc:[128,186], br:[186,186],
+  };
+  const faces = {
+    1:['mc'], 2:['tl','br'], 3:['tl','mc','br'],
+    4:['tl','tr','bl','br'], 5:['tl','tr','mc','bl','br'],
+    6:['tl','tr','ml','mr','bl','br'],
+  };
+  for (const key of faces[value] || []) {
+    const [x,y] = p[key];
+    ctx.beginPath(); ctx.arc(x,y,18,0,Math.PI*2); ctx.fill();
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  return texture;
+}
+
+function ensureSceneDie() {
+  if (!scene || sceneDie) return sceneDie;
+  // BoxGeometry material order: right, left, top, bottom, front, back.
+  const faceOrder = [3,4,2,5,1,6];
+  const materials = faceOrder.map(value => new THREE.MeshStandardMaterial({
+    map: makeDieFaceTexture(value),
+    roughness: .42,
+    metalness: .02,
+  }));
+  sceneDie = new THREE.Mesh(new THREE.BoxGeometry(.62,.62,.62), materials);
+  sceneDie.castShadow = true;
+  sceneDie.receiveShadow = true;
+  sceneDie.visible = false;
+  scene.add(sceneDie);
+  return sceneDie;
+}
+
+function startSceneDiceRoll() {
+  const die = ensureSceneDie();
+  if (!die) return;
+  const token = ++sceneDieRollToken;
+  die.visible = true;
+  die.position.set(-2.45, 3.9, 1.55);
+  die.rotation.set(.28,.12,.08);
+  const started = performance.now();
+  const loop = now => {
+    if (token !== sceneDieRollToken || !sceneDie?.visible) return;
+    const t = (now - started) / 1000;
+    if (t < .78) {
+      const u = Math.max(0, Math.min(1, t / .78));
+      const e = u * u * (3 - 2 * u);
+      die.position.x = THREE.MathUtils.lerp(-2.45, .35, e);
+      die.position.z = THREE.MathUtils.lerp(1.55, -.35, e);
+      die.position.y = THREE.MathUtils.lerp(3.9, .47, u * u);
+    } else {
+      const g = t - .78;
+      const travel = Math.min(g, 1.1);
+      die.position.x = .35 + travel * .46;
+      die.position.z = -.35 - travel * .19;
+      const bounce = Math.abs(Math.sin(g * 10.5)) * Math.max(0, .62 - g * .52);
+      die.position.y = .47 + bounce;
+    }
+    die.rotation.x = .28 + t * 10.8;
+    die.rotation.y = .12 + t * 8.4;
+    die.rotation.z = .08 + t * 6.1;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+
+function dieTargetQuaternion(face) {
+  const e = new THREE.Euler(0,0,0,'XYZ');
+  if (face === 1) e.x = -Math.PI / 2;
+  else if (face === 3) e.z = Math.PI / 2;
+  else if (face === 4) e.z = -Math.PI / 2;
+  else if (face === 5) e.x = Math.PI;
+  else if (face === 6) e.x = Math.PI / 2;
+  // face 2 is already on top in BoxGeometry material order.
+  return new THREE.Quaternion().setFromEuler(e);
+}
+
+function settleSceneDice(face) {
+  const die = ensureSceneDie();
+  if (!die) return Promise.resolve();
+  sceneDieRollToken += 1;
+  die.visible = true;
+  const fromPos = die.position.clone();
+  const fromQuat = die.quaternion.clone();
+  const toPos = new THREE.Vector3(.70,.47,-.55);
+  const toQuat = dieTargetQuaternion(face);
+  return new Promise(resolve => {
+    const started = performance.now();
+    const duration = 360;
+    const frame = now => {
+      const u = Math.max(0, Math.min(1, (now - started) / duration));
+      const e = 1 - Math.pow(1 - u, 3);
+      die.position.lerpVectors(fromPos,toPos,e);
+      die.quaternion.copy(fromQuat).slerp(toQuat,e);
+      if (u < 1) requestAnimationFrame(frame);
+      else resolve();
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
+function hideSceneDice() {
+  sceneDieRollToken += 1;
+  if (sceneDie) sceneDie.visible = false;
+}
+
 function pickNodeAt(clientX,clientY,nodeIds=[]) {
   if(!camera||!renderer)return null;
   const allowed=new Set(nodeIds);
@@ -458,6 +587,9 @@ function installPublicApi() {
     setHeroFromMapPixel,
     snapHeroToNode,
     endHeroMotion,
+    startDiceRoll:startSceneDiceRoll,
+    settleDice:settleSceneDice,
+    hideDice:hideSceneDice,
     pickNodeAt,
     close:close3D,
   };

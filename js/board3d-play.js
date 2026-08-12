@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.1.3 — persistent playable 3D exploration
+// DRAGON BOARD V0.6.1.4 — persistent playable 3D exploration
 const worldMap = document.querySelector('#worldMap');
 const rollBtn = document.querySelector('#rollBtn');
 const diceValue = document.querySelector('#diceValue');
@@ -44,7 +44,7 @@ function injectStyles() {
     .board3d-overlay[data-theme="war"] .board3d-canvas-wrap{background:radial-gradient(circle at 50% 28%,#815a49 0%,#51352c 34%,#30201b 70%,#18100e 100%)!important}
     .board3d-overlay[data-theme="volcano"] .board3d-canvas-wrap{background:radial-gradient(circle at 50% 28%,#965f38 0%,#623523 34%,#381e17 70%,#1b0f0c 100%)!important}
     .board3d-overlay[data-action-busy="true"] .board3d-gamebar{opacity:.84}
-    .board3d-die-layer{position:absolute;inset:0;z-index:8;display:grid;place-items:center;pointer-events:none;perspective:720px;overflow:hidden}
+    .board3d-die-layer{display:none!important;position:absolute;inset:0;z-index:8;display:grid;place-items:center;pointer-events:none;perspective:720px;overflow:hidden}
     .board3d-die-shadow{position:absolute;left:50%;top:62%;width:62px;height:18px;border-radius:50%;background:rgba(0,0,0,.42);filter:blur(4px);transform:translate(-50%,-50%) scale(.45);opacity:0;transition:opacity .15s,transform .15s}
     .board3d-die-shadow.visible{opacity:.68;transform:translate(-50%,-50%) scale(1)}
     .board3d-die{--die:58px;position:absolute;left:50%;top:62%;width:var(--die);height:var(--die);margin:calc(var(--die)*-.5);transform-style:preserve-3d;opacity:0;will-change:transform,opacity;filter:drop-shadow(8px 12px 5px rgba(0,0,0,.42))}
@@ -136,34 +136,37 @@ function dieFinalTransform(face){if(face===2)return'translateY(0) rotateX(-90deg
 
 async function run3DDiceRoll(){
   if(actionInFlight||!activeOverlay||rollBtn.disabled)return;
-  actionInFlight=true;activeOverlay.dataset.actionBusy='true';
-  const die=activeOverlay.querySelector('.board3d-die');const shadow=activeOverlay.querySelector('.board3d-die-shadow');const resultEl=activeOverlay.querySelector('.board3d-die-result');
-  die?.getAnimations().forEach(a=>a.cancel());die?.classList.add('visible');shadow?.classList.remove('visible');resultEl?.classList.remove('visible');if(resultEl)resultEl.textContent='';
-  const before=diceValue.textContent?.trim()||'-';lastWorldMutation=Date.now();rollBtn.click();syncGamebar();
-  const rolling=die?.animate([
-    {transform:'translateY(-190px) rotateX(20deg) rotateY(0deg) rotateZ(0deg)',offset:0},
-    {transform:'translateY(-78px) rotateX(430deg) rotateY(310deg) rotateZ(185deg)',offset:.42},
-    {transform:'translateY(5px) rotateX(760deg) rotateY(610deg) rotateZ(420deg)',offset:.61},
-    {transform:'translateY(-42px) rotateX(920deg) rotateY(740deg) rotateZ(520deg)',offset:.74},
-    {transform:'translateY(2px) rotateX(1080deg) rotateY(905deg) rotateZ(650deg)',offset:.87},
-    {transform:'translateY(0) rotateX(1260deg) rotateY(1080deg) rotateZ(720deg)',offset:1}
-  ],{duration:1450,easing:'cubic-bezier(.2,.72,.18,1)',fill:'forwards'});
-  setTimeout(()=>shadow?.classList.add('visible'),720);
-  const started=Date.now();let finalValue=null;
+  actionInFlight=true;
+  activeOverlay.dataset.actionBusy='true';
+  const before=diceValue.textContent?.trim()||'-';
+  lastWorldMutation=Date.now();
+  api()?.startDiceRoll?.();
+  rollBtn.click();
+  syncGamebar();
+
+  const started=Date.now();
+  let finalValue=null;
   while(Date.now()-started<6500){
     if(hasForegroundGameUI())break;
     const v=Number.parseInt(diceValue.textContent?.trim()||'',10);
-    if(Number.isInteger(v)&&v>=1&&v<=6&&(diceValue.textContent?.trim()!==before||Date.now()-started>1500))finalValue=v;
-    const quiet=Date.now()-lastWorldMutation;const moving=Boolean(worldMap.querySelector('.hero-hop-mover'))||worldMap.classList.contains('movement-lock');
-    if(finalValue&&Date.now()-started>1500&&quiet>330&&!moving)break;
+    if(Number.isInteger(v)&&v>=1&&v<=6&&(diceValue.textContent?.trim()!==before||Date.now()-started>1500)){
+      finalValue=v;
+      break;
+    }
+    await waitMs(70);
+  }
+  finalValue=finalValue||Number.parseInt(diceValue.textContent?.trim()||'',10)||1;
+  await api()?.settleDice?.(finalValue);
+  await waitMs(320);
+  api()?.hideDice?.();
+
+  const movementWaitStarted=Date.now();
+  while(Date.now()-movementWaitStarted<5200){
+    if(hasForegroundGameUI())break;
+    const moving=Boolean(worldMap.querySelector('.hero-hop-mover'))||worldMap.classList.contains('movement-lock');
+    if(!moving&&Date.now()-lastWorldMutation>330)break;
     await waitMs(90);
   }
-  try{await rolling?.finished;}catch{}
-  finalValue=finalValue||Number.parseInt(diceValue.textContent?.trim()||'',10)||1;
-  die?.getAnimations().forEach(a=>a.cancel());die?.animate([{transform:'translateY(0) rotateX(1260deg) rotateY(1080deg) rotateZ(720deg)'},{transform:dieFinalTransform(finalValue)}],{duration:230,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
-  if(resultEl){resultEl.textContent=`D6 · ${finalValue}`;resultEl.classList.add('visible');}
-  await waitMs(430);
-  shadow?.classList.remove('visible');resultEl?.classList.remove('visible');die?.classList.remove('visible');
   finishAction();
 }
 
