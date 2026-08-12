@@ -1,0 +1,29 @@
+name: Apply V0.5.6.5 patch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'stage V0.5.6.5 patch workflow'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate and apply V0.5.6.5
+        run: |
+          git apply --check .github/v0565.patch
+          git apply .github/v0565.patch
+          git rm .github/v0565.patch .github/workflows/apply-v0565.yml
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md css/style.css index.html js/game.js
+          git commit -m "Patch V0.5.6.5"
+          git push
