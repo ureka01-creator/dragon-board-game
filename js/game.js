@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.7.0
+// DRAGON BOARD V0.5.7.1
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -1436,8 +1436,10 @@
     const mapRect = worldMap.getBoundingClientRect();
     const rect = nodeEl.getBoundingClientRect();
     return {
+      // V0.5.7.1: 이동 중 말도 타일의 시각적 정중앙을 기준으로 이동한다.
+      // 정지 상태의 map-token-grid 역시 중앙 정렬이므로, 착지 직후 위치가 튀지 않는다.
       x: rect.left - mapRect.left + rect.width * 0.5,
-      y: rect.top - mapRect.top + rect.height * 0.76,
+      y: rect.top - mapRect.top + rect.height * 0.5,
       cell: Math.min(rect.width, rect.height),
     };
   }
