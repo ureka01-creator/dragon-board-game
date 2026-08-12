@@ -15,33 +15,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply V0.5.9.0
+      - name: Apply V0.5.9.0 direct transform
         run: |
-          git apply -p1 --check .github/v0590.patch
-          git apply -p1 .github/v0590.patch
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('README.md')
-          s = p.read_text()
-          s = s.replace('# DRAGON BOARD — Web Prototype V0.5.8.1', '# DRAGON BOARD — Web Prototype V0.5.9.0', 1)
-          block = '''
-
-          ## V0.5.9.0
-          - NORMAL 모드에서 DRAGON THREAT 시스템 제거: 라운드/사망/사건으로 시간 압박 게이지가 오르지 않음
-          - 4개 지역 보스가 각각 봉인석 1개를 보유하고, 첫 토벌 시 해당 지역 봉인석 획득
-          - 봉인석 4/4가 되는 즉시 드래곤의 성이 월드에 출현
-          - 기존 랜덤 봉인 목표(전투/보물/이벤트/지역 이동/던전)는 제거하고 해당 콘텐츠는 성장·파밍 경로로 유지
-          - HUD와 자원 요약을 `REGION BOSS SEALS 0/4` 기준으로 변경하고 지역별 보스 토벌 현황 모달 추가
-          - THREAT 효과를 쓰던 사건/위험 타일은 HP 피해·골드 손실 또는 무효 결과로 NORMAL 규칙에 맞게 재구성
-          '''
-          s = s.replace('\n\n## V0.5.8.1', block + '\n\n## V0.5.8.1', 1)
-          s = s.replace('- 봉인석 3개 또는 THREAT 12에서 용의 성 랜덤 출현', '- 4개 지역 보스를 각각 토벌해 봉인석 4개를 모으면 용의 성 랜덤 출현')
-          s = s.replace('- 사건 유형: D20 능력치 판정, 선택, 회복/피해, 골드, THREAT 변화, 전리품, 사건 전투.', '- 사건 유형: D20 능력치 판정, 선택, 회복/피해, 골드 변화, 전리품, 사건 전투.')
-          p.write_text(s)
-          PY
+          python .github/apply_v0590_direct.py
           node --check js/game.js
           node --check js/events.js
-          git rm .github/v0590.patch .github/workflows/apply-v0590.yml
+          if rg -n "state\.threat|DRAGON THREAT|type:'threat'|threatValue|threatFill|sealQuests|questProgress|addQuestProgress|setupSealQuests" js/game.js js/events.js index.html; then
+            echo "Legacy THREAT/seal quest reference remains"
+            exit 1
+          fi
+          git rm .github/v0590.patch .github/apply_v0590_direct.py .github/workflows/apply-v0590.yml
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
