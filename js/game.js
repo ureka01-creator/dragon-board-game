@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.6.6
+// DRAGON BOARD V0.5.6.7
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -3075,12 +3075,9 @@
     // 주사위 이동을 전부 썼거나 막다른 길에 걸렸을 때만 최종 도착칸을 뒤집는다.
     await revealLandedNode(nodeId);
 
-    if (hitDeadEnd) {
-      showModal(
-        '🧱 막다른 길',
-        `더 이상 앞으로 갈 수 없다. 남은 이동 ${lostSteps}칸은 사라졌다.`
-      );
-    }
+    // V0.5.6.7: 막다른 길 자체는 별도 모달을 띄우지 않는다.
+    // 도착칸의 사건/전투/상점 등 실제 콘텐츠 모달과 충돌하지 않도록
+    // 남은 MOVE 소멸은 로그로만 알리고 곧바로 최종 도착 처리를 실행한다.
 
     // 지역 입구가 최종 도착칸이라면 이동 여부를 묻는다.
     if (node.type === '입구') {
