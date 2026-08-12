@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.1.4 — persistent playable 3D exploration
+// DRAGON BOARD V0.6.1.5 — persistent playable 3D exploration
 const worldMap = document.querySelector('#worldMap');
 const rollBtn = document.querySelector('#rollBtn');
 const diceValue = document.querySelector('#diceValue');
@@ -157,7 +157,7 @@ async function run3DDiceRoll(){
   }
   finalValue=finalValue||Number.parseInt(diceValue.textContent?.trim()||'',10)||1;
   await api()?.settleDice?.(finalValue);
-  await waitMs(320);
+  await waitMs(430);
   api()?.hideDice?.();
 
   const movementWaitStarted=Date.now();
