@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120f0c" />
   <title>Dragon Board Prototype</title>
-  <link rel="stylesheet" href="css/style.css?v=0601" />
+  <link rel="stylesheet" href="css/style.css?v=0610" />
 </head>
 <body>
   <main class="app-shell">
@@ -22,7 +22,7 @@
           <h1>DRAGON<br>BOARD</h1>
           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
-          <div class="version-label">PROTOTYPE V0.6.0.1</div>
+          <div class="version-label">PROTOTYPE V0.6.1.0</div>
         </div>
       </div>
     </section>
@@ -98,7 +98,6 @@
     </section>
   </main>
 
-
   <section id="combatOverlay" class="combat-overlay hidden" aria-label="전투 화면">
     <div class="combat-shell pixel-panel">
       <header class="combat-header">
@@ -109,30 +108,15 @@
         </div>
         <div id="combatHeroTurn" class="combat-turn-chip">-</div>
       </header>
-
       <section id="combatStage" class="combat-stage" data-region="road">
         <div class="combat-stage-sky"></div>
         <div class="combat-stage-ground"></div>
-
-        <div class="stage-party-wrap">
-          <div id="combatHeroes" class="combat-heroes stage-heroes"></div>
-        </div>
-
-        <div class="stage-enemy-wrap">
-          <div id="combatEnemies" class="combat-enemies stage-enemies"></div>
-        </div>
-
-        <div class="combat-stage-center-ui">
-          <div class="combat-dice-wrap" aria-live="polite">
-            <div id="combatDiceLabel" class="combat-dice-label">D20</div>
-            <div id="combatD20" class="combat-d20"><span id="combatD20Value">20</span></div>
-          </div>
-        </div>
-
+        <div class="stage-party-wrap"><div id="combatHeroes" class="combat-heroes stage-heroes"></div></div>
+        <div class="stage-enemy-wrap"><div id="combatEnemies" class="combat-enemies stage-enemies"></div></div>
+        <div class="combat-stage-center-ui"><div class="combat-dice-wrap" aria-live="polite"><div id="combatDiceLabel" class="combat-dice-label">D20</div><div id="combatD20" class="combat-d20"><span id="combatD20Value">20</span></div></div></div>
         <div id="combatFxLayer" class="combat-fx-layer" aria-hidden="true"></div>
         <div id="combatMessage" class="combat-message">전투 시작</div>
       </section>
-
       <section class="combat-command-panel">
         <div class="combat-actions">
           <button id="combatAttackBtn" class="pixel-btn primary">⚔ 공격</button>
@@ -140,22 +124,10 @@
           <button id="combatDefendBtn" class="pixel-btn">🛡 방어</button>
           <button id="combatItemBtn" class="pixel-btn">🎒 아이템</button>
         </div>
-
-        <aside class="combat-log-wrap">
-          <div class="combat-log-head">
-            <div>
-              <div class="eyebrow">BATTLE LOG</div>
-              <strong>최근 전투 기록</strong>
-            </div>
-            <button id="combatLogToggle" class="text-btn" type="button">전체 기록 보기 ▾</button>
-          </div>
-          <div id="combatLogSummary" class="combat-log-summary"></div>
-          <div id="combatLog" class="combat-log"></div>
-        </aside>
+        <aside class="combat-log-wrap"><div class="combat-log-head"><div><div class="eyebrow">BATTLE LOG</div><strong>최근 전투 기록</strong></div><button id="combatLogToggle" class="text-btn" type="button">전체 기록 보기 ▾</button></div><div id="combatLogSummary" class="combat-log-summary"></div><div id="combatLog" class="combat-log"></div></aside>
       </section>
     </div>
   </section>
-
 
   <section id="lootOverlay" class="loot-overlay hidden" aria-label="전리품 화면">
     <div class="loot-shell pixel-panel">
@@ -163,12 +135,7 @@
       <h2>전리품</h2>
       <p id="lootGuide" class="loot-guide">상자를 열어 보상을 확인해.</p>
       <div class="loot-card-wrap">
-        <button id="lootCard" class="loot-card face-down" type="button" aria-label="전리품 카드 열기">
-          <span id="lootNewBadge" class="loot-new-badge hidden">NEW</span>
-          <span id="lootCardIcon" class="loot-card-icon">📦</span>
-          <strong id="lootCardName">?</strong>
-          <span id="lootCardDesc">카드를 터치해서 열기</span>
-        </button>
+        <button id="lootCard" class="loot-card face-down" type="button" aria-label="전리품 카드 열기"><span id="lootNewBadge" class="loot-new-badge hidden">NEW</span><span id="lootCardIcon" class="loot-card-icon">📦</span><strong id="lootCardName">?</strong><span id="lootCardDesc">카드를 터치해서 열기</span></button>
         <button id="lootCurrentEquipInfo" class="loot-current-info hidden" type="button" aria-label="현재 장비 정보">?</button>
       </div>
       <div id="lootCurrentEquipDetail" class="loot-current-detail hidden"></div>
@@ -176,23 +143,19 @@
     </div>
   </section>
 
-  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-card pixel-panel">
-      <div id="modalContent"></div>
-      <button id="modalCloseBtn" class="pixel-btn primary">확인</button>
-    </div>
-  </div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card pixel-panel"><div id="modalContent"></div><button id="modalCloseBtn" class="pixel-btn primary">확인</button></div></div>
 
-  <script src="js/heroes.js?v=0601"></script>
-  <script src="js/items.js?v=0601"></script>
-  <script src="js/sprites.js?v=0601"></script>
-  <script src="js/map.js?v=0601"></script>
-  <script src="js/monsters.js?v=0601"></script>
-  <script src="js/events.js?v=0601"></script>
-  <script src="js/game.js?v=0601"></script>
-  <script src="js/status-item-tap.js?v=0601"></script>
-  <script src="js/objective-copy.js?v=0601"></script>
-  <script src="js/board3d-brightness.js?v=0601"></script>
-  <script type="module" src="js/board3d.js?v=0601"></script>
+  <script src="js/heroes.js?v=0610"></script>
+  <script src="js/items.js?v=0610"></script>
+  <script src="js/sprites.js?v=0610"></script>
+  <script src="js/map.js?v=0610"></script>
+  <script src="js/monsters.js?v=0610"></script>
+  <script src="js/events.js?v=0610"></script>
+  <script src="js/game.js?v=0610"></script>
+  <script src="js/status-item-tap.js?v=0610"></script>
+  <script src="js/objective-copy.js?v=0610"></script>
+  <script src="js/board3d-brightness.js?v=0610"></script>
+  <script type="module" src="js/board3d.js?v=0610"></script>
+  <script type="module" src="js/board3d-play.js?v=0610"></script>
 </body>
 </html>
