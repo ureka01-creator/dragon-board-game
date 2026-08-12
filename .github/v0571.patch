@@ -1,0 +1,76 @@
+diff -ruN '--exclude=.github' dragon-v0570-work/README.md dragon-v0571-work/README.md
+--- dragon-v0570-work/README.md	2026-08-12 03:26:23.498474472 +0000
++++ dragon-v0571-work/README.md	2026-08-12 03:43:16.440188421 +0000
+@@ -1,4 +1,9 @@
+-# DRAGON BOARD — Web Prototype V0.5.7.0
++# DRAGON BOARD — Web Prototype V0.5.7.1
++
++
++## V0.5.7.1
++- 월드맵 이동 애니메이션의 말 착지 좌표를 타일 높이 76% 지점에서 정확한 정중앙(50%)으로 수정
++- 이동 중 말과 이동 완료 후 정지 말의 기준점을 통일해 칸 도착 시 위치가 어긋나거나 튀는 느낌 제거
+ 
+ 
+ ## V0.5.7.0
+diff -ruN '--exclude=.github' dragon-v0570-work/index.html dragon-v0571-work/index.html
+--- dragon-v0570-work/index.html	2026-08-12 03:26:23.498284124 +0000
++++ dragon-v0571-work/index.html	2026-08-12 03:43:16.439979455 +0000
+@@ -5,7 +5,7 @@
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+   <meta name="theme-color" content="#120f0c" />
+   <title>Dragon Board Prototype</title>
+-  <link rel="stylesheet" href="css/style.css?v=0570" />
++  <link rel="stylesheet" href="css/style.css?v=0571" />
+ </head>
+ <body>
+   <main class="app-shell">
+@@ -22,7 +22,7 @@
+           <h1>DRAGON<br>BOARD</h1>
+           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
+           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
+-          <div class="version-label">PROTOTYPE V0.5.7.0</div>
++          <div class="version-label">PROTOTYPE V0.5.7.1</div>
+         </div>
+       </div>
+     </section>
+@@ -183,12 +183,12 @@
+     </div>
+   </div>
+ 
+-  <script src="js/heroes.js?v=0570"></script>
+-  <script src="js/items.js?v=0570"></script>
+-  <script src="js/sprites.js?v=0570"></script>
+-  <script src="js/map.js?v=0570"></script>
+-  <script src="js/monsters.js?v=0570"></script>
+-  <script src="js/events.js?v=0570"></script>
+-  <script src="js/game.js?v=0570"></script>
++  <script src="js/heroes.js?v=0571"></script>
++  <script src="js/items.js?v=0571"></script>
++  <script src="js/sprites.js?v=0571"></script>
++  <script src="js/map.js?v=0571"></script>
++  <script src="js/monsters.js?v=0571"></script>
++  <script src="js/events.js?v=0571"></script>
++  <script src="js/game.js?v=0571"></script>
+ </body>
+ </html>
+diff -ruN '--exclude=.github' dragon-v0570-work/js/game.js dragon-v0571-work/js/game.js
+--- dragon-v0570-work/js/game.js	2026-08-12 03:26:23.498016719 +0000
++++ dragon-v0571-work/js/game.js	2026-08-12 03:43:16.436144666 +0000
+@@ -1,4 +1,4 @@
+-// DRAGON BOARD V0.5.7.0
++// DRAGON BOARD V0.5.7.1
+ (() => {
+   const $ = (sel) => document.querySelector(sel);
+   const state = {
+@@ -1436,8 +1436,10 @@
+     const mapRect = worldMap.getBoundingClientRect();
+     const rect = nodeEl.getBoundingClientRect();
+     return {
++      // V0.5.7.1: 이동 중 말도 타일의 시각적 정중앙을 기준으로 이동한다.
++      // 정지 상태의 map-token-grid 역시 중앙 정렬이므로, 착지 직후 위치가 튀지 않는다.
+       x: rect.left - mapRect.left + rect.width * 0.5,
+-      y: rect.top - mapRect.top + rect.height * 0.76,
++      y: rect.top - mapRect.top + rect.height * 0.5,
+       cell: Math.min(rect.width, rect.height),
+     };
+   }
