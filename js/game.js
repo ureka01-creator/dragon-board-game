@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.19
+// DRAGON BOARD V0.5.6.0
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -613,7 +613,7 @@
     if (regionTitle) regionTitle.textContent = meta?.themeLabel || '미지의 지역';
   }
 
-  // V0.5.5.19 — 탐험 시야 규칙.
+  // V0.5.6.0 — 탐험 시야 규칙.
   // 실제 타일 정체는 '직접 밟은 칸'만 영구 공개한다.
   // 현재 턴 영웅의 상/하/좌/우 한 칸은 타일 뒷면만 보이며 내용/물음표는 표시하지 않는다.
   function revealFromNode(startNodeId) {
@@ -693,14 +693,15 @@
     if (state.rolled !== null && activeArea !== state.viewAreaId) state.viewAreaId = activeArea;
     renderRegionNavigator();
     const areaMeta = window.WORLD_AREAS?.[state.viewAreaId];
-    if (boardTitle) boardTitle.textContent = areaMeta?.themeLabel || '미지의 지역';
+    if (boardTitle) boardTitle.textContent = `${areaMeta?.icon || '🗺️'} ${areaMeta?.themeLabel || '미지의 지역'}`;
     renderCurrentObjective();
     worldMap.dataset.areaId = state.viewAreaId;
     worldMap.dataset.theme = areaMeta?.themeKey || '';
 
     const watermark = document.createElement('div');
     watermark.className = 'area-watermark';
-    watermark.innerHTML = `<span>${areaMeta?.themeLabel || '미지의 지역'}</span><small>${areaMeta?.icon || '🗺️'} 탐험 중</small>`;
+    // V0.5.6.0: 맵 이름은 좌측 상단 제목에만 표시한다.
+    watermark.innerHTML = '';
     worldMap.appendChild(watermark);
 
     const reachable = getReachableNodeIds();
@@ -734,7 +735,7 @@
     const party = getHeroParty(active);
     const unit = getWorldUnitMembers(active);
     const canAct = active && !active.acted && !active.down && !state.gameOver && !state.combat && unit.every(h => !h.acted && !h.down);
-    // V0.5.5.19: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
+    // V0.5.6.0: 주사위 결과만큼 반드시 이동한다. 중간 이동 종료는 허용하지 않는다.
     rollBtn.disabled = state.rolled !== null || !canAct || state.isRolling || state.isMoving;
     rollBtn.textContent = '🎲 D6 굴리기';
 
@@ -1314,9 +1315,20 @@
     // 결과 확정 즉시 상단은 다시 영웅 턴, MOVE는 전체 남은 횟수를 표시.
     renderAll();
 
-    // V0.5.5.19: 확정된 눈을 정면으로 크게 한 번 보여준다.
-    if (diceRoller) {
-      diceRoller.classList.remove('rolling', 'settling');
+    // V0.5.6.0: 확정된 눈을 정면으로 크게 한 번 보여준다.
+    if (diceRoller && worldMap) {
+      const boardPanel = worldMap.closest('.board-panel');
+      const panelRect = boardPanel?.getBoundingClientRect();
+      const mapRect = worldMap.getBoundingClientRect();
+
+      // V0.5.6.0: 굴러간 최종 위치가 아니라 월드맵 정중앙에서 결과를 보여준다.
+      if (panelRect) {
+        diceRoller.style.left = `${mapRect.left - panelRect.left + mapRect.width / 2}px`;
+        diceRoller.style.top = `${mapRect.top - panelRect.top + mapRect.height / 2}px`;
+      }
+
+      diceRoller.style.transform = '';
+      diceRoller.classList.remove('rolling', 'landed', 'settling');
       diceRoller.classList.add('dice-result-show');
       setRollingDieFace(result);
       await waitMs(760);
@@ -1357,7 +1369,7 @@
     const unit = getWorldUnitMembers(hero);
     if (state.combat || !hero || hero.down || state.rolled === null || state.moveRemaining <= 0 || hero.acted || unit.some(h => h.acted || h.down)) return result;
 
-    // V0.5.5.19: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
+    // V0.5.6.0: 주사위를 굴려도 전체 이동 범위를 한 번에 밝히지 않는다.
     // 현재 위치에서 '다음 한 칸'만 선택 가능하게 해서 길 구조가 미리 드러나지 않게 한다.
     const node = WORLD_NODES.find(n => n.id === hero.position);
     const visitedThisMove = state.moveVisitedNodeIds instanceof Set
@@ -1367,7 +1379,7 @@
     for (const nextId of (node?.links || [])) {
       const nextNode = WORLD_NODES.find(n => n.id === nextId);
       if (!nextNode || nodeIsLocked(nextNode)) continue;
-      // V0.5.5.19: 한 번의 주사위 이동에서 이미 지나간 칸은 다시 밟을 수 없다.
+      // V0.5.6.0: 한 번의 주사위 이동에서 이미 지나간 칸은 다시 밟을 수 없다.
       if (visitedThisMove.has(nextId)) continue;
       result.add(nextId);
     }
@@ -2765,7 +2777,7 @@
       });
 
       addQuestProgress('combatWin', 1);
-      // V0.5.5.19: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
+      // V0.5.6.0: 보드의 일반 전투칸은 승리 후 재방문 랜덤 판정 대상으로 기록.
       if (!c.isBoss && c.node?.type === '전투' && !String(c.node.id || '').startsWith('event-')) {
         const boardNode = WORLD_NODES.find(n => n.id === c.node.id);
         if (boardNode) {
@@ -3030,7 +3042,7 @@
     // 한 칸 도착한 순간 오른쪽 MOVE를 즉시 1 감소시킨다.
     renderControls();
 
-    // V0.5.5.19:
+    // V0.5.6.0:
     // 주사위가 6이어도 이동 도중 막다른 길에 도달하면 즉시 정지한다.
     // 방금 지나온 칸을 제외하고 갈 곳이 없을 때만 막다른 길로 판정한다.
     const hitDeadEnd = state.moveRemaining > 0 && isMovementDeadEnd(node);
@@ -3447,7 +3459,7 @@
         return false;
 
       case '전투': {
-        // V0.5.5.19: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
+        // V0.5.6.0: 일반 전투칸은 최초 전투 후 '위험 지역'처럼 재판정한다.
         // 보스/사건 전투는 이 로직을 사용하지 않는다.
         if (node.combatCleared) {
           const roll = Math.random();

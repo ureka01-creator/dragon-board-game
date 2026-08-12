@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.5.19
+// DRAGON BOARD V0.5.6.0
 // 외곽 실루엣과 내부 길 구조/테마/타일 배치 모두 지역마다, 새 게임마다 다시 생성된다.
 window.PARTY_SYSTEM_ENABLED = false;
 
@@ -45,7 +45,7 @@ const THEMES = {
   }
 };
 
-// V0.5.5.19: 외곽도 고정 사각형이 아니다.
+// V0.5.6.0: 외곽도 고정 사각형이 아니다.
 // 네 모서리 중 1~3곳을 안쪽으로 꺾어서, 지역마다/새 게임마다 실루엣이 달라진다.
 // 노드 수는 24칸으로 유지해 기존 보드 밸런스(총 33칸)를 깨지 않는다.
 function makeRandomOuterShape() {
@@ -77,7 +77,7 @@ function makeRandomOuterShape() {
   return coords;
 }
 
-// V0.5.5.19: 내부 9칸의 모양은 더 이상 고정 십자가가 아니다.
+// V0.5.6.0: 내부 9칸의 모양은 더 이상 고정 십자가가 아니다.
 // 각 지역/새 게임마다 5x5 내부에서 연결된 9칸을 새로 생성한다.
 const INNER_CELLS = [];
 for (let y=2; y<=6; y++) {
