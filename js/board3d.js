@@ -247,7 +247,7 @@ function addTile(board,tile) {
   else if (fogged) color = 0x24252a;
 
   const material = new THREE.MeshStandardMaterial({
-    color, roughness:.76, metalness:current?.16:.04,
+    color, roughness:.76, metalness:current ? .16 : .04,
     emissive:current ? 0x72500c : reachable ? 0x294b11 : 0x000000,
     emissiveIntensity:current ? .72 : reachable ? .52 : 0,
   });
@@ -258,7 +258,7 @@ function addTile(board,tile) {
   board.add(mesh);
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(mesh.geometry),
-    new THREE.LineBasicMaterial({color:current?0xf0bd55:reachable?0xb3dc72:0x805d39,transparent:true,opacity:deepFog?.25:.82}),
+    new THREE.LineBasicMaterial({color:current?0xf0bd55:reachable?0xb3dc72:0x805d39,transparent:true,opacity:deepFog ? .25 : .82}),
   );
   edges.position.copy(mesh.position);
   board.add(edges);
