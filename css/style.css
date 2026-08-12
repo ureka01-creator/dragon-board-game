@@ -2062,3 +2062,50 @@ body.modal-open {
   84%  { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(0deg) scale(1.44); opacity:1; }
   100% { transform:translate3d(var(--dice-center-x),var(--dice-center-y),0) rotate(0deg) scale(1.36); opacity:0; }
 }
+
+/* ── V0.5.8.0 FIELD MINI DUNGEONS ───────────────────────── */
+.map-node.dungeon-node {
+  box-shadow: inset 0 0 0 1px rgba(181,145,91,.22), inset 0 0 16px rgba(0,0,0,.48);
+}
+.map-node.dungeon-node .node-icon {
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.8));
+}
+.map-node.dungeon-cleared .node-name::after {
+  content: ' ✓';
+  color: #c5a55f;
+}
+.dungeon-sheet .event-card-icon {
+  background: linear-gradient(180deg,#18130f,#0d0a08);
+}
+.dungeon-progress {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:8px;
+  padding:10px 8px;
+  border:2px solid #4e3c2a;
+  background:rgba(8,6,5,.58);
+}
+.dungeon-progress span {
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border:2px solid #584631;
+  background:#17120d;
+  color:#8e7c60;
+  font-weight:900;
+}
+.dungeon-progress span.current {
+  border-color:#c09245;
+  color:#f0c96e;
+  box-shadow:0 0 12px rgba(211,166,76,.18);
+}
+.dungeon-progress span.done {
+  border-color:#6f7445;
+  color:#cfd49a;
+  background:#202315;
+}
+.dungeon-complete-sheet .event-card-icon {
+  border-color:#9b7436;
+}

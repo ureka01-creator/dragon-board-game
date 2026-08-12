@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.7.2
+// DRAGON BOARD V0.5.8.0
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const state = {
@@ -110,6 +110,7 @@
     { id:'treasureHunter', type:'treasure', icon:'🎁', name:'봉인의 단서', desc:'새 보물 상자를 2개 개봉', target:2 },
     { id:'eventHunter', type:'event', icon:'❓', name:'운명의 시험', desc:'이벤트 카드 2개 해결', target:2 },
     { id:'roadHunter', type:'portal', icon:'🗺️', name:'경계 너머', desc:'지역 경계를 2회 통과', target:2 },
+    { id:'dungeonHunter', type:'dungeon', icon:'🕳️', name:'심연 탐사', desc:'소형 던전 1회 클리어', target:1 },
   ];
 
   function setupSealQuests() {
@@ -707,10 +708,11 @@
       const activeUnit = getWorldUnitMembers(activeHero);
       const isCurrent = activeUnit.some(h => h.position === node.id);
       const isDragon = node.type === '드래곤성';
+      const isDungeon = node.type === '던전';
       const visited = Boolean(state.discoveredNodeIds?.has(node.id));
       const visible = visited || visibleNow.has(node.id);
       const fogClass = visited ? 'discovered' : (visible ? 'fogged' : 'deep-fog');
-      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon && visited ? 'dragon-spawned' : ''} ${fogClass}`;
+      el.className = `map-node region-${node.region || 'road'} ${reachable.has(node.id) ? 'reachable' : ''} ${isCurrent ? 'current' : ''} ${isDragon && visited ? 'dragon-spawned' : ''} ${isDungeon && visited ? 'dungeon-node' : ''} ${node.dungeonCleared ? 'dungeon-cleared' : ''} ${fogClass}`;
       el.dataset.nodeId = node.id;
       el.style.gridColumn = node.x;
       el.style.gridRow = node.y;
@@ -2842,7 +2844,7 @@
 
     renderCombat();
     await new Promise(r => setTimeout(r, result === 'victory' ? 620 : 650));
-    if (result === 'victory' && !state.gameOver) {
+    if (result === 'victory' && !state.gameOver && !c.suppressLoot) {
       await showCombatLoot(c);
     }
     closeModalPanel();
@@ -2851,12 +2853,18 @@
     combatOverlay.classList.add('hidden');
     setCombatViewportLock(false);
     state.combat = null;
-    finishCombatTurns(ids);
-    flushDragonCastleNotice();
+    if (c.dungeonMode) {
+      // V0.5.8.0: 소형 던전 내부 전투는 월드 턴을 즉시 끝내지 않는다.
+      // 전투 결과를 던전 진행 루틴으로 돌려보내 다음 방/탈출 여부를 결정한다.
+      renderAll();
+    } else {
+      finishCombatTurns(ids);
+    }
+    if (!c.dungeonMode) flushDragonCastleNotice();
     resolver?.(result);
   }
 
-  function startCombat(hero, node, originNodeId) {
+  function startCombat(hero, node, originNodeId, options = {}) {
     return new Promise(resolve => {
       if (state.combat) {
         resolve('busy');
@@ -2898,6 +2906,8 @@
         heroActionsThisRound: 0,
         bossActionsThisRound: 0,
         necroHalfSummoned: false,
+        dungeonMode: Boolean(options.dungeonMode),
+        suppressLoot: Boolean(options.suppressLoot),
         resolve,
       };
 
@@ -3483,6 +3493,281 @@
     }));
   }
 
+  // ── V0.5.8.0 FIELD MINI DUNGEONS ─────────────────────────────
+  // 일반 필드 던전은 월드 턴 1회 안에서 2~3개의 짧은 방을 연속으로 해결한다.
+  // 실패/도주 시 필드로 돌아오며, 이미 완료한 방의 진행도는 유지해 보상 반복 파밍을 막는다.
+  const DUNGEON_REGION_RULES = {
+    grave: {
+      normal:['skeleton','ghost'], elite:['darkKnight'],
+      trap:{ name:'저주받은 석관', text:'봉인이 깨진 석관 사이로 검은 손이 뻗어 나온다.', stat:'luck', dc:12 },
+      rest:{ name:'꺼지지 않는 촛불', text:'작은 제단의 촛불이 아직 따뜻하다.' }
+    },
+    forest: {
+      normal:['wolf','spider','goblin'], elite:['ogre'],
+      trap:{ name:'포식 식물', text:'바닥의 덩굴이 갑자기 발목을 휘감는다.', stat:'dex', dc:12 },
+      rest:{ name:'고요한 지하샘', text:'뿌리 사이에서 맑은 물이 솟아난다.' }
+    },
+    war: {
+      normal:['goblin','orc'], elite:['darkKnight','ogre'],
+      trap:{ name:'녹슨 살상 장치', text:'무너진 병기고의 발판이 철컥 내려앉는다.', stat:'dex', dc:13 },
+      rest:{ name:'버려진 의무실', text:'먼지 쌓인 붕대와 약품이 조금 남아 있다.' }
+    },
+    volcano: {
+      normal:['fireImp','orc'], elite:['minotaur','wyvern'],
+      trap:{ name:'용암 균열', text:'발밑의 바위가 갈라지며 뜨거운 열기가 솟구친다.', stat:'dex', dc:13 },
+      rest:{ name:'광부의 피난소', text:'두꺼운 암벽 뒤 작은 대피 공간을 발견했다.' }
+    },
+  };
+
+  function dungeonRuleFor(node) {
+    return DUNGEON_REGION_RULES[node?.region] || DUNGEON_REGION_RULES.war;
+  }
+
+  function pickDungeonMonster(node, tier = 'normal') {
+    const rule = dungeonRuleFor(node);
+    const pool = tier === 'elite' ? rule.elite : rule.normal;
+    return pool[Math.floor(Math.random() * pool.length)] || (tier === 'elite' ? 'ogre' : 'goblin');
+  }
+
+  function buildDungeonPlan(node) {
+    const roomCount = Math.random() < 0.58 ? 2 : 3;
+    const plan = [];
+    // 첫 방: 던전에 들어왔다는 긴장감을 위해 전투 비중을 높인다.
+    if (Math.random() < 0.68) plan.push({ type:'combat', monsterId:pickDungeonMonster(node,'normal') });
+    else plan.push({ type:'trap' });
+
+    // 3룸일 때만 중간 방을 추가. 보물/휴식/함정/일반전투 중 하나라 길어지지 않는다.
+    if (roomCount === 3) {
+      const roll = Math.random();
+      if (roll < 0.38) plan.push({ type:'treasure' });
+      else if (roll < 0.62) plan.push({ type:'rest' });
+      else if (roll < 0.82) plan.push({ type:'trap' });
+      else plan.push({ type:'combat', monsterId:pickDungeonMonster(node,'normal') });
+    }
+
+    // 마지막 방은 정예전 또는 보상방. 최종 보상/결정이 분명하도록 일반 방으로 끝나지 않는다.
+    if (Math.random() < 0.68) plan.push({ type:'elite', monsterId:pickDungeonMonster(node,'elite') });
+    else plan.push({ type:'treasure', final:true });
+    return plan;
+  }
+
+  function ensureDungeonState(node) {
+    if (!node.dungeonState || !Array.isArray(node.dungeonState.plan)) {
+      node.dungeonState = { plan:buildDungeonPlan(node), index:0 };
+    }
+    node.dungeonState.index = Math.max(0, Math.min(node.dungeonState.plan.length, Number(node.dungeonState.index || 0)));
+    return node.dungeonState;
+  }
+
+  function dungeonRoomTitle(room) {
+    if (room?.type === 'combat') return '마물의 방';
+    if (room?.type === 'elite') return '최심부의 수호자';
+    if (room?.type === 'trap') return '함정 구역';
+    if (room?.type === 'rest') return '숨겨진 휴식처';
+    if (room?.type === 'treasure') return room.final ? '봉인된 보물고' : '숨겨진 보물방';
+    return '미지의 방';
+  }
+
+  function dungeonRoomIcon(room) {
+    if (room?.type === 'combat') return '⚔️';
+    if (room?.type === 'elite') return '👹';
+    if (room?.type === 'trap') return '⚠️';
+    if (room?.type === 'rest') return '❤️';
+    if (room?.type === 'treasure') return '🎁';
+    return '🕳️';
+  }
+
+  function askDungeonEntry(hero, node, dungeonState) {
+    return new Promise(resolve => {
+      const total = dungeonState.plan.length;
+      const current = Math.min(total, dungeonState.index + 1);
+      const resumed = dungeonState.index > 0;
+      modalCloseAction = null;
+      modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal','shop-modal');
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `
+        <div class="event-sheet dungeon-sheet">
+          <div class="status-kicker">MINI DUNGEON · ${current}/${total}</div>
+          <div class="event-card-head"><span class="event-card-icon">🕳️</span><div><h3>${node.name}</h3><p>${resumed ? `이전에 ${dungeonState.index}개 방을 돌파했다. 최심부 탐사를 이어갈 수 있어.` : '짧은 소형 던전이다. 2~3개의 방을 돌파하면 보상을 얻을 수 있어.'}</p></div></div>
+          <div class="dungeon-progress">${dungeonState.plan.map((room,index)=>`<span class="${index < dungeonState.index ? 'done' : index === dungeonState.index ? 'current' : ''}">${index < dungeonState.index ? '✓' : index + 1}</span>`).join('')}</div>
+          <div class="event-choice-grid">
+            <button type="button" class="event-choice-btn dungeon-enter-btn"><strong>⚔️ 던전 진입</strong><small>이번 월드 턴 안에서 남은 방을 이어서 탐사</small></button>
+            <button type="button" class="event-choice-btn dungeon-leave-btn"><strong>↩️ 지나간다</strong><small>이 칸에 머물고 이번 턴 종료</small></button>
+          </div>
+        </div>`;
+      modal.classList.remove('hidden');
+      modalContent.querySelector('.dungeon-enter-btn')?.addEventListener('click',()=>{ closeModalPanel(); resolve(true); },{once:true});
+      modalContent.querySelector('.dungeon-leave-btn')?.addEventListener('click',()=>{ closeModalPanel(); resolve(false); },{once:true});
+    });
+  }
+
+  function showDungeonRoomPrompt(node, room, index, total) {
+    return new Promise(resolve => {
+      const monster = room?.monsterId ? MONSTERS?.[room.monsterId] : null;
+      const detail = room.type === 'combat'
+        ? `${monster?.icon || '👹'} ${monster?.name || '마물'}의 기척이 가까워진다.`
+        : room.type === 'elite'
+          ? `${monster?.icon || '👹'} ${monster?.name || '정예 마물'}이(가) 최심부를 지키고 있다.`
+          : room.type === 'treasure'
+            ? '낡은 봉인 너머로 보물 상자가 보인다.'
+            : '앞쪽에서 심상치 않은 기척이 느껴진다.';
+      modalCloseAction = null;
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `<div class="event-sheet dungeon-sheet">
+        <div class="status-kicker">${node.name} · ROOM ${index+1}/${total}</div>
+        <div class="event-card-head"><span class="event-card-icon">${dungeonRoomIcon(room)}</span><div><h3>${dungeonRoomTitle(room)}</h3><p>${detail}</p></div></div>
+        <button type="button" class="pixel-btn primary event-main-btn" data-dungeon-room-go>${room.type === 'treasure' ? '보물 확인' : '진행'}</button>
+      </div>`;
+      modal.classList.remove('hidden');
+      modalContent.querySelector('[data-dungeon-room-go]')?.addEventListener('click',()=>{ closeModalPanel(); resolve(); },{once:true});
+    });
+  }
+
+  function resolveDungeonTrap(hero, node, room, index, total) {
+    return new Promise(resolve => {
+      const rule = dungeonRuleFor(node);
+      const trap = rule.trap;
+      modalCloseAction = null;
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `<div class="event-sheet dungeon-sheet">
+        <div class="status-kicker">${node.name} · ROOM ${index+1}/${total}</div>
+        <div class="event-card-head"><span class="event-card-icon">⚠️</span><div><h3>${trap.name}</h3><p>${trap.text}</p></div></div>
+        <div class="event-check-box"><div class="event-check-label">${eventStatLabel(trap.stat)} 판정 · DC ${trap.dc}</div><div class="event-d20"><span data-event-d20-value>20</span></div><div class="event-check-result" data-dungeon-trap-result>주사위를 굴려 함정을 피하자.</div></div>
+        <button type="button" class="pixel-btn primary event-main-btn" data-dungeon-trap-roll>🎲 D20 굴리기</button>
+      </div>`;
+      modal.classList.remove('hidden');
+      const btn = modalContent.querySelector('[data-dungeon-trap-roll]');
+      btn?.addEventListener('click', async () => {
+        btn.disabled = true;
+        const roll = Math.floor(Math.random()*20)+1;
+        await rollEventD20(roll);
+        const bonus = heroEventStat(hero,trap.stat);
+        const totalRoll = roll + bonus;
+        const success = roll === 20 || (roll !== 1 && totalRoll >= trap.dc);
+        const resultEl = modalContent.querySelector('[data-dungeon-trap-result]');
+        if (success) {
+          resultEl.innerHTML = `✅ 회피 성공 · D20 ${roll} ${bonus >= 0 ? '+' : '-'} ${Math.abs(bonus)} = <strong>${totalRoll}</strong>`;
+          log(`🕳️ ${node.name} · ${trap.name} 회피 성공.`);
+        } else {
+          const damage = 3 + Math.floor(Math.random()*4);
+          damageHero(hero, damage, trap.name);
+          resultEl.innerHTML = `❌ 실패 · D20 ${roll} ${bonus >= 0 ? '+' : '-'} ${Math.abs(bonus)} = <strong>${totalRoll}</strong><br>💥 피해 ${damage}`;
+          log(`⚠️ ${node.name} · ${trap.name} 실패 → ${hero.name} 피해 ${damage}.`);
+        }
+        renderAll();
+        btn.disabled = false;
+        btn.textContent = '계속';
+        btn.addEventListener('click',()=>{ closeModalPanel(); resolve(); },{once:true});
+      },{once:true});
+    });
+  }
+
+  function resolveDungeonRest(hero, node, index, total, unitMembers) {
+    return new Promise(resolve => {
+      const rule = dungeonRuleFor(node);
+      const before = unitMembers.map(member => ({ member, hp:member.currentHp, mana:member.currentMana }));
+      unitMembers.forEach(member => {
+        member.currentHp = Math.min(member.hp, member.currentHp + Math.ceil(member.hp * 0.20));
+        if (member.currentMana !== null) member.currentMana = Math.min(maxMana(member), member.currentMana + 1);
+      });
+      const hpGain = before.reduce((sum,entry)=>sum + (entry.member.currentHp-entry.hp),0);
+      const manaGain = before.reduce((sum,entry)=>sum + (entry.member.currentMana !== null && entry.mana !== null ? entry.member.currentMana-entry.mana : 0),0);
+      modalCloseAction = null;
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `<div class="event-sheet dungeon-sheet">
+        <div class="status-kicker">${node.name} · ROOM ${index+1}/${total}</div>
+        <div class="event-card-head"><span class="event-card-icon">❤️</span><div><h3>${rule.rest.name}</h3><p>${rule.rest.text}</p></div></div>
+        <div class="event-resolution-box"><div>❤️ HP +${hpGain}</div>${manaGain ? `<div>🔵 MANA +${manaGain}</div>` : ''}</div>
+        <button type="button" class="pixel-btn primary event-main-btn" data-dungeon-rest-close>계속</button>
+      </div>`;
+      modal.classList.remove('hidden');
+      log(`❤️ ${node.name} · 휴식처 발견 → HP +${hpGain}${manaGain ? ` / MANA +${manaGain}` : ''}.`);
+      renderAll();
+      modalContent.querySelector('[data-dungeon-rest-close]')?.addEventListener('click',()=>{ closeModalPanel(); resolve(); },{once:true});
+    });
+  }
+
+  function showDungeonComplete(hero, node, goldReward) {
+    return new Promise(resolve => {
+      modalCloseAction = null;
+      modalCloseBtn.hidden = true;
+      modalContent.innerHTML = `<div class="event-sheet dungeon-sheet dungeon-complete-sheet">
+        <div class="status-kicker">DUNGEON CLEARED</div>
+        <div class="event-card-head"><span class="event-card-icon">🏆</span><div><h3>${node.name} 정복</h3><p>최심부까지 탐사를 마쳤다. 이 던전의 보상은 이번 게임에서 모두 회수했다.</p></div></div>
+        <div class="event-resolution-box"><div>💰 탐사 보상 +${goldReward}G</div><div>🕳️ 던전 클리어 기록</div></div>
+        <button type="button" class="pixel-btn primary event-main-btn" data-dungeon-complete-close>필드로 돌아가기</button>
+      </div>`;
+      modal.classList.remove('hidden');
+      modalContent.querySelector('[data-dungeon-complete-close]')?.addEventListener('click',()=>{ closeModalPanel(); resolve(); },{once:true});
+    });
+  }
+
+  async function resolveFieldDungeon(hero, node, originNodeId, unitMembers = getWorldUnitMembers(hero)) {
+    if (node.dungeonCleared) {
+      showModal('🕯️ 정복한 던전', `${node.name}은 이미 탐사를 마쳤다. 남은 보상은 없다.`);
+      return false;
+    }
+
+    const dungeonState = ensureDungeonState(node);
+    const enter = await askDungeonEntry(hero,node,dungeonState);
+    if (!enter) return false;
+
+    log(`🕳️ ${hero.icon} <strong>${hero.name}</strong> · ${node.name} 진입 (${dungeonState.index}/${dungeonState.plan.length} 방 완료).`);
+
+    while (dungeonState.index < dungeonState.plan.length && !state.gameOver && !hero.down) {
+      const index = dungeonState.index;
+      const total = dungeonState.plan.length;
+      const room = dungeonState.plan[index];
+
+      if (room.type === 'trap') {
+        await resolveDungeonTrap(hero,node,room,index,total);
+        dungeonState.index += 1;
+      } else if (room.type === 'rest') {
+        await resolveDungeonRest(hero,node,index,total,unitMembers);
+        dungeonState.index += 1;
+      } else if (room.type === 'treasure') {
+        await showDungeonRoomPrompt(node,room,index,total);
+        await showTreasureLoot(hero);
+        dungeonState.index += 1;
+      } else if (room.type === 'combat' || room.type === 'elite') {
+        await showDungeonRoomPrompt(node,room,index,total);
+        const monster = MONSTERS?.[room.monsterId];
+        const combatNode = {
+          ...node,
+          id:node.id,
+          type:'던전',
+          icon:monster?.icon || (room.type === 'elite' ? '👹' : '⚔️'),
+          name:`${node.name} · ${dungeonRoomTitle(room)}`,
+          monsterId:room.monsterId,
+        };
+        const result = await startCombat(hero,combatNode,node.id,{ dungeonMode:true, suppressLoot:room.type === 'combat' });
+        if (result !== 'victory') {
+          log(`↩️ ${node.name} 탐사 중단 · ${room.type === 'elite' ? '최심부' : `ROOM ${index+1}`}에서 후퇴.`);
+          flushDragonCastleNotice();
+          return false;
+        }
+        dungeonState.index += 1;
+      }
+
+      if (hero.down || state.gameOver) {
+        flushDragonCastleNotice();
+        return false;
+      }
+    }
+
+    if (dungeonState.index >= dungeonState.plan.length && !node.dungeonCleared) {
+      node.dungeonCleared = true;
+      node.short = '정복완료';
+      const goldReward = 4 + Math.floor(Math.random()*4);
+      state.gold += goldReward;
+      addQuestProgress('dungeon',1);
+      log(`🏆 <strong>${node.name}</strong> 정복 · 💰 ${goldReward}G 획득.`);
+      await showDungeonComplete(hero,node,goldReward);
+    }
+    flushDragonCastleNotice();
+    return false;
+  }
+
   async function resolveNode(hero, node, originNodeId, unitMembers = getWorldUnitMembers(hero)) {
     switch (node.type) {
       case '마을':
@@ -3554,6 +3839,9 @@
         await startCombat(hero, node, originNodeId);
         return true;
       }
+
+      case '던전':
+        return await resolveFieldDungeon(hero,node,originNodeId,unitMembers);
 
       case '보물':
         if (node.consumed) {
