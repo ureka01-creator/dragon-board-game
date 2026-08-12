@@ -1,0 +1,142 @@
+diff -ruN '--exclude=.github' dragon-v0567-work/README.md dragon-v0570-work/README.md
+--- dragon-v0567-work/README.md	2026-08-12 03:25:30.624144666 +0000
++++ dragon-v0570-work/README.md	2026-08-12 03:26:23.498474472 +0000
+@@ -1,4 +1,12 @@
+-# DRAGON BOARD — Web Prototype V0.5.6.7
++# DRAGON BOARD — Web Prototype V0.5.7.0
++
++
++## V0.5.7.0
++- 영웅 4명의 전투 개성 1차 정리 및 SOLO 전투 호환 보강
++- 기사 패시브를 `철벽`으로 변경: 전투 라운드마다 처음 받는 피해 2 감소
++- 도적 `급소 공격`을 파티 의존 조건에서 제거하고, 이미 피해를 입은 적에게 라운드당 1회 +D6 피해로 변경
++- 궁수의 Natural 19~20 크리티컬, 마법사의 MANA/마력 폭발 규칙은 유지
++- 영웅 선택 화면에 패시브와 고유기를 함께 표시
+ 
+ 
+ ## V0.5.6.7
+diff -ruN '--exclude=.github' dragon-v0567-work/index.html dragon-v0570-work/index.html
+--- dragon-v0567-work/index.html	2026-08-12 03:25:30.640144666 +0000
++++ dragon-v0570-work/index.html	2026-08-12 03:26:23.498284124 +0000
+@@ -5,7 +5,7 @@
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+   <meta name="theme-color" content="#120f0c" />
+   <title>Dragon Board Prototype</title>
+-  <link rel="stylesheet" href="css/style.css?v=0567" />
++  <link rel="stylesheet" href="css/style.css?v=0570" />
+ </head>
+ <body>
+   <main class="app-shell">
+@@ -22,7 +22,7 @@
+           <h1>DRAGON<br>BOARD</h1>
+           <p class="title-sub">왕국이 멸망하기 전에 봉인을 깨고 드래곤을 쓰러뜨려라.</p>
+           <button id="titleStartBtn" class="tap-start" type="button">▶ 화면을 터치해서 시작</button>
+-          <div class="version-label">PROTOTYPE V0.5.6.7</div>
++          <div class="version-label">PROTOTYPE V0.5.7.0</div>
+         </div>
+       </div>
+     </section>
+@@ -183,12 +183,12 @@
+     </div>
+   </div>
+ 
+-  <script src="js/heroes.js?v=0567"></script>
+-  <script src="js/items.js?v=0567"></script>
+-  <script src="js/sprites.js?v=0567"></script>
+-  <script src="js/map.js?v=0567"></script>
+-  <script src="js/monsters.js?v=0567"></script>
+-  <script src="js/events.js?v=0567"></script>
+-  <script src="js/game.js?v=0567"></script>
++  <script src="js/heroes.js?v=0570"></script>
++  <script src="js/items.js?v=0570"></script>
++  <script src="js/sprites.js?v=0570"></script>
++  <script src="js/map.js?v=0570"></script>
++  <script src="js/monsters.js?v=0570"></script>
++  <script src="js/events.js?v=0570"></script>
++  <script src="js/game.js?v=0570"></script>
+ </body>
+ </html>
+diff -ruN '--exclude=.github' dragon-v0567-work/js/game.js dragon-v0570-work/js/game.js
+--- dragon-v0567-work/js/game.js	2026-08-12 03:09:13.836652130 +0000
++++ dragon-v0570-work/js/game.js	2026-08-12 03:26:23.498016719 +0000
+@@ -1,4 +1,4 @@
+-// DRAGON BOARD V0.5.6.7
++// DRAGON BOARD V0.5.7.0
+ (() => {
+   const $ = (sel) => document.querySelector(sel);
+   const state = {
+@@ -188,7 +188,8 @@
+         <div class="stat-line"><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div>
+         <div class="stat-line"><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div>
+         <div class="stat-line"><span>🛡 AC</span><strong>${hero.ac}</strong></div>
+-        <div class="skill-line">${hero.passive}</div>
++        <div class="skill-line">🧩 <strong>패시브</strong> · ${hero.passive}</div>
++        <div class="skill-line">✨ <strong>고유기</strong> · ${hero.skill}</div>
+       `;
+       el.addEventListener('click', () => toggleHero(hero.id));
+       heroGrid.appendChild(el);
+@@ -1866,7 +1867,10 @@
+     const hs = combatHeroState(hero?.id);
+     if (!hero || !hs || hs.acted || state.combat?.busy) return false;
+     if (hero.id === 'rogue') {
+-      return !hs.skillUsedRound && aliveCombatHeroes().filter(h => h.id !== hero.id).length > 0;
++      // V0.5.7.0: SOLO에서도 급소 공격을 사용할 수 있게 한다.
++      // 기본 공격을 항상 대체하지 않도록, 이미 피해를 입은 적에게만 활성화한다.
++      const target = selectedCombatEnemy();
++      return !hs.skillUsedRound && Boolean(target && target.currentHp < target.maxHp);
+     }
+     if (hs.skillUsedBattle) return false;
+     if (hero.id === 'mage' && (hero.currentMana ?? 0) < 2) return false;
+@@ -2050,6 +2054,12 @@
+       damage -= reduced;
+       if (reduced > 0) combatLogEntry(`🐲 용비늘 갑옷 · 화염 피해 ${reduced} 감소.`);
+     }
++    if (damage > 0 && hero.id === 'knight' && hs && !hs.knightGuardUsedRound) {
++      const reduced = Math.min(damage, 2);
++      damage -= reduced;
++      hs.knightGuardUsedRound = true;
++      if (reduced > 0) combatLogEntry(`🛡 철벽 · ${hero.name}이 이번 라운드 첫 피해 ${reduced} 감소.`);
++    }
+     if (damage > 0 && hs && !hs.guardianCharmUsed && equipmentEffect(hero, 'firstDamageReduction') > 0) {
+       const reduced = Math.min(damage, equipmentEffect(hero, 'firstDamageReduction'));
+       damage -= reduced;
+@@ -2495,6 +2505,7 @@
+       hs.acted = false;
+       hs.defending = false;
+       hs.skillUsedRound = false;
++      hs.knightGuardUsedRound = false;
+       hs.itemUsed = false;
+     });
+     const next = c.participantIds
+@@ -2852,7 +2863,7 @@
+       const isBoss = node.type === '보스';
+       const heroStates = {};
+       participants.forEach(h => {
+-        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false };
++        heroStates[h.id] = { acted:false, defending:false, skillUsedBattle:false, skillUsedRound:false, itemUsed:false, attackAttempts:0, firstSuccessfulHit:false, fateCoinUsed:false, guardianCharmUsed:false, rangerCloakUsed:false, knightGuardUsedRound:false };
+         h.nextAttackBonus = 0;
+       });
+ 
+diff -ruN '--exclude=.github' dragon-v0567-work/js/heroes.js dragon-v0570-work/js/heroes.js
+--- dragon-v0567-work/js/heroes.js	2026-08-12 02:29:22.583170156 +0000
++++ dragon-v0570-work/js/heroes.js	2026-08-12 03:26:23.489610070 +0000
+@@ -1,8 +1,8 @@
+ window.HEROES = [
+   {
+-    id: 'knight', name: '기사', icon: '🛡️', role: '탱커 / 근접 / 동료 보호',
++    id: 'knight', name: '기사', icon: '🛡️', role: '탱커 / 근접 / 피해 경감',
+     hp: 26, str: 3, dex: 0, magic: -1, luck: 0, ac: 14,
+-    passive: '수호: 라운드당 1회, 같은 지역 동료의 공격 대상을 기사로 변경.',
++    passive: '철벽: 전투 라운드마다 처음 받는 피해를 2 감소.',
+     skill: '방패 강타: 전투당 1회, D6+힘 피해 및 적의 다음 공격 -2.',
+     visual: { skin: '#c98b63', hair: '#4a2b1f', hair2: '#2c1712', eye: '#d7c48d', body: 'broad' }
+   },
+@@ -24,7 +24,7 @@
+     id: 'rogue', name: '도적', icon: '🗡️', role: '탐험 / 보물 / 급소 공격',
+     hp: 18, str: 0, dex: 3, magic: -1, luck: 3, ac: 12,
+     passive: '손재주: 보물/함정/자물쇠 판정에서 D20 2개 중 높은 값 사용.',
+-    skill: '급소 공격: 같은 적을 아군도 상대 중이면 라운드당 1회 +D6 피해.',
++    skill: '급소 공격: 이미 피해를 입은 적에게 라운드당 1회, 명중 시 +D6 피해.',
+     visual: { skin: '#b87857', hair: '#202025', hair2: '#0e0e12', eye: '#dfb966', body: 'compact' }
+   }
+ ];
