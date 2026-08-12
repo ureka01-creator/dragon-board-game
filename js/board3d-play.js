@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.1.0 — playable 3D exploration controller
+// DRAGON BOARD V0.6.1.1 — playable 3D exploration controller
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js';
 
 const worldMap = document.querySelector('#worldMap');
@@ -50,8 +50,25 @@ function injectStyles() {
     .board3d-overlay[data-theme="war"] .board3d-canvas{filter:brightness(1.46) saturate(1.12) contrast(.95) sepia(.08)!important}
     .board3d-overlay[data-theme="volcano"] .board3d-canvas-wrap{background:radial-gradient(circle at 50% 28%,#8b5834 0%,#5a3020 34%,#321b15 70%,#170d0b 100%)!important}
     .board3d-overlay[data-theme="volcano"] .board3d-canvas{filter:brightness(1.48) saturate(1.24) contrast(.94)!important}
-    .board3d-overlay[data-action-busy="true"] .board3d-gamebar{opacity:.78}
-    @media(max-width:700px){.board3d-gamebar{padding:7px 8px;gap:5px}.board3d-gamebar-main{grid-template-columns:minmax(0,1fr) 108px}.board3d-roll{min-width:108px;padding:8px;font-size:8px}}
+    .board3d-overlay[data-action-busy="true"] .board3d-gamebar{opacity:.82}
+
+    .board3d-die-layer{position:absolute;inset:0;z-index:8;display:grid;place-items:center;pointer-events:none;perspective:720px;overflow:hidden}
+    .board3d-die-shadow{position:absolute;left:50%;top:62%;width:62px;height:18px;border-radius:50%;background:rgba(0,0,0,.42);filter:blur(4px);transform:translate(-50%,-50%) scale(.45);opacity:0;transition:opacity .15s,transform .15s}
+    .board3d-die-shadow.visible{opacity:.72;transform:translate(-50%,-50%) scale(1)}
+    .board3d-die{--die:58px;position:absolute;left:50%;top:62%;width:var(--die);height:var(--die);margin:calc(var(--die)*-.5);transform-style:preserve-3d;opacity:0;will-change:transform,opacity;filter:drop-shadow(8px 12px 5px rgba(0,0,0,.42))}
+    .board3d-die.visible{opacity:1}
+    .board3d-die-face{position:absolute;inset:0;display:grid;place-items:center;border:2px solid #6c5636;border-radius:9px;background:linear-gradient(145deg,#fff3d2,#e9d3aa 72%,#c5a873);color:#30261b;font-size:38px;line-height:1;box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -3px -3px 0 rgba(78,49,23,.18);backface-visibility:hidden}
+    .board3d-die-face.f1{transform:translateZ(calc(var(--die)*.5))}
+    .board3d-die-face.f6{transform:rotateY(180deg) translateZ(calc(var(--die)*.5))}
+    .board3d-die-face.f3{transform:rotateY(90deg) translateZ(calc(var(--die)*.5))}
+    .board3d-die-face.f4{transform:rotateY(-90deg) translateZ(calc(var(--die)*.5))}
+    .board3d-die-face.f2{transform:rotateX(90deg) translateZ(calc(var(--die)*.5))}
+    .board3d-die-face.f5{transform:rotateX(-90deg) translateZ(calc(var(--die)*.5))}
+    .board3d-die-result{position:absolute;left:50%;top:72%;transform:translateX(-50%);padding:5px 8px;border:1px solid rgba(230,185,89,.72);background:rgba(23,16,10,.88);color:#f0cf80;font-size:9px;letter-spacing:.5px;opacity:0;transition:opacity .15s}
+    .board3d-die-result.visible{opacity:1}
+    .board3d-refresh-cover{position:fixed;inset:0;z-index:650;background:#100d09;display:grid;place-items:center;color:#d7a743;font:10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:1px;opacity:0;pointer-events:none;transition:opacity .08s}
+    .board3d-refresh-cover.visible{opacity:1}
+    @media(max-width:700px){.board3d-gamebar{padding:7px 8px;gap:5px}.board3d-gamebar-main{grid-template-columns:minmax(0,1fr) 108px}.board3d-roll{min-width:108px;padding:8px;font-size:8px}.board3d-die{--die:52px}.board3d-die-face{font-size:34px}}
   `;
   document.head.appendChild(style);
 }
@@ -71,6 +88,13 @@ function setupOverlay(overlay) {
   activeOverlay = overlay;
   overlay.dataset.actionBusy = 'false';
   applyTheme(overlay);
+  const wrap = overlay.querySelector('.board3d-canvas-wrap');
+  if (wrap && !wrap.querySelector('.board3d-die-layer')) {
+    const diceLayer = document.createElement('div');
+    diceLayer.className = 'board3d-die-layer';
+    diceLayer.innerHTML = `<div class="board3d-die-shadow"></div><div class="board3d-die"><div class="board3d-die-face f1">⚀</div><div class="board3d-die-face f2">⚁</div><div class="board3d-die-face f3">⚂</div><div class="board3d-die-face f4">⚃</div><div class="board3d-die-face f5">⚄</div><div class="board3d-die-face f6">⚅</div></div><div class="board3d-die-result"></div>`;
+    wrap.appendChild(diceLayer);
+  }
   const hint = overlay.querySelector('.board3d-hint');
   const gamebar = document.createElement('section');
   gamebar.className = 'board3d-gamebar';
@@ -78,7 +102,7 @@ function setupOverlay(overlay) {
   overlay.insertBefore(gamebar, hint || null);
   gamebar.querySelector('[data-3d-roll]').addEventListener('click', () => {
     if (actionInFlight || rollBtn.disabled) return;
-    runGameAction(() => rollBtn.click(), 1700);
+    run3DDiceRoll();
   });
   overlay.querySelector('[data-3d-reset]')?.addEventListener('click', () => {
     cameraState = { azimuth:Math.PI * 0.23, elevation:Math.PI * 0.29, radius:10.2 };
@@ -126,7 +150,7 @@ function syncGamebar() {
   if (!routesEl) return;
   const reachable = [...worldMap.querySelectorAll('.map-node.reachable')];
   routesEl.innerHTML = '';
-  if (actionInFlight) { routesEl.innerHTML = '<span class="board3d-route-hint">주사위/이동을 처리 중이야…</span>'; return; }
+  if (actionInFlight) { routesEl.innerHTML = '<span class="board3d-route-hint">3D 보드에서 주사위/이동을 처리 중이야…</span>'; return; }
   if (reachable.length) {
     const hint = document.createElement('span');
     hint.className = 'board3d-route-hint';
@@ -149,6 +173,82 @@ function hasForegroundGameUI() {
   return Boolean(document.querySelector('#modal:not(.hidden), #combatOverlay:not(.hidden), #lootOverlay:not(.hidden)'));
 }
 
+function dieFinalTransform(face) {
+  if (face === 2) return 'translateY(0) rotateX(-90deg) rotateY(0deg) rotateZ(0deg)';
+  if (face === 3) return 'translateY(0) rotateX(0deg) rotateY(-90deg) rotateZ(0deg)';
+  if (face === 4) return 'translateY(0) rotateX(0deg) rotateY(90deg) rotateZ(0deg)';
+  if (face === 5) return 'translateY(0) rotateX(90deg) rotateY(0deg) rotateZ(0deg)';
+  if (face === 6) return 'translateY(0) rotateX(0deg) rotateY(180deg) rotateZ(0deg)';
+  return 'translateY(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg)';
+}
+
+function waitMs(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function run3DDiceRoll() {
+  if (actionInFlight || !activeOverlay || rollBtn.disabled) return;
+  actionInFlight = true;
+  activeOverlay.dataset.actionBusy = 'true';
+  const die = activeOverlay.querySelector('.board3d-die');
+  const shadow = activeOverlay.querySelector('.board3d-die-shadow');
+  const result = activeOverlay.querySelector('.board3d-die-result');
+  if (die) {
+    die.getAnimations().forEach(animation => animation.cancel());
+    die.classList.add('visible');
+    die.style.transform = 'translateY(-190px) rotateX(20deg) rotateY(0deg) rotateZ(0deg)';
+  }
+  shadow?.classList.remove('visible');
+  result?.classList.remove('visible');
+  if (result) result.textContent = '';
+
+  lastWorldMutation = Date.now();
+  const beforeValue = diceValue.textContent?.trim() || '-';
+  rollBtn.click();
+  syncGamebar();
+
+  const rolling = die?.animate([
+    { transform:'translateY(-190px) rotateX(20deg) rotateY(0deg) rotateZ(0deg)', offset:0 },
+    { transform:'translateY(-82px) rotateX(430deg) rotateY(310deg) rotateZ(185deg)', offset:.42 },
+    { transform:'translateY(6px) rotateX(760deg) rotateY(610deg) rotateZ(420deg)', offset:.61 },
+    { transform:'translateY(-48px) rotateX(920deg) rotateY(740deg) rotateZ(520deg)', offset:.73 },
+    { transform:'translateY(3px) rotateX(1080deg) rotateY(905deg) rotateZ(650deg)', offset:.85 },
+    { transform:'translateY(-17px) rotateX(1160deg) rotateY(980deg) rotateZ(710deg)', offset:.92 },
+    { transform:'translateY(0) rotateX(1260deg) rotateY(1080deg) rotateZ(720deg)', offset:1 }
+  ], { duration:1500, easing:'cubic-bezier(.2,.72,.18,1)', fill:'forwards' });
+  window.setTimeout(() => shadow?.classList.add('visible'), 760);
+
+  const started = Date.now();
+  let finalValue = null;
+  while (Date.now() - started < 5200) {
+    if (hasForegroundGameUI()) break;
+    const value = Number.parseInt(diceValue.textContent?.trim() || '', 10);
+    if (Number.isInteger(value) && value >= 1 && value <= 6 && (diceValue.textContent?.trim() !== beforeValue || Date.now()-started > 1450)) finalValue = value;
+    const quietFor = Date.now() - lastWorldMutation;
+    const moving = worldMap.classList.contains('movement-lock');
+    if (finalValue && Date.now()-started > 1500 && quietFor > 360 && !moving) break;
+    await waitMs(100);
+  }
+
+  try { await rolling?.finished; } catch {}
+  finalValue = finalValue || Number.parseInt(diceValue.textContent?.trim() || '', 10) || 1;
+  if (die) {
+    die.getAnimations().forEach(animation => animation.cancel());
+    die.animate([
+      { transform:'translateY(0) rotateX(1260deg) rotateY(1080deg) rotateZ(720deg)', filter:'brightness(1.35)' },
+      { transform:dieFinalTransform(finalValue), filter:'brightness(1.08)' }
+    ], { duration:260, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
+  }
+  if (result) { result.textContent = `D6 · ${finalValue}`; result.classList.add('visible'); }
+  await waitMs(420);
+
+  actionInFlight = false;
+  if (activeOverlay) activeOverlay.dataset.actionBusy = 'false';
+  if (hasForegroundGameUI()) {
+    activeOverlay?.querySelector('[data-3d-close]')?.click();
+    return;
+  }
+  seamlessRefresh3DView();
+}
+
 function runGameAction(action, minDelay) {
   if (actionInFlight || !activeOverlay) return;
   actionInFlight = true;
@@ -163,23 +263,42 @@ function runGameAction(action, minDelay) {
     const elapsed = Date.now() - started;
     const quietFor = Date.now() - lastWorldMutation;
     const moving = worldMap.classList.contains('movement-lock');
-    if (elapsed >= minDelay && quietFor > 360 && !moving) { clearInterval(settle); actionInFlight = false; refresh3DView(); }
+    if (elapsed >= minDelay && quietFor > 360 && !moving) {
+      clearInterval(settle);
+      actionInFlight = false;
+      activeOverlay.dataset.actionBusy = 'false';
+      seamlessRefresh3DView();
+    }
   }, 120);
   window.setTimeout(() => {
     if (!actionInFlight) return;
     clearInterval(settle);
     actionInFlight = false;
+    if (activeOverlay) activeOverlay.dataset.actionBusy = 'false';
     if (hasForegroundGameUI()) activeOverlay?.querySelector('[data-3d-close]')?.click();
-    else refresh3DView();
+    else seamlessRefresh3DView();
   }, 8500);
 }
 
-function refresh3DView() {
-  if (!activeOverlay?.isConnected) return;
+function seamlessRefresh3DView() {
+  if (!activeOverlay?.isConnected || hasForegroundGameUI()) return;
   const close = activeOverlay.querySelector('[data-3d-close]');
   const open = document.querySelector(open3DBtnSelector);
-  close?.click();
-  window.setTimeout(() => { if (!hasForegroundGameUI()) open?.click(); }, 70);
+  const cover = document.createElement('div');
+  cover.className = 'board3d-refresh-cover';
+  cover.textContent = '3D BOARD';
+  document.body.appendChild(cover);
+  requestAnimationFrame(() => cover.classList.add('visible'));
+  window.setTimeout(() => {
+    close?.click();
+    window.setTimeout(() => {
+      if (!hasForegroundGameUI()) open?.click();
+      window.setTimeout(() => {
+        cover.classList.remove('visible');
+        window.setTimeout(() => cover.remove(), 100);
+      }, 80);
+    }, 45);
+  }, 70);
 }
 
 function bind3DTileTap(canvas) {
