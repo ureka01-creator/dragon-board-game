@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.1 — dragon castle presentation + final victory screen
+// DRAGON BOARD V0.6.3.6 — dragon castle presentation + final victory screen
 (() => {
   const worldMap = document.querySelector('#worldMap');
   const moveHint = document.querySelector('#moveHint');
@@ -68,16 +68,22 @@
 
   function enhanceCastleTiles(forceReveal = false) {
     worldMap.querySelectorAll('.map-node.region-dragon').forEach(tile => {
-      if (forceReveal || tile.classList.contains('dragon-spawned') || !tile.classList.contains('deep-fog')) {
+      const shouldReveal = forceReveal || tile.classList.contains('dragon-spawned') || !tile.classList.contains('deep-fog');
+      if (shouldReveal && !tile.classList.contains('castle-ux-reveal')) {
         tile.classList.add('castle-ux-reveal');
       }
       if (!tile.classList.contains('castle-ux-reveal')) return;
+
+      // V0.6.3.6: MutationObserver가 이 DOM 변경을 다시 감지하므로
+      // 이미 완성된 성 타일은 절대 다시 쓰지 않는다. iPhone Safari 먹통 방지.
       const icon = tile.querySelector('.node-icon');
       const name = tile.querySelector('.node-name');
       const type = tile.querySelector('.node-type');
-      if (icon) icon.innerHTML = '<span class="dragon-castle-art"><span class="castle">🏰</span><span class="dragon">🐉</span></span>';
-      if (name) name.textContent = '용의 성';
-      if (type) type.textContent = 'FINAL DUNGEON';
+      if (icon && !icon.querySelector('.dragon-castle-art')) {
+        icon.innerHTML = '<span class="dragon-castle-art"><span class="castle">🏰</span><span class="dragon">🐉</span></span>';
+      }
+      if (name && name.textContent !== '용의 성') name.textContent = '용의 성';
+      if (type && type.textContent !== 'FINAL DUNGEON') type.textContent = 'FINAL DUNGEON';
     });
   }
 
@@ -85,7 +91,16 @@
     revealVisibleCastle() { enhanceCastleTiles(true); },
   };
 
-  new MutationObserver(() => enhanceCastleTiles(false)).observe(worldMap, { childList:true, subtree:true, attributes:true, attributeFilter:['class'] });
+  let castleEnhanceScheduled = false;
+  const castleObserver = new MutationObserver(() => {
+    if (castleEnhanceScheduled) return;
+    castleEnhanceScheduled = true;
+    requestAnimationFrame(() => {
+      castleEnhanceScheduled = false;
+      enhanceCastleTiles(false);
+    });
+  });
+  castleObserver.observe(worldMap, { childList:true, subtree:true, attributes:true, attributeFilter:['class'] });
   enhanceCastleTiles(false);
 
   let endingShown = false;
