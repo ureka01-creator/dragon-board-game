@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.0 — hidden developer/test panel entry + UI
+// DRAGON BOARD V0.6.3.6 — hidden developer/test panel entry + UI
 (() => {
   const params = new URLSearchParams(location.search);
   const isDevPage = params.get('dev') === '1';
@@ -29,6 +29,7 @@
     .dev-overlay[hidden]{display:none!important}.dev-panel{width:min(620px,100%);max-height:92dvh;overflow:auto;background:#241a12;color:#f3e4b8;border:3px solid #8a6332;box-shadow:6px 6px 0 #080604;padding:12px;font:12px ui-monospace,monospace}
     .dev-head{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px dashed #6c4d2d;padding-bottom:8px}.dev-head strong{color:#e8bb59;font-size:16px}.dev-close{border:1px solid #75583a;background:#3d2d20;color:#f3e4b8;padding:6px 9px}.dev-summary{margin:8px 0;padding:7px;background:#17100c;color:#c6b38d;line-height:1.55}
     .dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.dev-section{grid-column:1/-1;margin-top:6px;color:#88a866;font-size:10px;letter-spacing:.12em}.dev-panel select,.dev-panel button{min-height:36px;font:inherit}.dev-panel select{width:100%;background:#17100c;color:#f3e4b8;border:1px solid #6c4d2d;padding:6px}.dev-action{border:2px solid #73583a;background:#41301f;color:#f3e4b8;padding:7px;cursor:pointer}.dev-action.primary{background:#486832;border-color:#82a854}.dev-action.danger{background:#6c2e28;border-color:#ae574d}.dev-action.gold{background:#5d4723;border-color:#b5893a}.dev-wide{grid-column:1/-1}.dev-message{grid-column:1/-1;min-height:30px;padding:7px;background:#120d09;border-left:3px solid #6c4d2d;color:#d8c59f}.dev-off{color:#d78375}
+    .dev-toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));z-index:14050;transform:translateX(-50%);max-width:90vw;padding:9px 12px;border:2px solid #82a854;background:#21170f;color:#f3e4b8;box-shadow:3px 3px 0 #090705;font:700 11px ui-monospace,monospace;text-align:center}.dev-toast.bad{border-color:#ae574d}
     @media(max-width:520px){.dev-panel{padding:9px}.dev-grid{gap:5px}.dev-action{padding:6px 4px;font-size:10px}.dev-panel select{font-size:10px}}
   `;
   document.head.appendChild(style);
@@ -74,13 +75,22 @@
     summary.textContent=`ROUND ${s.round??'-'} · 봉인석 ${s.seals??0}/4 · 골드 ${s.gold??0} · 드래곤 성 ${s.dragonCastleSpawned?'OPEN':'LOCK'}${s.combat?.active?` · ${s.combat.enemy} HP ${s.combat.enemyHp}`:''}`;
   }
   function tell(r){message.textContent=r?.message||'완료';message.style.borderLeftColor=r?.ok===false?'#ae574d':'#82a854';refresh();}
-  function open(){refresh();overlay.hidden=false} function close(){overlay.hidden=true}
+  function toast(text,bad=false){
+    document.querySelector('.dev-toast')?.remove();
+    const el=document.createElement('div');
+    el.className=`dev-toast${bad?' bad':''}`;
+    el.textContent=text||'완료';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),2200);
+  }
+  function open(){refresh();overlay.hidden=false;overlay.removeAttribute('hidden');}
+  function close(){overlay.hidden=true;overlay.setAttribute('hidden','');document.activeElement?.blur?.();}
   toggle.addEventListener('click',open); overlay.querySelector('[data-dev-close]').addEventListener('click',close); overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
 
-  overlay.querySelectorAll('[data-act]').forEach(btn=>btn.addEventListener('click',async()=>{
+  overlay.querySelectorAll('[data-act]').forEach(btn=>btn.addEventListener('click',()=>{
     const act=btn.dataset.act, heroId=heroSel.value; let r;
     if(act==='hp1')r=api.setHp(heroId,1);
-    else if(act==='ko'){close();r=api.knockOut(heroId);}
+    else if(act==='ko'){close();r=api.knockOut(heroId);toast(r?.message,r?.ok===false);return;}
     else if(act==='heal')r=api.fullHeal(heroId);
     else if(act==='item')r=api.giveItem(heroId,itemSel.value);
     else if(act==='clearBag')r=api.clearBag(heroId);
@@ -88,10 +98,25 @@
     else if(act==='village')r=api.teleportVillage(heroId,areaSel.value);
     else if(act==='boss')r=api.defeatBoss(areaSel.value);
     else if(act==='dragonUnlock')r=api.unlockDragonCastle();
-    else if(act==='dragonEnter'){close();r=await api.enterDragonCastle(heroId);}
+    else if(act==='dragonEnter'){
+      close();
+      toast('🏰 드래곤 성 진입 준비…');
+      try {
+        Promise.resolve(api.enterDragonCastle(heroId)).then(result=>{
+          if(result?.ok===false)toast(result.message||'드래곤 성 진입 실패',true);
+        }).catch(error=>{
+          console.error('DEV dragon enter failed',error);
+          toast(`드래곤 성 진입 오류 · ${error?.message||error}`,true);
+        });
+      } catch(error) {
+        console.error('DEV dragon enter failed',error);
+        toast(`드래곤 성 진입 오류 · ${error?.message||error}`,true);
+      }
+      return;
+    }
     else if(act==='d6')r=api.forceD6(Number(d6Sel.value));
     else if(act==='enemy1')r=api.enemyHpOne();
     else if(act==='off'){const u=new URL(location.href);u.searchParams.delete('dev');location.href=u.toString();return;}
-    if(!overlay.hidden)tell(await Promise.resolve(r));
+    tell(r);
   }));
 })();
