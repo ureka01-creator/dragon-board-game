@@ -49,7 +49,7 @@
       <div class="dev-section">ITEM / RESOURCE</div><select class="dev-wide" data-dev-item></select>
       <button class="dev-action primary" data-act="item">🎁 아이템 지급</button><button class="dev-action" data-act="clearBag">🎒 가방 비우기</button><button class="dev-action gold dev-wide" data-act="gold">💰 골드 +100</button>
       <div class="dev-section">WORLD / BOSS</div><select class="dev-wide" data-dev-area></select>
-      <button class="dev-action" data-act="village">🏠 지역 마을 이동</button><button class="dev-action" data-act="boss">👑 지역 보스 처치 처리</button><button class="dev-action primary" data-act="dragonUnlock">🐉 드래곤 성 즉시 개방</button><button class="dev-action primary" data-act="dragonEnter">🏰 드래곤 성 즉시 진입</button>
+      <button class="dev-action" data-act="village">🏠 지역 마을 이동</button><button class="dev-action" data-act="boss">👑 지역 보스 처치 처리</button><button class="dev-action primary" data-act="dragonUnlock">🐉 드래곤 성 즉시 개방</button><button class="dev-action primary" data-act="dragonEnterSafe">🏰 드래곤 성 즉시 진입</button>
       <div class="dev-section">DICE / COMBAT</div><select data-dev-d6><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select><button class="dev-action" data-act="d6">🎲 다음 D6 고정</button><button class="dev-action danger dev-wide" data-act="enemy1">👹 현재 적 HP 1</button>
       <div class="dev-message" data-dev-message>테스트 기능을 선택해.</div><button class="dev-action dev-off dev-wide" data-act="off">DEV MODE 종료</button>
     </div>
@@ -98,7 +98,7 @@
     else if(act==='village')r=api.teleportVillage(heroId,areaSel.value);
     else if(act==='boss')r=api.defeatBoss(areaSel.value);
     else if(act==='dragonUnlock')r=api.unlockDragonCastle();
-    else if(act==='dragonEnter'){
+    else if(act==='dragonEnterSafe'){
       close();
       toast('🏰 드래곤 성 진입 준비…');
       try {
