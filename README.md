@@ -10,7 +10,7 @@
 - 파티 시스템은 현재 잠금 상태이며 영웅들은 SOLO 월드 턴으로 행동
 - 자동 회귀 테스트: **36/36 PASS** — Chromium Mobile 18/18 + WebKit iPhone 13 에뮬레이션 18/18
 - 현재 자동 검증 범위: 월드 이동 종료 규칙 / 막다른 길 / 도착 타일 이벤트 / 포털 / 마을 / 전투 / 상점 / 부활 / 드래곤의 성 / VICTORY
-- 남은 실기 확인: 실제 iPhone Safari에서 주사위 애니메이션의 시각적 체감 자연스러움
+- 실기 확인 완료: 실제 iPhone Safari에서 주사위 애니메이션의 시각적 체감 자연스러움 확인
 
 ## 핵심 게임 흐름
 
@@ -34,6 +34,7 @@
 - 특별 타일 분기 뒤에도 공통 `continueOrFinalizeStoppedMovement()`를 거쳐 외길 자동 진행 / 갈림길 대기 / 막다른 길 확정을 일관되게 처리
 - Chromium 모바일 + WebKit iPhone 회귀 테스트를 GitHub Actions에 추가
 - 최종 자동 회귀 18개 시나리오 × 2개 브라우저 엔진 = **36/36 PASS**
+- 실제 iPhone Safari에서 주사위 애니메이션 시각적 체감 자연스러움 확인 완료
 - 타이틀 표시 `PROTOTYPE V0.6.3.8`, 일반 실행 `game.js?v=0638`, DEV 실행 `dev-bootstrap.js?v=0638`로 동기화
 
 ## V0.6.3.7
@@ -144,7 +145,7 @@ GitHub Actions의 Playwright 회귀 테스트는 동일한 18개 시나리오를
 - [x] Chromium Mobile: **18/18 PASS**
 - [x] WebKit iPhone 13 에뮬레이션: **18/18 PASS**
 - [x] 전체: **36/36 PASS**
-- [ ] 실제 iPhone Safari에서 주사위 애니메이션의 시각적 체감 자연스러움 육안 확인
+- [x] 실제 iPhone Safari에서 주사위 애니메이션의 시각적 체감 자연스러움 육안 확인
 
 ## 현재 테스트 체크리스트
 
