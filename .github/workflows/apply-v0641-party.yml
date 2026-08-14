@@ -1,0 +1,95 @@
+name: Apply V0.6.4.1 Party Patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-v0641-party.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable and repair party system
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'missing marker in {path}: {old[:120]!r}')
+              text = text.replace(old, new, 1)
+              p.write_text(text)
+
+          replace_once('js/map.js', '// DRAGON BOARD V0.5.8.0', '// DRAGON BOARD V0.6.4.1')
+          replace_once('js/map.js', 'window.PARTY_SYSTEM_ENABLED = false;', 'window.PARTY_SYSTEM_ENABLED = true;')
+
+          replace_once('js/game.js', '// DRAGON BOARD V0.6.3.8', '// DRAGON BOARD V0.6.4.1')
+          replace_once(
+              'js/game.js',
+              "const party = getHeroParty(active);\nconst unit = getWorldUnitMembers(active);\nconst canAct = active && !active.acted && !active.down && !state.gameOver && !state.victory && !state.combat && unit.every(h => !h.acted && !h.down);",
+              "const party = getHeroParty(active);\nconst unit = getWorldUnitMembers(active);\nconst canAct = active && !active.acted && !active.down && !state.gameOver && !state.victory && !state.combat && unit.every(h => !h.acted && !h.down);"
+          )
+          replace_once(
+              'js/game.js',
+              "if (partyManageBtn) {\npartyManageBtn.hidden = !window.PARTY_SYSTEM_ENABLED;\npartyManageBtn.disabled = true;\n}",
+              "if (partyManageBtn) {\npartyManageBtn.hidden = !window.PARTY_SYSTEM_ENABLED;\npartyManageBtn.disabled = !prep;\n}"
+          )
+          replace_once(
+              'js/game.js',
+              "if (partyStatusText) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';\nworldActionBar?.classList.toggle('disabled', !prep);",
+              "if (partyStatusText) {\nif (!window.PARTY_SYSTEM_ENABLED) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';\nelse if (party) partyStatusText.textContent = `🤝 ${partyDisplayName(party)} · ${unit.map(h => h.icon + h.name).join(' + ')}`;\nelse partyStatusText.textContent = 'SOLO · 같은 칸의 READY 영웅과 파티 편성 가능';\n}\nworldActionBar?.classList.toggle('solo-mode', !window.PARTY_SYSTEM_ENABLED);\nworldActionBar?.classList.toggle('disabled', !prep);"
+          )
+          replace_once(
+              'js/game.js',
+              "<div class=\"map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}\" data-hero-id=\"${h.id}\" aria-label=\"${h.name}\">${h.icon}</div>",
+              "<div class=\"map-hero-token token-${h.id} ${h.partyId ? 'in-party' : ''} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}\" data-hero-id=\"${h.id}\" aria-label=\"${h.name}\">${h.icon}</div>"
+          )
+          replace_once(
+              'js/game.js',
+              "log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');",
+              "log('🤝 파티 편성 활성화 · 같은 칸의 READY 영웅 2~4명이 파티를 만들 수 있다.');"
+          )
+          replace_once(
+              'js/game.js',
+              "? getPartyMembers(party, { aliveOnly:true }).filter(h => h.position === node.id)\n: [hero].filter(h => !h.down && h.currentHp > 0);",
+              "? getPartyMembers(party, { aliveOnly:true }).filter(h => h.position === hero.position)\n: [hero].filter(h => !h.down && h.currentHp > 0);"
+          )
+
+          replace_once('js/dev-bootstrap.js', '// DRAGON BOARD V0.6.4.0', '// DRAGON BOARD V0.6.4.1')
+          replace_once("js/dev-bootstrap.js", "js/game.js?v=0640-dev", "js/game.js?v=0641-dev")
+          replace_once(
+              'js/dev-bootstrap.js',
+              "id:h.id, name:h.name, icon:h.icon, hp:h.currentHp, maxHp:h.hp,\n          mana:h.currentMana, maxMana:h.currentMana === null ? null : maxMana(h),\n          down:h.down, acted:h.acted, position:h.position, areaId:getNodeAreaId(h.position), bag:heroInventory(h).length",
+              "id:h.id, name:h.name, icon:h.icon, hp:h.currentHp, maxHp:h.hp,\n          mana:h.currentMana, maxMana:h.currentMana === null ? null : maxMana(h),\n          down:h.down, acted:h.acted, position:h.position, areaId:getNodeAreaId(h.position), partyId:h.partyId || null, bag:heroInventory(h).length"
+          )
+          replace_once(
+              'js/dev-bootstrap.js',
+              "areas: ['A','B','C','D'].map(id => {",
+              "parties: Object.values(state.parties || {}).map(party => ({ id:party.id, label:party.label, leaderId:party.leaderId, memberIds:[...(party.memberIds || [])] })),\n        areas: ['A','B','C','D'].map(id => {"
+          )
+
+          replace_once('tests/regression.spec.cjs', 'PROTOTYPE V0.6.4.0', 'PROTOTYPE V0.6.4.1')
+          replace_once('tests/dev-tools.spec.cjs', 'PROTOTYPE V0.6.4.0', 'PROTOTYPE V0.6.4.1')
+          PY
+      - name: Validate patch
+        run: |
+          grep -q 'PARTY_SYSTEM_ENABLED = true' js/map.js
+          grep -q 'DRAGON BOARD V0.6.4.1' js/game.js
+          grep -q 'h.position === hero.position' js/game.js
+          grep -q 'parties: Object.values' js/dev-bootstrap.js
+          git diff --check
+      - name: Commit patch
+        run: |
+          git config user.name "dragon-board-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add js/map.js js/game.js js/dev-bootstrap.js tests/regression.spec.cjs tests/dev-tools.spec.cjs
+          git commit -m "Enable V0.6.4.1 party system"
+          git push
