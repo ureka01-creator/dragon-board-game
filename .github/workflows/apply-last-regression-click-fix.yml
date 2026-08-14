@@ -1,0 +1,26 @@
+name: Apply Final Regression Click Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-last-regression-click-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch WebKit combat clicks
+        run: python3 scripts/fix_last_regression_click.py
+      - name: Commit harness fix
+        run: |
+          git config user.name "ureka01-creator"
+          git config user.email "ureka01@nate.com"
+          git add tests/regression.spec.cjs
+          git diff --cached --check
+          git commit -m "Fix WebKit combat regression clicks"
+          git push
