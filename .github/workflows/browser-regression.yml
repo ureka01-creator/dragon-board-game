@@ -25,10 +25,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install test dependencies
         run: npm install --no-audit --no-fund
       - name: Install browsers
         run: npx playwright install --with-deps chromium webkit
-      - name: Run stable V0.6.3.8 regression suite
+      - name: Run extended V0.6.3.8 regression suite
         run: npm run test:e2e
