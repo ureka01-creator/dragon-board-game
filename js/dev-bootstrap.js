@@ -1,8 +1,8 @@
-// DRAGON BOARD V0.6.4.0 — developer runtime bootstrap
+// DRAGON BOARD V0.6.4.1 — developer runtime bootstrap
 // Loaded only with ?dev=1. Normal players still execute js/game.js directly.
 (() => {
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', 'js/game.js?v=0640-dev', false);
+  xhr.open('GET', 'js/game.js?v=0641-dev', false);
   xhr.send(null);
   if (xhr.status < 200 || xhr.status >= 300) throw new Error(`DEV bootstrap: game.js load failed (${xhr.status})`);
 
@@ -66,8 +66,9 @@
         heroes: state.heroes.map(h => ({
           id:h.id, name:h.name, icon:h.icon, hp:h.currentHp, maxHp:h.hp,
           mana:h.currentMana, maxMana:h.currentMana === null ? null : maxMana(h),
-          down:h.down, acted:h.acted, position:h.position, areaId:getNodeAreaId(h.position), bag:heroInventory(h).length
+          down:h.down, acted:h.acted, position:h.position, areaId:getNodeAreaId(h.position), partyId:h.partyId || null, bag:heroInventory(h).length
         })),
+        parties: Object.values(state.parties || {}).map(party => ({ id:party.id, label:party.label, leaderId:party.leaderId, memberIds:[...(party.memberIds || [])] })),
         areas: ['A','B','C','D'].map(id => {
           const boss = getAreaBossNode(id);
           return { id, name:getAreaDisplayName(id), bossDefeated:!!(boss && state.defeatedBosses.has(boss.id)) };

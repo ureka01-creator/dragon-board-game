@@ -377,7 +377,7 @@ async function startSolo(page) {
   page.on('pageerror', error => pageErrors.push(error.message));
   await installTestApi(page);
   await page.goto('/');
-  await expect(page.locator('.version-label')).toHaveText('PROTOTYPE V0.6.4.0');
+  await expect(page.locator('.version-label')).toHaveText('PROTOTYPE V0.6.4.1');
   await page.locator('#titleStartBtn').click();
   await page.locator('.hero-card').first().click();
   await page.locator('#startGameBtn').click();
