@@ -1,8 +1,8 @@
-// DRAGON BOARD V0.6.3.0 — developer runtime bootstrap
+// DRAGON BOARD V0.6.4.0 — developer runtime bootstrap
 // Loaded only with ?dev=1. Normal players still execute js/game.js directly.
 (() => {
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', 'js/game.js?v=0620-dev', false);
+  xhr.open('GET', 'js/game.js?v=0640-dev', false);
   xhr.send(null);
   if (xhr.status < 200 || xhr.status >= 300) throw new Error(`DEV bootstrap: game.js load failed (${xhr.status})`);
 
@@ -24,26 +24,64 @@
   );
 
   const apiInstall = String.raw`
+  const DEV_FORCEABLE_NODE_TYPES = ['길','사건','전투','보물','상점','휴식','위험','던전'];
+  const DEV_PROTECTED_NODE_TYPES = new Set(['마을','입구','보스','봉인','드래곤성']);
+  const DEV_NODE_META = {
+    '길': { icon:'🛤️', name:'DEV 길' },
+    '사건': { icon:'❓', name:'DEV 사건' },
+    '전투': { icon:'⚔️', name:'DEV 전투' },
+    '보물': { icon:'🎁', name:'DEV 보물' },
+    '상점': { icon:'🏪', name:'DEV 상점' },
+    '휴식': { icon:'❤️', name:'DEV 휴식' },
+    '위험': { icon:'🔥', name:'DEV 위험' },
+    '던전': { icon:'🕳️', name:'DEV 던전' }
+  };
   function devHero(heroId) {
     return state.heroes.find(h => h.id === heroId) || getActiveHero() || state.heroes[0] || null;
   }
-  function devResult(ok, message) { return { ok: !!ok, message: message || '' }; }
+  function devNode(nodeId) {
+    return WORLD_NODES.find(n => n.id === nodeId) || null;
+  }
+  function devResult(ok, message, data) {
+    return { ok: !!ok, message: message || '', ...(data ? { data } : {}) };
+  }
+  function devActivateHero(hero) {
+    if (!hero) return false;
+    state.activeHeroId = hero.id;
+    state.viewAreaId = getNodeAreaId(hero.position);
+    hero.acted = false;
+    return true;
+  }
   window.DRAGON_BOARD_DEV_API = {
     snapshot() {
       return {
         round: state.round,
         seals: state.seals,
         gold: state.gold,
+        activeHeroId: state.activeHeroId,
+        rolled: state.rolled,
+        moveRemaining: state.moveRemaining,
+        moveStepsTaken: state.moveStepsTaken,
         dragonCastleSpawned: state.dragonCastleSpawned,
         heroes: state.heroes.map(h => ({
           id:h.id, name:h.name, icon:h.icon, hp:h.currentHp, maxHp:h.hp,
           mana:h.currentMana, maxMana:h.currentMana === null ? null : maxMana(h),
-          down:h.down, acted:h.acted, areaId:getNodeAreaId(h.position), bag:heroInventory(h).length
+          down:h.down, acted:h.acted, position:h.position, areaId:getNodeAreaId(h.position), bag:heroInventory(h).length
         })),
         areas: ['A','B','C','D'].map(id => {
           const boss = getAreaBossNode(id);
           return { id, name:getAreaDisplayName(id), bossDefeated:!!(boss && state.defeatedBosses.has(boss.id)) };
         }),
+        nodes: WORLD_NODES.map(node => ({
+          id:node.id,
+          name:node.name || node.id,
+          type:node.type || '길',
+          areaId:node.areaId || getNodeAreaId(node.id),
+          links:[...(node.links || [])],
+          locked:nodeIsLocked(node),
+          protected:DEV_PROTECTED_NODE_TYPES.has(node.type)
+        })),
+        nodeTypes:[...DEV_FORCEABLE_NODE_TYPES],
         items: (window.ITEM_CARDS || []).map(item => ({ id:item.id, name:item.name, icon:item.icon, type:item.type, rarity:item.rarity })),
         combat: state.combat ? { active:true, enemy:selectedCombatEnemy()?.name || '', enemyHp:selectedCombatEnemy()?.currentHp ?? null } : { active:false },
         forcedD6: devForcedD6,
@@ -112,11 +150,81 @@
       const hero = devHero(heroId);
       if (!hero) return devResult(false, '영웅이 없어.');
       const target = getAreaVillageNodeId(String(areaId || 'A'));
-      hero.position = target; hero.down = false; hero.reviveRound = null; hero.reviveAreaId = null; hero.currentHp = Math.max(1, hero.currentHp);
+      hero.position = target; hero.down = false; hero.reviveRound = null; hero.reviveAreaId = null; hero.currentHp = Math.max(1, hero.currentHp); hero.acted = false;
       revealFromNode(target);
-      if (hero.id === state.activeHeroId) { clearPlannedMoveState(); state.viewAreaId = getNodeAreaId(target); }
+      devActivateHero(hero);
+      clearPlannedMoveState();
       renderAll();
+      window.DRAGON_BOARD_3D_API?.snapHeroToNode?.(hero.id, target);
       return devResult(true, hero.name + ' → ' + getAreaDisplayName(areaId) + ' 마을');
+    },
+    teleportNode(heroId, nodeId) {
+      const hero = devHero(heroId);
+      const node = devNode(nodeId);
+      if (!hero || !node) return devResult(false, '영웅 또는 타일을 못 찾았어.');
+      if (state.combat) return devResult(false, '전투 중에는 월드 순간이동을 할 수 없어.');
+      clearPlannedMoveState();
+      hero.position = node.id;
+      hero.down = false;
+      hero.reviveRound = null;
+      hero.reviveAreaId = null;
+      hero.currentHp = Math.max(1, hero.currentHp);
+      hero.acted = false;
+      devActivateHero(hero);
+      revealFromNode(node.id);
+      state.discoveredNodeIds.add(node.id);
+      renderAll();
+      window.DRAGON_BOARD_3D_API?.snapHeroToNode?.(hero.id, node.id);
+      log('🛠️ DEV · ' + hero.icon + ' <strong>' + hero.name + '</strong> → <strong>' + (node.name || node.id) + '</strong> 순간이동');
+      return devResult(true, hero.name + ' → ' + (node.name || node.id), { nodeId:node.id });
+    },
+    setMove(heroId, value) {
+      const hero = devHero(heroId);
+      const steps = Math.max(1, Math.min(6, Number(value) || 1));
+      if (!hero) return devResult(false, '영웅이 없어.');
+      if (state.combat || state.gameOver) return devResult(false, '현재는 월드 MOVE를 설정할 수 없어.');
+      if (hero.down) return devResult(false, 'DOWN 상태야. 완전 회복을 먼저 눌러.');
+      clearPlannedMoveState();
+      devActivateHero(hero);
+      state.rolled = steps;
+      state.moveRemaining = steps;
+      state.moveStepsTaken = 0;
+      state.moveOriginNodeId = hero.position;
+      state.moveVisitedNodeIds = new Set([hero.position]);
+      state.isRolling = false;
+      state.isMoving = false;
+      renderAll();
+      log('🛠️ DEV · ' + hero.icon + ' <strong>' + hero.name + '</strong> MOVE <strong>' + steps + '</strong> 직접 설정');
+      setTimeout(() => {
+        if (state.rolled !== null && state.moveRemaining > 0 && !state.combat && !state.gameOver) {
+          Promise.resolve(continueStraightMovementIfPossible()).catch(error => console.error('DEV auto move failed', error));
+        }
+      }, 0);
+      return devResult(true, hero.name + ' MOVE = ' + steps);
+    },
+    setNodeType(nodeId, type) {
+      const node = devNode(nodeId);
+      const nextType = String(type || '');
+      if (!node) return devResult(false, '타일을 못 찾았어.');
+      if (!DEV_FORCEABLE_NODE_TYPES.includes(nextType)) return devResult(false, '지원하지 않는 테스트 타일 타입이야.');
+      if (DEV_PROTECTED_NODE_TYPES.has(node.type)) return devResult(false, node.name + '은(는) 구조 타일이라 타입을 바꿀 수 없어.');
+      const meta = DEV_NODE_META[nextType];
+      node.type = nextType;
+      node.icon = meta.icon;
+      node.name = meta.name;
+      node.short = 'DEV';
+      node.locked = false;
+      delete node.portalEntryId;
+      delete node.monsterId;
+      delete node.bossMonsterId;
+      if (nextType === '전투' || nextType === '던전') {
+        node.encounterPool = node.encounterPool?.length ? node.encounterPool : ['goblin'];
+        node.combatCleared = false;
+      }
+      state.discoveredNodeIds.delete(node.id);
+      renderAll();
+      log('🛠️ DEV · <strong>' + node.id + '</strong> → ' + meta.icon + ' <strong>' + nextType + '</strong> 타입 강제');
+      return devResult(true, node.id + ' → ' + nextType, { nodeId:node.id, type:nextType });
     },
     async enterDragonCastle(heroId) {
       const hero = devHero(heroId);
