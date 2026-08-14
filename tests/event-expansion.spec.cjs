@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
+// V0.6.4.2 regression trigger — map event expansion.
 const EVENT_API_INJECTION = String.raw`
 window.__EVENT_EXPANSION_TEST_API = {
   drawRegion(region, count = 36) {
