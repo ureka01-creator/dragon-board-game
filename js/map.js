@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.5.8.0
+// DRAGON BOARD V0.6.4.2
 // 외곽 실루엣과 내부 길 구조/테마/타일 배치 모두 지역마다, 새 게임마다 다시 생성된다.
 window.PARTY_SYSTEM_ENABLED = false;
 
@@ -16,7 +16,7 @@ const THEMES = {
     combatPool:['skeleton','ghost','slime'], boss:'necromancer',
     combatNames:['백골길','낡은 묘비군','망자의 뜰','검은 장례길','유령 회랑','부서진 납골당','침묵의 묘역','핏빛 비석길','썩은 관문','망령의 샛길','해골 참호','저주받은 계단','흐느끼는 언덕','빈 관 속 길','장송의 골목'],
     treasureNames:['도굴꾼의 상자','망자의 유품','봉인된 관','성자의 유골함'],
-    eventNames:['울리는 종','핏자국','검은 까마귀','사라진 묘지기'],
+    eventNames:['울리는 종','핏자국','검은 까마귀','사라진 묘지기','봉인된 묘실','망자의 행렬','피묻은 제단','길 잃은 영혼'],
     restNames:['작은 성소','순례자의 쉼터'], shopName:'묘지기 상점', dangerNames:['저주의 안개','죽음의 종소리'], bossName:'버려진 수도원', dungeonName:'망자의 지하묘지'
   },
   forest: {
@@ -24,7 +24,7 @@ const THEMES = {
     combatPool:['wolf','spider','goblin'], boss:'trollKing',
     combatNames:['가시숲','늑대길','거미굴','검은 수풀','뒤틀린 고목','버섯 숲','사냥꾼 길','독초 지대','울창한 협곡','마른 개울','수액 동굴','고블린 흔적','숲속 폐허','굶주린 짐승길','마녀의 오솔길'],
     treasureNames:['버려진 배낭','고목의 보물','사냥꾼 은닉처','요정의 상자'],
-    eventNames:['속삭이는 나무','길 잃은 여행자','수상한 발자국','푸른 불빛'],
+    eventNames:['속삭이는 나무','길 잃은 여행자','수상한 발자국','푸른 불빛','요정의 고리','사냥꾼 야영지','움직이는 덩굴','우는 아이'],
     restNames:['맑은 샘','숲속 야영지'], shopName:'마녀의 오두막', dangerNames:['독안개','가시 폭풍'], bossName:'트롤 왕의 숲', dungeonName:'뿌리 아래 동굴'
   },
   war: {
@@ -32,7 +32,7 @@ const THEMES = {
     combatPool:['goblin','orc','ogre','darkKnight'], boss:'demonKnight',
     combatNames:['부서진 방진','오크 전초기지','검은 참호','피의 언덕','무너진 성벽','불탄 막사','버려진 포대','투석기 잔해','창병의 길','검은 군기지','쇠사슬 광장','패잔병 진지','붉은 관문','철갑 전선','악마군 흔적'],
     treasureNames:['전장의 유품','장교의 상자','보급품 마차','무기고 잔해'],
-    eventNames:['꺼지지 않는 봉화','부상병','찢어진 군기','전령의 시체'],
+    eventNames:['꺼지지 않는 봉화','부상병','찢어진 군기','전령의 시체','부상병 행렬','버려진 보급마차','룬 지뢰','탈영병 은신처'],
     restNames:['야전 천막','낡은 막사'], shopName:'용병 상인', dangerNames:['화살 세례','붕괴하는 성벽'], bossName:'악마 기사의 성채', dungeonName:'폐허의 지하병기고'
   },
   volcano: {
@@ -40,7 +40,7 @@ const THEMES = {
     combatPool:['fireImp','orc','minotaur','wyvern'], boss:'demonKnight',
     combatNames:['잿빛 평원','용암 틈','화염 동굴','검댕 길','불타는 폐광','검은 용암지','와이번 흔적','붉은 협곡','유황 구덩이','불꽃 계단','잿더미 언덕','용암 폭포','마른 광맥','화산 동굴','재의 관문'],
     treasureNames:['광부의 금고','화산석 상자','잿더미 보물','용암 옆 유품'],
-    eventNames:['지진','분화 징조','붉은 유성','광부의 흔적'],
+    eventNames:['지진','분화 징조','붉은 유성','광부의 흔적','용암 분출구','붉은 수정맥','불의 정령','무너진 갱도'],
     restNames:['광부 야영지','온천 틈새'], shopName:'광산 상인', dangerNames:['용암 분출','화산재 폭풍'], bossName:'화염 성채', dungeonName:'잿불 광산'
   }
 };
@@ -159,8 +159,18 @@ function iconForType(type, theme) {
 
 function buildTileDeck(theme) {
   const tiles = [];
-  // V0.5.8.0: 지역마다 소형 던전 1개를 배치한다. 전체 슬롯 수는 유지하기 위해 일반 전투 1칸을 던전으로 교체한다.
-  theme.combatNames.slice(0, -1).forEach(name => tiles.push({ type:'전투', name, short:name.slice(0,4), icon:iconForType('전투',theme), encounterPool:theme.combatPool }));
+  // V0.6.4.2: 탐험 반복감을 줄이기 위해 사건칸을 4→8로 늘리고 일반 전투를 14→10으로 낮춘다.
+  // 전체 30슬롯은 그대로 유지해 맵 크기/연결 구조에는 영향을 주지 않는다.
+  const fixedSlots = 1 // 던전
+    + theme.treasureNames.length
+    + theme.eventNames.length
+    + theme.restNames.length
+    + 1 // 상점
+    + theme.dangerNames.length
+    + 1 // 길
+    + 1; // 보스
+  const combatSlots = Math.max(1, 30 - fixedSlots);
+  theme.combatNames.slice(0, combatSlots).forEach(name => tiles.push({ type:'전투', name, short:name.slice(0,4), icon:iconForType('전투',theme), encounterPool:theme.combatPool }));
   tiles.push({ type:'던전', name:theme.dungeonName, short:'소형던전', icon:'🕳️', encounterPool:theme.combatPool });
   theme.treasureNames.forEach(name => tiles.push({ type:'보물', name, short:name.slice(0,4), icon:'🎁' }));
   theme.eventNames.forEach(name => tiles.push({ type:'사건', name, short:name.slice(0,4), icon:'❓' }));
@@ -169,7 +179,7 @@ function buildTileDeck(theme) {
   theme.dangerNames.forEach(name => tiles.push({ type:'위험', name, short:name.slice(0,4), icon:'🔥' }));
   tiles.push({ type:'길', name:`${theme.label}의 길`, short:'길', icon:'🛤️' });
   tiles.push({ type:'보스', name:theme.bossName, short:'지역보스', icon:'👑', bossMonsterId:theme.boss });
-  return shuffle(tiles); // 30개. 게이트 2개 + 중앙 1개를 제외한 슬롯 수와 동일.
+  return shuffle(tiles); // 항상 30개
 }
 
 function localId(areaId, key) { return `${areaId.toLowerCase()}-${key}`; }

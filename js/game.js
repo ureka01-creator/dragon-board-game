@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.8
+// DRAGON BOARD V0.6.4.2
 (() => {
 const $ = (sel) => document.querySelector(sel);
 const state = {
@@ -24,6 +24,7 @@ dragonCastleSpawned: false,
 dragonSpawnNoticePending: null,
 eventDeck: [],
 eventDiscard: [],
+eventDeckRegion: null,
 acquiredEquipmentIds: new Set(),
 shopStocks: {},
 discoveredNodeIds: new Set(),
@@ -221,6 +222,7 @@ state.combat = null;
 setCombatViewportLock(false);
 state.eventDeck = [];
 state.eventDiscard = [];
+state.eventDeckRegion = null;
 state.acquiredEquipmentIds = new Set();
 state.shopStocks = {};
 modalCloseAction = null;
@@ -2834,14 +2836,27 @@ const j = Math.floor(Math.random() * (i + 1));
 }
 return arr;
 }
-function drawEventCard() {
-if (!Array.isArray(state.eventDeck) || !state.eventDeck.length) {
-const source = Array.isArray(window.EVENT_CARDS) ? window.EVENT_CARDS : [];
-state.eventDeck = shuffleArray(source.map(card => card.id));
+function drawEventCard(node = null) {
+const region = node?.region || null;
+const allCards = Array.isArray(window.EVENT_CARDS) ? window.EVENT_CARDS : [];
+const source = allCards.filter(card => {
+const regions = Array.isArray(card?.regions) ? card.regions : [];
+return !regions.length || !region || regions.includes(region);
+});
+const hasPreparedTestDeck = Array.isArray(state.eventDeck) && state.eventDeck.length > 0 && state.eventDeckRegion === null;
+if (!Array.isArray(state.eventDeck) || !state.eventDeck.length || (!hasPreparedTestDeck && state.eventDeckRegion !== region)) {
+const weightedIds = [];
+source.forEach(card => {
+const isRegional = Array.isArray(card.regions) && card.regions.includes(region);
+const copies = isRegional ? 2 : 1;
+for (let i = 0; i < copies; i += 1) weightedIds.push(card.id);
+});
+state.eventDeck = shuffleArray(weightedIds);
 state.eventDiscard = [];
+state.eventDeckRegion = region;
 }
 const id = state.eventDeck.shift();
-const card = (window.EVENT_CARDS || []).find(entry => entry.id === id) || null;
+const card = allCards.find(entry => entry.id === id) || null;
 if (card) state.eventDiscard.push(card.id);
 return card;
 }
@@ -2941,7 +2956,7 @@ renderAll();
 return turnHandled;
 }
 async function resolveEventCard(hero, node, originNodeId) {
-const card = drawEventCard();
+const card = drawEventCard(node);
 if (!card) {
 showModal('❓ 사건', '이벤트 카드를 불러오지 못했다.');
 return false;
@@ -2995,7 +3010,7 @@ resolve(false);
 modal.classList.remove('hero-status-modal','party-manage-modal','item-transfer-modal','combat-item-modal');
 modalCloseBtn.hidden = true;
 modalContent.innerHTML = `<div class="event-sheet">
-<div class="status-kicker">EVENT CARD · ${state.eventDiscard.length}/20</div>
+<div class="status-kicker">${card.rarity === 'rare' ? 'RARE EVENT' : (Array.isArray(card.regions) && card.regions.length ? 'REGION EVENT' : 'EVENT CARD')} · ${getAreaDisplayName(getNodeAreaId(hero.position))}</div>
 <div class="event-card-head"><span class="event-card-icon">${card.icon}</span><div><h3>${card.name}</h3><p>${card.text}</p></div></div>
 <div class="event-body"></div>
 </div>`;
@@ -3872,6 +3887,7 @@ state.isMoving = false;
 state.combat = null;
 state.eventDeck = [];
 state.eventDiscard = [];
+state.eventDeckRegion = null;
 state.acquiredEquipmentIds = new Set();
 state.shopStocks = {};
 modalCloseAction = null;
