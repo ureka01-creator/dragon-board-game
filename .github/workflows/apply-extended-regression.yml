@@ -15,7 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Extend regression coverage
-        run: python3 scripts/extend_regression_coverage.py
+        run: |
+          python3 scripts/extend_regression_coverage.py
+          python3 -c "from pathlib import Path; p=Path('tests/regression.spec.cjs'); p.write_text(p.read_text().rstrip() + chr(10))"
       - name: Commit extended tests
         run: |
           git config user.name "ureka01-creator"
