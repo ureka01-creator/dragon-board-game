@@ -1,0 +1,26 @@
+name: Apply Continuation Test Fixtures
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-continuation-test-fixtures.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stabilize continuation fixtures
+        run: python3 scripts/stabilize_continue_tests.py
+      - name: Commit test fixture fix
+        run: |
+          git config user.name "ureka01-creator"
+          git config user.email "ureka01@nate.com"
+          git add tests/regression.spec.cjs
+          git diff --cached --check
+          git commit -m "Stabilize continuation regression fixtures"
+          git push
