@@ -110,6 +110,15 @@ window.__DRAGON_TEST_API = {
     });
     const fromId = links[0];
     const forwardId = links.find(id => id !== fromId && WORLD_NODES.find(x => x.id === id)?.type !== '입구') || links[1];
+    const forwardNode = WORLD_NODES.find(x => x.id === forwardId);
+    if (forwardNode) {
+      forwardNode.type = '길';
+      forwardNode.icon = '🛤';
+      forwardNode.name = 'TEST 안전 경로';
+      forwardNode.short = 'TEST';
+      forwardNode.locked = false;
+      forwardNode.portalEntryId = null;
+    }
     hero.position = fromId;
     hero.down = false;
     hero.acted = false;
@@ -151,6 +160,15 @@ window.__DRAGON_TEST_API = {
     });
     const fromId = links[0];
     const forwardId = links.find(id => id !== fromId && WORLD_NODES.find(x => x.id === id)?.type !== '입구') || links[1];
+    const forwardNode = WORLD_NODES.find(x => x.id === forwardId);
+    if (forwardNode) {
+      forwardNode.type = '길';
+      forwardNode.icon = '🛤';
+      forwardNode.name = 'TEST 안전 경로';
+      forwardNode.short = 'TEST';
+      forwardNode.locked = false;
+      forwardNode.portalEntryId = null;
+    }
     hero.position = fromId;
     hero.down = false;
     hero.acted = false;
