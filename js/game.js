@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.4.1
+// DRAGON BOARD V0.6.3.8
 (() => {
 const $ = (sel) => document.querySelector(sel);
 const state = {
@@ -232,7 +232,7 @@ log(`<strong>모험 시작!</strong> ${state.heroes.map(h => h.icon + h.name).jo
 log('👕 모든 영웅은 기본 장비가 없는 상태다. 이후 얻은 장비가 캐릭터 외형에 표시된다.');
 log('🗺️ 4개 지역의 타일 내용과 테마가 이번 게임용으로 새롭게 생성되었다.');
 log(`🎲 시작 위치 랜덤 · ${state.heroes.map(h => `${h.icon}${h.name}:${getAreaDisplayName(getNodeAreaId(h.position))} 마을`).join(' · ')}`);
-log('🤝 파티 편성 활성화 · 같은 칸의 READY 영웅 2~4명이 파티를 만들 수 있다.');
+log('🔒 파티 편성 기능은 현재 잠김 · 모든 영웅은 SOLO로 행동한다.');
 log(`🔁 월드 턴은 <strong>${state.heroes.map(h => h.name).join(' → ')}</strong> 고정 순서로 진행된다.`);
 log('🗿 NORMAL 목표 · 4개 지역 보스를 각각 토벌해 봉인석 4개를 모으면 드래곤의 성이 출현한다.');
 renderAll();
@@ -620,7 +620,7 @@ el.innerHTML = `
 <div class="node-icon">${visited ? node.icon : ''}</div>
 <div class="node-name">${visited ? (node.short || node.name) : ''}</div>
 <div class="node-type">${visited ? node.type : ''}</div>
-${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${h.partyId ? 'in-party' : ''} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
+${heroesHere.length ? `<div class="map-token-grid count-${heroesHere.length}">${heroesHere.map(h => `<div class="map-hero-token token-${h.id} ${activeUnit.some(a => a.id === h.id) ? 'active' : ''} ${state.focusHeroId === h.id ? 'focused' : ''}" data-hero-id="${h.id}" aria-label="${h.name}">${h.icon}</div>`).join('')}</div>` : ''}
 `;
 if (reachable.has(node.id)) el.addEventListener('click', () => moveActiveHero(node.id));
 worldMap.appendChild(el);
@@ -657,7 +657,7 @@ moveHint.textContent = turnLabel;
 const prep = canUseWorldPrepActions();
 if (partyManageBtn) {
 partyManageBtn.hidden = !window.PARTY_SYSTEM_ENABLED;
-partyManageBtn.disabled = !prep;
+partyManageBtn.disabled = true;
 }
 const transferSources = unit.filter(h => heroInventory(h).length || Object.values(h.equipment || {}).some(Boolean));
 const nearbyCount = active ? state.heroes.filter(h => !h.down && h.position === active.position).length : 0;
@@ -666,12 +666,7 @@ if (itemTransferBtn) {
 itemTransferBtn.disabled = !canTransfer;
 itemTransferBtn.hidden = !canTransfer;
 }
-if (partyStatusText) {
-if (!window.PARTY_SYSTEM_ENABLED) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';
-else if (party) partyStatusText.textContent = `🤝 ${partyDisplayName(party)} · ${unit.map(h => h.icon + h.name).join(' + ')}`;
-else partyStatusText.textContent = 'SOLO · 같은 칸의 READY 영웅과 파티 편성 가능';
-}
-worldActionBar?.classList.toggle('solo-mode', !window.PARTY_SYSTEM_ENABLED);
+if (partyStatusText) partyStatusText.textContent = 'SOLO MODE · 파티 기능 잠김';
 worldActionBar?.classList.toggle('disabled', !prep);
 }
 function setCombatViewportLock(locked) {
@@ -2539,7 +2534,7 @@ return;
 }
 const party = getHeroParty(hero);
 const participants = party
-? getPartyMembers(party, { aliveOnly:true }).filter(h => h.position === hero.position)
+? getPartyMembers(party, { aliveOnly:true }).filter(h => h.position === node.id)
 : [hero].filter(h => !h.down && h.currentHp > 0);
 if (!participants.some(h => h.id === hero.id) && !hero.down && hero.currentHp > 0) participants.unshift(hero);
 const enemies = chooseEncounter(node, participants.length);

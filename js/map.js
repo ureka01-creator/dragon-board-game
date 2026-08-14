@@ -1,6 +1,6 @@
-// DRAGON BOARD V0.6.4.1
+// DRAGON BOARD V0.5.8.0
 // 외곽 실루엣과 내부 길 구조/테마/타일 배치 모두 지역마다, 새 게임마다 다시 생성된다.
-window.PARTY_SYSTEM_ENABLED = true;
+window.PARTY_SYSTEM_ENABLED = false;
 
 const AREA_IDS = ['A','B','C','D'];
 const AREA_NEIGHBORS = {

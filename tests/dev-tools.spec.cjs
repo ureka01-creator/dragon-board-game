@@ -4,7 +4,7 @@ async function startDevSolo(page) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?dev=1');
-  await expect(page.locator('.version-label')).toHaveText('PROTOTYPE V0.6.4.1');
+  await expect(page.locator('.version-label')).toHaveText('PROTOTYPE V0.6.4.0');
   await expect.poll(() => page.evaluate(() => !!window.DRAGON_BOARD_DEV_API)).toBe(true);
   await page.locator('#titleStartBtn').click();
   await page.locator('.hero-card').first().click();
