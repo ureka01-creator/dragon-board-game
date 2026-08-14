@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.7
+// DRAGON BOARD V0.6.3.8
 (() => {
 const $ = (sel) => document.querySelector(sel);
 const state = {
@@ -2731,6 +2731,26 @@ if (!turnHandled) finishWorldUnitTurn(hero);
 function isMovementDeadEnd(node) {
 return Boolean(node) && getMovementForwardNodeIds(node).length === 0;
 }
+async function continueOrFinalizeStoppedMovement(hero) {
+if (!hero || state.moveRemaining <= 0) return false;
+const node = WORLD_NODES.find(n => n.id === hero.position);
+if (!node) return false;
+const forward = getMovementForwardNodeIds(node);
+if (forward.length === 0) {
+const lostSteps = state.moveRemaining;
+state.moveRemaining = 0;
+log(`🧱 <strong>${node.name || '막다른 길'}</strong>에 도착 · 남은 이동 ${lostSteps}칸 소멸.`);
+await revealLandedNode(node.id);
+await finalizePlannedMove(hero);
+return true;
+}
+if (forward.length === 1) {
+await moveActiveHero(forward[0]);
+return true;
+}
+renderAll();
+return false;
+}
 async function continueStraightMovementIfPossible() {
 if (state.isMoving || state.isRolling || state.gameOver || state.combat || state.moveRemaining <= 0) return false;
 const hero = getWorldUnitLeader(getActiveHero());
@@ -2769,8 +2789,7 @@ await revealLandedNode(nodeId);
 const ended = await handlePortalLanding(hero, node, unit);
 if (ended) return;
 if (state.moveRemaining > 0) {
-renderAll();
-await continueStraightMovementIfPossible();
+await continueOrFinalizeStoppedMovement(hero);
 return;
 }
 clearPlannedMoveState();
@@ -2790,8 +2809,7 @@ renderAll();
 finishWorldUnitTurn(hero, 'village-rest');
 return;
 }
-renderAll();
-await continueStraightMovementIfPossible();
+await continueOrFinalizeStoppedMovement(hero);
 return;
 }
 const hitDeadEnd = state.moveRemaining > 0 && isMovementDeadEnd(node);
