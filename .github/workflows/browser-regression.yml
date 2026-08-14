@@ -1,0 +1,30 @@
+name: Browser Regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'playwright.config.cjs'
+      - '.github/workflows/browser-regression.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run regression suite
+        run: npm run test:e2e
