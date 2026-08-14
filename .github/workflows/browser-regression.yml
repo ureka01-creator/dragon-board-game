@@ -26,5 +26,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Install browsers
         run: npx playwright install --with-deps chromium webkit
-      - name: Run regression suite
+      - name: Run V0.6.3.8 regression suite
         run: npm run test:e2e
