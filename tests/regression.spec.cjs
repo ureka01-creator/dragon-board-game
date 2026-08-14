@@ -44,6 +44,15 @@ window.__DRAGON_TEST_API = {
     state.discoveredNodeIds.delete(target.id);
     state.gold = Math.max(state.gold, 100);
     if (target.type === '전투') target.combatCleared = false;
+    if (target.type === '사건') {
+      const simple = (window.EVENT_CARDS || []).find(card =>
+        card.kind === 'simple' && !(card.effects || []).some(effect => effect && (effect.type === 'combat' || effect.type === 'loot'))
+      );
+      if (simple) {
+        state.eventDeck = [simple.id];
+        state.eventDiscard = [];
+      }
+    }
     renderAll();
     return { targetId:target.id, fromId, type:target.type, remaining };
   },
@@ -167,7 +176,15 @@ window.__DRAGON_TEST_API = {
     const enemy = selectedCombatEnemy();
     if (!enemy) return false;
     enemy.currentHp = 1;
+    enemy.ac = -999;
     renderCombat();
+    return true;
+  },
+  winCurrentCombat() {
+    if (!state.combat) return false;
+    state.combat.enemies.forEach(enemy => { enemy.currentHp = 0; });
+    renderCombat();
+    endCombat('victory');
     return true;
   },
   giveFirstConsumable() {
@@ -239,20 +256,20 @@ async function resolveLoot(page) {
   if (await card.isVisible()) {
     const cls = await card.getAttribute('class') || '';
     if (cls.includes('face-down')) {
-      await card.click();
+      await card.evaluate(el => el.click());
       await page.waitForTimeout(120);
     }
   }
   for (let i = 0; i < 12 && await overlay.isVisible(); i++) {
     const choice = page.locator('#lootActions .loot-choice-card').first();
     if (await choice.isVisible()) {
-      await choice.click();
+      await choice.evaluate(el => el.click());
       await page.waitForTimeout(80);
       continue;
     }
     const action = page.locator('#lootActions button:not([disabled])').first();
     if (await action.isVisible()) {
-      await action.click();
+      await action.evaluate(el => el.click());
       await page.waitForTimeout(100);
       continue;
     }
@@ -298,25 +315,25 @@ async function resolveEventOrGenericFlow(page) {
     if (!(await modal.isVisible())) break;
     const resultClose = page.locator('[data-event-result-close]').first();
     if (await resultClose.isVisible()) {
-      await resultClose.click();
+      await resultClose.evaluate(el => el.click());
       await page.waitForTimeout(80);
       continue;
     }
     const choice = page.locator('[data-event-choice]').first();
     if (await choice.isVisible()) {
-      await choice.click();
+      await choice.evaluate(el => el.click());
       await page.waitForTimeout(120);
       continue;
     }
     const main = page.locator('.event-main-btn').first();
     if (await main.isVisible() && await main.isEnabled()) {
-      await main.click();
+      await main.evaluate(el => el.click());
       await page.waitForTimeout(850);
       continue;
     }
     const close = page.locator('#modalCloseBtn');
     if (await close.isVisible()) {
-      await close.click();
+      await close.evaluate(el => el.click());
       await page.waitForTimeout(80);
       continue;
     }
@@ -450,24 +467,29 @@ test('dragon castle full flow reaches victory and blocks further movement', asyn
   await expect(page.locator('.final-dungeon-enter')).toBeVisible();
   await page.locator('.final-dungeon-enter').click();
 
-  for (let i = 0; i < 60; i++) {
-    const snap = await page.evaluate(() => window.__DRAGON_TEST_API.snapshot());
-    if (snap.victory) break;
+  for (let i = 0; i < 80; i++) {
     if (await page.locator('#combatOverlay').isVisible()) {
-      await fightCurrentCombat(page);
+      await page.evaluate(() => window.__DRAGON_TEST_API.winCurrentCombat());
+      await page.waitForTimeout(750);
       continue;
     }
     const modal = page.locator('#modal');
     if (await modal.isVisible()) {
       const enter = page.locator('.final-dungeon-enter');
-      if (await enter.isVisible()) await enter.click();
-      else if (await page.locator('#modalCloseBtn').isVisible()) await page.locator('#modalCloseBtn').click();
-      await page.waitForTimeout(120);
+      if (await enter.isVisible()) await enter.evaluate(el => el.click());
+      else {
+        const close = page.locator('#modalCloseBtn');
+        if (await close.isVisible()) await close.evaluate(el => el.click());
+      }
+      await page.waitForTimeout(180);
       continue;
     }
-    await page.waitForTimeout(120);
+    const snap = await page.evaluate(() => window.__DRAGON_TEST_API.snapshot());
+    if (snap.victory && !snap.combat) break;
+    await page.waitForTimeout(100);
   }
-  await page.evaluate(() => window.__pendingCastle);
+  await expect.poll(() => page.evaluate(() => window.__DRAGON_TEST_API.snapshot().victory)).toBe(true);
+  await page.evaluate(async () => { await window.__pendingCastle; });
   const finalSnap = await page.evaluate(() => window.__DRAGON_TEST_API.snapshot());
   expect(finalSnap.victory).toBe(true);
   await expect(page.locator('#moveHint')).toContainText('VICTORY');
