@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.3.6 — hidden developer/test panel entry + UI
+// DRAGON BOARD V0.6.4.0 — hidden developer/test panel entry + UI
 (() => {
   const params = new URLSearchParams(location.search);
   const isDevPage = params.get('dev') === '1';
@@ -29,6 +29,7 @@
     .dev-overlay[hidden]{display:none!important}.dev-panel{width:min(620px,100%);max-height:92dvh;overflow:auto;background:#241a12;color:#f3e4b8;border:3px solid #8a6332;box-shadow:6px 6px 0 #080604;padding:12px;font:12px ui-monospace,monospace}
     .dev-head{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px dashed #6c4d2d;padding-bottom:8px}.dev-head strong{color:#e8bb59;font-size:16px}.dev-close{border:1px solid #75583a;background:#3d2d20;color:#f3e4b8;padding:6px 9px}.dev-summary{margin:8px 0;padding:7px;background:#17100c;color:#c6b38d;line-height:1.55}
     .dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.dev-section{grid-column:1/-1;margin-top:6px;color:#88a866;font-size:10px;letter-spacing:.12em}.dev-panel select,.dev-panel button{min-height:36px;font:inherit}.dev-panel select{width:100%;background:#17100c;color:#f3e4b8;border:1px solid #6c4d2d;padding:6px}.dev-action{border:2px solid #73583a;background:#41301f;color:#f3e4b8;padding:7px;cursor:pointer}.dev-action.primary{background:#486832;border-color:#82a854}.dev-action.danger{background:#6c2e28;border-color:#ae574d}.dev-action.gold{background:#5d4723;border-color:#b5893a}.dev-wide{grid-column:1/-1}.dev-message{grid-column:1/-1;min-height:30px;padding:7px;background:#120d09;border-left:3px solid #6c4d2d;color:#d8c59f}.dev-off{color:#d78375}
+    .dev-inline-label{display:flex;align-items:center;gap:6px;color:#bda77d;font-size:10px}.dev-inline-label span{white-space:nowrap}.dev-inline-label select{min-width:0}
     .dev-toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));z-index:14050;transform:translateX(-50%);max-width:90vw;padding:9px 12px;border:2px solid #82a854;background:#21170f;color:#f3e4b8;box-shadow:3px 3px 0 #090705;font:700 11px ui-monospace,monospace;text-align:center}.dev-toast.bad{border-color:#ae574d}
     @media(max-width:520px){.dev-panel{padding:9px}.dev-grid{gap:5px}.dev-action{padding:6px 4px;font-size:10px}.dev-panel select{font-size:10px}}
   `;
@@ -46,10 +47,17 @@
     <div class="dev-grid">
       <div class="dev-section">TARGET HERO</div><select class="dev-wide" data-dev-hero></select>
       <button class="dev-action" data-act="hp1">❤️ HP 1</button><button class="dev-action danger" data-act="ko">💀 즉사 테스트</button><button class="dev-action primary dev-wide" data-act="heal">✨ 완전 회복 / 부활</button>
+
       <div class="dev-section">ITEM / RESOURCE</div><select class="dev-wide" data-dev-item></select>
       <button class="dev-action primary" data-act="item">🎁 아이템 지급</button><button class="dev-action" data-act="clearBag">🎒 가방 비우기</button><button class="dev-action gold dev-wide" data-act="gold">💰 골드 +100</button>
-      <div class="dev-section">WORLD / BOSS</div><select class="dev-wide" data-dev-area></select>
-      <button class="dev-action" data-act="village">🏠 지역 마을 이동</button><button class="dev-action" data-act="boss">👑 지역 보스 처치 처리</button><button class="dev-action primary" data-act="dragonUnlock">🐉 드래곤 성 즉시 개방</button><button class="dev-action primary" data-act="dragonEnterSafe">🏰 드래곤 성 즉시 진입</button>
+
+      <div class="dev-section">WORLD / MOVE</div><select class="dev-wide" data-dev-area></select>
+      <select class="dev-wide" data-dev-node aria-label="월드 타일"></select>
+      <button class="dev-action" data-act="village">🏠 지역 마을 이동</button><button class="dev-action primary" data-act="nodeTeleport">📍 선택 타일 순간이동</button>
+      <div class="dev-inline-label"><span>MOVE</span><select data-dev-move><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div><button class="dev-action primary" data-act="move">👣 MOVE 직접 설정</button>
+      <select data-dev-node-type aria-label="강제 타일 타입"></select><button class="dev-action" data-act="nodeType">🧪 선택 타일 타입 강제</button>
+      <button class="dev-action" data-act="boss">👑 지역 보스 처치 처리</button><button class="dev-action primary" data-act="dragonUnlock">🐉 드래곤 성 즉시 개방</button><button class="dev-action primary dev-wide" data-act="dragonEnterSafe">🏰 드래곤 성 즉시 진입</button>
+
       <div class="dev-section">DICE / COMBAT</div><select data-dev-d6><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select><button class="dev-action" data-act="d6">🎲 다음 D6 고정</button><button class="dev-action danger dev-wide" data-act="enemy1">👹 현재 적 HP 1</button>
       <div class="dev-message" data-dev-message>테스트 기능을 선택해.</div><button class="dev-action dev-off dev-wide" data-act="off">DEV MODE 종료</button>
     </div>
@@ -59,20 +67,32 @@
   const heroSel = overlay.querySelector('[data-dev-hero]');
   const itemSel = overlay.querySelector('[data-dev-item]');
   const areaSel = overlay.querySelector('[data-dev-area]');
+  const nodeSel = overlay.querySelector('[data-dev-node]');
+  const nodeTypeSel = overlay.querySelector('[data-dev-node-type]');
+  const moveSel = overlay.querySelector('[data-dev-move]');
   const d6Sel = overlay.querySelector('[data-dev-d6]');
   const summary = overlay.querySelector('[data-dev-summary]');
   const message = overlay.querySelector('[data-dev-message]');
 
+  function renderNodes(snapshot, preferred = '') {
+    const areaId = areaSel.value;
+    const nodes = (snapshot.nodes || []).filter(node => !areaId || node.areaId === areaId);
+    nodeSel.innerHTML = nodes.map(node => `<option value="${node.id}">${node.protected?'🔒':'📍'} ${node.name} · ${node.type} · ${node.id}</option>`).join('');
+    if (preferred && [...nodeSel.options].some(o => o.value === preferred)) nodeSel.value = preferred;
+  }
   function refresh() {
     const s = api.snapshot();
-    const hv=heroSel.value, iv=itemSel.value, av=areaSel.value;
+    const hv=heroSel.value, iv=itemSel.value, av=areaSel.value, nv=nodeSel.value, tv=nodeTypeSel.value;
     heroSel.innerHTML=(s.heroes||[]).map(h=>`<option value="${h.id}">${h.icon} ${h.name} · HP ${h.hp}/${h.maxHp}${h.down?' · DOWN':''}</option>`).join('');
     if(hv&&[...heroSel.options].some(o=>o.value===hv))heroSel.value=hv;
     itemSel.innerHTML=(s.items||[]).map(i=>`<option value="${i.id}">${i.icon||'🎁'} ${i.name} · ${i.rarity||i.type}</option>`).join('');
     if(iv&&[...itemSel.options].some(o=>o.value===iv))itemSel.value=iv;
     areaSel.innerHTML=(s.areas||[]).map(a=>`<option value="${a.id}">${a.name}${a.bossDefeated?' · 보스✓':''}</option>`).join('');
     if(av&&[...areaSel.options].some(o=>o.value===av))areaSel.value=av;
-    summary.textContent=`ROUND ${s.round??'-'} · 봉인석 ${s.seals??0}/4 · 골드 ${s.gold??0} · 드래곤 성 ${s.dragonCastleSpawned?'OPEN':'LOCK'}${s.combat?.active?` · ${s.combat.enemy} HP ${s.combat.enemyHp}`:''}`;
+    nodeTypeSel.innerHTML=(s.nodeTypes||[]).map(type=>`<option value="${type}">${type}</option>`).join('');
+    if(tv&&[...nodeTypeSel.options].some(o=>o.value===tv))nodeTypeSel.value=tv;
+    renderNodes(s,nv);
+    summary.textContent=`ROUND ${s.round??'-'} · 봉인석 ${s.seals??0}/4 · 골드 ${s.gold??0} · MOVE ${s.moveRemaining??0} · 드래곤 성 ${s.dragonCastleSpawned?'OPEN':'LOCK'}${s.combat?.active?` · ${s.combat.enemy} HP ${s.combat.enemyHp}`:''}`;
   }
   function tell(r){message.textContent=r?.message||'완료';message.style.borderLeftColor=r?.ok===false?'#ae574d':'#82a854';refresh();}
   function toast(text,bad=false){
@@ -85,7 +105,10 @@
   }
   function open(){refresh();overlay.hidden=false;overlay.removeAttribute('hidden');}
   function close(){overlay.hidden=true;overlay.setAttribute('hidden','');document.activeElement?.blur?.();}
-  toggle.addEventListener('click',open); overlay.querySelector('[data-dev-close]').addEventListener('click',close); overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
+  toggle.addEventListener('click',open);
+  overlay.querySelector('[data-dev-close]').addEventListener('click',close);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
+  areaSel.addEventListener('change',()=>renderNodes(api.snapshot()));
 
   overlay.querySelectorAll('[data-act]').forEach(btn=>btn.addEventListener('click',()=>{
     const act=btn.dataset.act, heroId=heroSel.value; let r;
@@ -96,6 +119,15 @@
     else if(act==='clearBag')r=api.clearBag(heroId);
     else if(act==='gold')r=api.addGold(100);
     else if(act==='village')r=api.teleportVillage(heroId,areaSel.value);
+    else if(act==='nodeTeleport'){
+      r=api.teleportNode(heroId,nodeSel.value);
+      if(r?.ok){close();toast(r.message);return;}
+    }
+    else if(act==='move'){
+      r=api.setMove(heroId,Number(moveSel.value));
+      if(r?.ok){close();toast(r.message);return;}
+    }
+    else if(act==='nodeType')r=api.setNodeType(nodeSel.value,nodeTypeSel.value);
     else if(act==='boss')r=api.defeatBoss(areaSel.value);
     else if(act==='dragonUnlock')r=api.unlockDragonCastle();
     else if(act==='dragonEnterSafe'){
