@@ -288,10 +288,10 @@ async function fightCurrentCombat(page) {
     }
     await page.evaluate(() => { window.__DRAGON_TEST_API.healActive(); window.__DRAGON_TEST_API.enemyHpOne(); });
     const enemy = page.locator('#combatEnemies button').first();
-    if (await enemy.isVisible()) await enemy.click();
+    if (await enemy.isVisible()) await enemy.evaluate(el => el.click());
     const attack = page.locator('#combatAttackBtn');
     if (await attack.isEnabled()) {
-      await attack.click();
+      await attack.evaluate(el => el.click());
       await page.waitForTimeout(950);
     } else {
       await page.waitForTimeout(250);
