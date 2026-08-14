@@ -13,6 +13,10 @@ on:
       - 'playwright.config.cjs'
       - '.github/workflows/browser-regression.yml'
 
+concurrency:
+  group: browser-regression-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   regression:
     runs-on: ubuntu-latest
