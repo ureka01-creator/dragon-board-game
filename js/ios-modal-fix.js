@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.4.5 — iOS modal scroll lock + status item tap fallback
+// DRAGON BOARD V0.6.4.6 — iOS modal scroll lock + reliable status item tap
 (() => {
   const modal = document.querySelector('#modal');
   const modalContent = document.querySelector('#modalContent');
@@ -31,32 +31,6 @@
   syncRootScrollLock();
 
   const ITEM_ROW_SELECTOR = '[data-status-equipped-slot], [data-status-bag-index]';
-  const nativeSetTimeout = window.setTimeout.bind(window);
-
-  function activateStatusRow(row, clientX = 0, clientY = 0) {
-    if (!row || !modalContent.contains(row)) return;
-    if (row.classList.contains('long-press-fired')) return;
-
-    const originalSetTimeout = window.setTimeout;
-    window.setTimeout = (callback, delay, ...args) => {
-      const nextDelay = Number(delay) === 520 ? 0 : delay;
-      return nativeSetTimeout(callback, nextDelay, ...args);
-    };
-
-    try {
-      const PointerCtor = window.PointerEvent || window.MouseEvent;
-      row.dispatchEvent(new PointerCtor('pointerdown', {
-        bubbles: false,
-        cancelable: true,
-        clientX,
-        clientY,
-        pointerType: 'touch',
-      }));
-    } finally {
-      window.setTimeout = originalSetTimeout;
-    }
-  }
-
   let touchGesture = null;
 
   document.addEventListener('touchstart', (event) => {
@@ -66,13 +40,14 @@
       return;
     }
     const touch = event.touches?.[0];
-    if (!touch) return;
+    if (!touch) {
+      touchGesture = null;
+      return;
+    }
     touchGesture = {
       row,
       startX: touch.clientX,
       startY: touch.clientY,
-      lastX: touch.clientX,
-      lastY: touch.clientY,
       moved: false,
     };
   }, { passive: true });
@@ -81,31 +56,25 @@
     if (!touchGesture) return;
     const touch = event.touches?.[0];
     if (!touch) return;
-    touchGesture.lastX = touch.clientX;
-    touchGesture.lastY = touch.clientY;
-    if (Math.hypot(touch.clientX - touchGesture.startX, touch.clientY - touchGesture.startY) > 10) {
+    if (Math.hypot(touch.clientX - touchGesture.startX, touch.clientY - touchGesture.startY) > 12) {
       touchGesture.moved = true;
     }
   }, { passive: true });
 
-  document.addEventListener('touchend', () => {
+  document.addEventListener('touchend', (event) => {
     const gesture = touchGesture;
     touchGesture = null;
     if (!gesture || gesture.moved) return;
-    nativeSetTimeout(() => {
-      if (!modalContent.contains(gesture.row)) return;
-      activateStatusRow(gesture.row, gesture.lastX, gesture.lastY);
-    }, 0);
-  }, { passive: true });
+    if (!modalContent.contains(gesture.row)) return;
+    if (event.target.closest?.('button')) return;
+
+    // iOS Safari에서는 pointer/click 합성이 누락되는 경우가 있어
+    // touchend에서 기존 game.js의 row click 핸들러를 직접 실행한다.
+    event.preventDefault();
+    gesture.row.click();
+  }, { passive: false });
 
   document.addEventListener('touchcancel', () => {
     touchGesture = null;
   }, { passive: true });
-
-  document.addEventListener('click', (event) => {
-    const row = event.target.closest?.(ITEM_ROW_SELECTOR);
-    if (!row || !modalContent.contains(row)) return;
-    if (event.target.closest('button')) return;
-    activateStatusRow(row, event.clientX || 0, event.clientY || 0);
-  });
 })();
