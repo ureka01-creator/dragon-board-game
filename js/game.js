@@ -3742,6 +3742,7 @@ if (!element || typeof callback !== 'function') return;
 let timer = null;
 let startX = 0;
 let startY = 0;
+let longPressFired = false;
 const cancel = () => {
 if (timer) clearTimeout(timer);
 timer = null;
@@ -3750,11 +3751,13 @@ element.classList.remove('long-press-arming');
 element.addEventListener('pointerdown', (event) => {
 if (event.target.closest('button')) return;
 cancel();
+longPressFired = false;
 startX = event.clientX;
 startY = event.clientY;
 element.classList.add('long-press-arming');
 timer = setTimeout(() => {
 timer = null;
+longPressFired = true;
 element.classList.remove('long-press-arming');
 element.classList.add('long-press-fired');
 setTimeout(() => element.classList.remove('long-press-fired'), 180);
@@ -3767,6 +3770,17 @@ if (!timer) return;
 if (Math.hypot(event.clientX - startX, event.clientY - startY) > 10) cancel();
 });
 ['pointerup','pointercancel','pointerleave'].forEach(type => element.addEventListener(type, cancel));
+element.addEventListener('click', (event) => {
+if (event.target.closest('button')) return;
+event.preventDefault();
+event.stopPropagation();
+if (longPressFired) {
+longPressFired = false;
+return;
+}
+cancel();
+callback();
+});
 element.addEventListener('contextmenu', (event) => {
 if (!event.target.closest('button')) event.preventDefault();
 });
@@ -3840,15 +3854,15 @@ const canEquipNow = canUseWorldPrepActions() && getWorldUnitMembers(active).some
 const canUseFieldItemNow = canEquipNow;
 const equipmentRow = (slot, icon, label) => {
 const itemId = hero.equipment?.[slot] || null;
-return `<div class="status-item-row ${itemId ? 'has-item' : ''}" data-status-equipped-slot="${slot}" aria-label="${itemId ? `${equipmentName(hero,slot)} · 길게 눌러 상세 정보` : `${label} 장비 없음`}"><span>${icon} ${label}</span><strong>${equipmentName(hero,slot)}</strong><small>${equipmentBonusText(hero,slot)}</small></div>`;
+return `<div class="status-item-row ${itemId ? 'has-item' : ''}" data-status-equipped-slot="${slot}" aria-label="${itemId ? `${equipmentName(hero,slot)} · 눌러 상세 정보` : `${label} 장비 없음`}"><span>${icon} ${label}</span><strong>${equipmentName(hero,slot)}</strong><small>${equipmentBonusText(hero,slot)}</small></div>`;
 };
 modalContent.innerHTML = `
 <div class="hero-status-sheet">
 <div class="hero-status-top"><div class="hero-status-portrait">${heroSpriteHTML(hero, 'large')}</div><div class="hero-status-title"><div class="status-kicker">CHARACTER STATUS</div><h3>${hero.icon} ${hero.name}</h3><p>${hero.role}</p><div class="status-now">${stateText}${pos ? ` · 📍 ${pos.name}` : ''}</div></div></div>
 <div class="hero-status-bars"><div><span>❤️ HP</span><strong>${hero.currentHp}/${hero.hp}</strong></div>${hero.currentMana !== null ? `<div><span>🔵 MANA</span><strong>${hero.currentMana}/${maxMana(hero)}</strong></div>` : ''}</div>
 <div class="hero-status-stats"><div><span>⚔ 힘</span><strong>${signed(hero.str)}</strong></div><div><span>🏹 민첩</span><strong>${signed(hero.dex)}</strong></div><div><span>✨ 마력</span><strong>${signed(hero.magic)}</strong></div><div><span>🍀 행운</span><strong>${signed(hero.luck)}</strong></div><div><span>🛡 AC</span><strong>${totalAc}${totalAc !== hero.ac ? ` <small>(${hero.ac} ${signed(totalAc-hero.ac)})</small>` : ''}</strong></div><div><span>🎯 장비 명중</span><strong>${signed(attackBonus)}</strong></div><div><span>💥 장비 피해</span><strong>${signed(damageBonus)}</strong></div></div>
-<div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list">${equipmentRow('weapon','⚔','무기')}${equipmentRow('armor','🛡','방어구')}${equipmentRow('accessory','💍','장신구')}</div><div class="status-item-hint">장착 아이템을 길게 누르면 정보와 교체 가능한 장비를 볼 수 있어.</div></div>
-<div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=window.getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); const canUseItem=canUseFieldItemNow && canUseWorldConsumable(hero,item); const fieldOnlyLabel=item.type==='consumable' && !['heal','mana','autoRevive'].includes(item.effect) ? ' · 전투 전용' : ''; const equipLabel=hero.equipment?.[item.slot] ? '교체' : '장착'; return `<div class="personal-bag-row" data-status-bag-index="${index}" aria-label="${item.name} · 길게 눌러 상세 정보"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}${fieldOnlyLabel}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">${equipLabel}</button>` : ''}${canUseItem ? `<button type="button" class="text-btn bag-use-btn" data-use-index="${index}">사용</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">아이템을 <strong>길게 누르면 상세 정보</strong>를 볼 수 있어. 가방은 최대 ${BAG_LIMIT}칸. 회복약·마나 물약은 주사위를 굴리기 전 필드에서 사용할 수 있고 월드 턴은 소모하지 않아.</div></div>
+<div class="hero-status-section"><h4>EQUIPMENT</h4><div class="equipment-list">${equipmentRow('weapon','⚔','무기')}${equipmentRow('armor','🛡','방어구')}${equipmentRow('accessory','💍','장신구')}</div><div class="status-item-hint">장착 아이템을 누르면 정보와 교체 가능한 장비를 볼 수 있어.</div></div>
+<div class="hero-status-section"><h4>PERSONAL BAG · ${inv.length}/${BAG_LIMIT}</h4><div class="personal-bag-list">${inv.length ? inv.map((id,index)=>{const item=window.getItemCard?.(id); if(!item)return ''; const statText=itemStatsText(item); const canUseItem=canUseFieldItemNow && canUseWorldConsumable(hero,item); const fieldOnlyLabel=item.type==='consumable' && !['heal','mana','autoRevive'].includes(item.effect) ? ' · 전투 전용' : ''; const equipLabel=hero.equipment?.[item.slot] ? '교체' : '장착'; return `<div class="personal-bag-row" data-status-bag-index="${index}" aria-label="${item.name} · 눌러 상세 정보"><span class="bag-item-icon">${item.icon||'🎁'}</span><div><strong>${item.name}</strong><small>${item.desc}${statText ? ` · ${statText}` : ''}${fieldOnlyLabel}</small></div>${item.type==='equipment' && canEquipNow && canHeroEquip(hero,item) ? `<button type="button" class="text-btn bag-equip-btn" data-equip-index="${index}">${equipLabel}</button>` : ''}${canUseItem ? `<button type="button" class="text-btn bag-use-btn" data-use-index="${index}">사용</button>` : ''}</div>`;}).join('') : '<div class="personal-bag-empty">가방이 비어 있어.</div>'}</div><div class="bag-rule-note">아이템을 <strong>누르면 상세 정보</strong>를 볼 수 있어. 가방은 최대 ${BAG_LIMIT}칸. 회복약·마나 물약은 주사위를 굴리기 전 필드에서 사용할 수 있고 월드 턴은 소모하지 않아.</div></div>
 <div class="hero-status-section skill-status"><h4>ABILITY</h4><p><strong>패시브</strong> ${hero.passive}</p><p><strong>고유기</strong> ${hero.skill}</p></div>
 </div>`;
 modalContent.querySelectorAll('[data-status-equipped-slot]').forEach(row => {
