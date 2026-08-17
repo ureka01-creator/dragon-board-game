@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.5.6 — iPhone visual-viewport anchored modal
+// DRAGON BOARD V0.6.5.7 — iPhone visual-viewport anchored modal
 (() => {
   const modal = document.querySelector('#modal');
   const root = document.documentElement;
@@ -68,7 +68,7 @@
   function applyModalGeometry() {
     if (!active || modal.classList.contains('hidden')) return;
     const m = viewportMetrics();
-    modal.classList.add('dragon-vv-modal');
+    if (!modal.classList.contains('dragon-vv-modal')) modal.classList.add('dragon-vv-modal');
     modal.style.setProperty('top', `${m.top}px`, 'important');
     modal.style.setProperty('left', `${m.left}px`, 'important');
     modal.style.setProperty('width', `${m.width}px`, 'important');
