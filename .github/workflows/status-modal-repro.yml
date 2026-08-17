@@ -1,0 +1,42 @@
+name: Status Modal Reproduction
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/repro-ios-status-modal
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'tests/status-modal-repro.spec.cjs'
+      - 'package.json'
+      - 'playwright.config.cjs'
+      - '.github/workflows/status-modal-repro.yml'
+
+concurrency:
+  group: status-modal-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install WebKit
+        run: npx playwright install --with-deps webkit
+      - name: Reproduce iPhone status modal
+        run: npx playwright test tests/status-modal-repro.spec.cjs --project=webkit-iphone --reporter=list
+      - name: Upload reproduction traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: status-modal-repro-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: ignore
