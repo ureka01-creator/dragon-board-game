@@ -17,106 +17,44 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Patch V0.6.4.4
+      - name: Finish V0.6.4.4 cache and DEV patch
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           game = Path('js/game.js')
           text = game.read_text(encoding='utf-8')
-          text = text.replace('Dragon Board Game - game.js - V0.6.4.3', 'Dragon Board Game - game.js - V0.6.4.4', 1)
-
-          pattern = re.compile(r"function bindStatusItemLongPress\(element, callback\) \{.*?\n\}\n(?=function openStatusItemDetail)", re.S)
-          replacement = r'''function bindStatusItemLongPress(element, callback) {
-          if (!element || typeof callback !== 'function') return;
-          let timer = null;
-          let startX = 0;
-          let startY = 0;
-          let longPressFired = false;
-          const cancel = () => {
-          if (timer) clearTimeout(timer);
-          timer = null;
-          element.classList.remove('long-press-arming');
-          };
-          element.addEventListener('pointerdown', (event) => {
-          if (event.target.closest('button')) return;
-          cancel();
-          longPressFired = false;
-          startX = event.clientX;
-          startY = event.clientY;
-          element.classList.add('long-press-arming');
-          timer = setTimeout(() => {
-          timer = null;
-          longPressFired = true;
-          element.classList.remove('long-press-arming');
-          element.classList.add('long-press-fired');
-          setTimeout(() => element.classList.remove('long-press-fired'), 180);
-          try { navigator.vibrate?.(12); } catch (_) {}
-          callback();
-          }, 520);
-          });
-          element.addEventListener('pointermove', (event) => {
-          if (!timer) return;
-          if (Math.hypot(event.clientX - startX, event.clientY - startY) > 10) cancel();
-          });
-          ['pointerup','pointercancel','pointerleave'].forEach(type => element.addEventListener(type, cancel));
-          element.addEventListener('click', (event) => {
-          if (event.target.closest('button')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          if (longPressFired) {
-          longPressFired = false;
-          return;
-          }
-          cancel();
-          callback();
-          });
-          element.addEventListener('contextmenu', (event) => {
-          if (!event.target.closest('button')) event.preventDefault();
-          });
-          }
-          '''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'bindStatusItemLongPress patch count={count}')
-
-          text = text.replace('길게 눌러 상세 정보', '눌러 상세 정보')
-          text = text.replace('장착 아이템을 길게 누르면 정보와 교체 가능한 장비를 볼 수 있어.', '장착 아이템을 누르면 정보와 교체 가능한 장비를 볼 수 있어.')
-          text = text.replace('아이템을 <strong>길게 누르면 상세 정보</strong>를 볼 수 있어.', '아이템을 <strong>누르면 상세 정보</strong>를 볼 수 있어.')
+          text = text.replace('// DRAGON BOARD V0.6.4.2', '// DRAGON BOARD V0.6.4.4', 1)
           game.write_text(text, encoding='utf-8')
+
+          dev = Path('js/dev-bootstrap.js')
+          text = dev.read_text(encoding='utf-8')
+          text = text.replace('// DRAGON BOARD V0.6.4.2 — developer runtime bootstrap', '// DRAGON BOARD V0.6.4.4 — developer runtime bootstrap', 1)
+          text = text.replace("js/game.js?v=0642-dev", "js/game.js?v=0644-dev", 1)
+          dev.write_text(text, encoding='utf-8')
 
           index = Path('index.html')
           text = index.read_text(encoding='utf-8')
-          text = text.replace('PROTOTYPE V0.6.4.3', 'PROTOTYPE V0.6.4.4')
-          text = text.replace('js/game.js?v=0643', 'js/game.js?v=0644')
-          text = text.replace('js/combat-item-ux.js?v=0643', 'js/combat-item-ux.js?v=0644')
-          text = text.replace('js/divine-blessing-ux.js?v=0617', 'js/divine-blessing-ux.js?v=0644')
-          text = re.sub(r'^\s*<script src="js/status-item-tap\.js\?v=[^"]+"></script>\s*\n?', '', text, flags=re.M)
+          text = text.replace('js/dev-bootstrap.js?v=0643', 'js/dev-bootstrap.js?v=0644')
+          text = text.replace('js/divine-blessing-ux.js?v=0630', 'js/divine-blessing-ux.js?v=0644')
           index.write_text(text, encoding='utf-8')
-
-          tests = Path('tests/regression.spec.cjs')
-          text = tests.read_text(encoding='utf-8')
-          text = text.replace('PROTOTYPE V0.6.4.2', 'PROTOTYPE V0.6.4.4')
-          text = text.replace('PROTOTYPE V0.6.4.3', 'PROTOTYPE V0.6.4.4')
-          tests.write_text(text, encoding='utf-8')
           PY
 
           node --check js/game.js
+          node --check js/dev-bootstrap.js
           node --check js/combat-item-ux.js
           node --check js/divine-blessing-ux.js
-          node --check tests/regression.spec.cjs
 
       - name: Commit patch
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/game.js index.html tests/regression.spec.cjs
+          git add js/game.js js/dev-bootstrap.js index.html
           if git diff --cached --quiet; then
             echo "No patch changes"
             exit 0
           fi
-          git commit -m "Fix iOS modal and item tap UX V0.6.4.4"
+          git commit -m "Finish DEV cache bump for V0.6.4.4"
           git push origin HEAD:main
