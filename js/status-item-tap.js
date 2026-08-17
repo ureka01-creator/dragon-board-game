@@ -1,7 +1,44 @@
-// DRAGON BOARD V0.6.5.3 — iOS status item tap bridge
+// DRAGON BOARD V0.6.5.4 — iOS hero status viewport + item tap bridge
 (() => {
+  const modal = document.querySelector('#modal');
   const modalContent = document.querySelector('#modalContent');
-  if (!modalContent) return;
+  const root = document.documentElement;
+  const body = document.body;
+  if (!modal || !modalContent || !root || !body) return;
+
+  function releaseHeroStatusViewportLock() {
+    if (modal.classList.contains('hidden') || !modal.classList.contains('hero-status-modal')) return;
+
+    const fixedTop = Number.parseFloat(body.style.top || '0');
+    const restoreY = Number.isFinite(fixedTop) && fixedTop < 0
+      ? -fixedTop
+      : (window.scrollY || document.documentElement.scrollTop || 0);
+
+    // game.js의 공용 모달 스크롤락은 iPhone Safari에서 캐릭터 상태 모달을
+    // 화면 밖/비표시 상태로 만들 수 있다. 캐릭터 상태 계열에서만 락을 해제한다.
+    body.classList.remove('modal-open');
+    body.style.position = '';
+    body.style.top = '';
+    body.style.left = '';
+    body.style.right = '';
+    body.style.width = '';
+    body.style.overflow = '';
+
+    if (!body.classList.contains('combat-open')) {
+      root.style.overscrollBehavior = '';
+    }
+
+    if (restoreY > 0 && Math.abs((window.scrollY || 0) - restoreY) > 1) {
+      window.scrollTo(0, restoreY);
+    }
+  }
+
+  const scheduleStatusViewportRelease = () => queueMicrotask(releaseHeroStatusViewportLock);
+  new MutationObserver(scheduleStatusViewportRelease).observe(modal, {
+    attributes: true,
+    attributeFilter: ['class'],
+  });
+  scheduleStatusViewportRelease();
 
   const ITEM_ROW_SELECTOR = '[data-status-equipped-slot], [data-status-bag-index]';
   let touchGesture = null;
@@ -45,8 +82,6 @@
     if (!gesture.row?.isConnected || !modalContent.contains(gesture.row)) return;
     if (event.target?.closest?.('button')) return;
 
-    // iOS Safari에서 짧은 탭 뒤 click이 누락되는 경우를 직접 보정한다.
-    // game.js의 기존 row click 핸들러를 그대로 호출하므로 상세/교체 로직은 한 곳에만 유지된다.
     event.preventDefault();
     gesture.row.click();
   }, { passive: false, capture: true });
