@@ -108,8 +108,11 @@
   function refreshEquipModal() {
     const comparing = Boolean(modalContent.querySelector('.equip-confirm-sheet')) && modal.classList.contains('equip-compare-modal');
     modalCloseBtn.style.display = comparing ? 'none' : '';
-    // 비교창의 내부 취소/확정으로 상태창에 돌아왔을 때 잔여 클래스를 정리한다.
-    if (!comparing && modalContent.querySelector('.hero-status-sheet')) modal.classList.remove('equip-compare-modal');
+    // 중요: 없는 클래스를 반복 remove 하면 WebKit MutationObserver가 자기 mutation을
+    // 다시 받아 microtask loop에 빠질 수 있다. 실제 클래스가 있을 때만 제거한다.
+    if (!comparing && modalContent.querySelector('.hero-status-sheet') && modal.classList.contains('equip-compare-modal')) {
+      modal.classList.remove('equip-compare-modal');
+    }
   }
 
   new MutationObserver(() => {
