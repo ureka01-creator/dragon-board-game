@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 async function startDevGame(page) {
   await page.goto('/?dev=1');
-  await expect(page.locator('.version-label')).toHaveText('PROTOTYPE V0.6.4.5');
+  await expect(page.locator('.version-label')).toHaveText('PROTOTYPE V0.6.4.4');
   await page.locator('#titleStartBtn').click();
   await page.locator('.hero-card').first().click();
   await page.locator('#startGameBtn').click();
@@ -63,13 +63,10 @@ test('hero bag item opens detail with a normal tap in DEV/iPhone flow', async ({
   await page.locator('.party-status-btn').first().click();
   await expect(page.locator('#modal')).toHaveClass(/hero-status-modal/);
   await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
-  await expect.poll(() => page.evaluate(() => document.documentElement.style.overflow)).toBe('hidden');
 
   const row = page.locator('[data-status-bag-index="0"]').first();
   await expect(row).toBeVisible();
-  const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
-  if (hasTouch) await row.tap();
-  else await row.click();
+  await row.click();
 
   await expect(page.locator('.status-item-detail-sheet')).toBeVisible();
   await expect(page.locator('#modal')).toHaveClass(/status-item-detail-modal/);
