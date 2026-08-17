@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.4.3 — combat consumable availability + iOS modal stability
+// DRAGON BOARD V0.6.4.4 — combat consumable availability + iOS modal stability
 (() => {
   const modal = document.querySelector('#modal');
   const modalContent = document.querySelector('#modalContent');
@@ -47,11 +47,21 @@
     return Boolean(combatEnemies.querySelector('.stage-enemy-actor.tier-boss'));
   }
 
+  function clearCombatItemModalOverrides() {
+    modal.style.removeProperty('pointer-events');
+    modal.style.removeProperty('z-index');
+    modal.removeAttribute('data-combat-item-stabilized');
+  }
+
   function stabilizeCombatItemModal() {
-    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) return;
+    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) {
+      clearCombatItemModalOverrides();
+      return;
+    }
     if (modal.parentElement !== document.body) document.body.appendChild(modal);
     modal.style.pointerEvents = 'auto';
     modal.style.zIndex = '2147483000';
+    modal.setAttribute('data-combat-item-stabilized', 'true');
     modal.removeAttribute('aria-hidden');
     if (modalCloseBtn) {
       modalCloseBtn.hidden = false;
@@ -60,7 +70,10 @@
   }
 
   function refreshCombatItemAvailability() {
-    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) return;
+    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) {
+      clearCombatItemModalOverrides();
+      return;
+    }
     stabilizeCombatItemModal();
     const bossBattle = isBossBattle();
 
