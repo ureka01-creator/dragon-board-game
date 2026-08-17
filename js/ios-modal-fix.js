@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.4.7 — iOS status button + item detail tap hardening
+// DRAGON BOARD V0.6.4.8 — iOS modal scroll lock + item row tap fallback
 (() => {
   const modal = document.querySelector('#modal');
   const modalContent = document.querySelector('#modalContent');
@@ -30,73 +30,50 @@
   });
   syncRootScrollLock();
 
+  // 상태 버튼(.party-status-btn)은 game.js의 기존 click 처리에만 맡긴다.
+  // 여기서는 캐릭터 상태창 내부 아이템 행의 iOS 탭 누락만 보정한다.
   const ITEM_ROW_SELECTOR = '[data-status-equipped-slot], [data-status-bag-index]';
-  const STATUS_BUTTON_SELECTOR = '.party-status-btn';
-  const nativeSetTimeout = window.setTimeout.bind(window);
   let touchGesture = null;
 
   function isDetailOpen() {
     return Boolean(modalContent.querySelector('.status-item-detail-sheet'));
   }
 
-  function forceExistingItemHandler(row, clientX, clientY) {
-    if (!row || !row.isConnected || isDetailOpen()) return;
-
-    const originalSetTimeout = window.setTimeout;
-    window.setTimeout = (callback, delay, ...args) => {
-      const normalized = Number(delay) === 520 ? 0 : delay;
-      return nativeSetTimeout(callback, normalized, ...args);
-    };
-
-    try {
-      const PointerCtor = window.PointerEvent || window.MouseEvent;
-      row.dispatchEvent(new PointerCtor('pointerdown', {
-        bubbles: false,
-        cancelable: true,
-        clientX,
-        clientY,
-        pointerType: 'touch',
-      }));
-    } finally {
-      window.setTimeout = originalSetTimeout;
-    }
-
-    nativeSetTimeout(() => {
-      if (!row.isConnected) return;
-      const PointerCtor = window.PointerEvent || window.MouseEvent;
-      row.dispatchEvent(new PointerCtor('pointerup', {
-        bubbles: false,
-        cancelable: true,
-        clientX,
-        clientY,
-        pointerType: 'touch',
-      }));
-    }, 24);
+  function dispatchPointer(row, type, x, y) {
+    if (!row?.isConnected) return;
+    const PointerCtor = window.PointerEvent || window.MouseEvent;
+    row.dispatchEvent(new PointerCtor(type, {
+      bubbles: false,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      pointerType: 'touch',
+    }));
   }
 
-  function activateItemRow(row, clientX, clientY) {
-    if (!row || !row.isConnected) return;
+  function activateItemRow(row, x, y) {
+    if (!row?.isConnected || isDetailOpen()) return;
 
-    // 1차: game.js의 일반 click 핸들러 사용.
+    // 1차: game.js가 이미 등록한 일반 click 핸들러 사용.
     row.click();
+    if (isDetailOpen()) return;
 
-    // iOS에서 합성 click이 기존 row 핸들러까지 전달되지 않는 경우,
-    // 이미 존재하는 520ms pointerdown 핸들러를 즉시 실행하는 fallback.
-    nativeSetTimeout(() => {
-      if (!isDetailOpen()) forceExistingItemHandler(row, clientX, clientY);
-    }, 0);
+    // 2차: 일부 iOS Safari에서 합성 click이 누락될 때만
+    // 기존 game.js의 long-press 경로를 그대로 재사용한다.
+    // 전역 setTimeout을 덮어쓰지 않아 다른 UI 타이머에 영향 주지 않는다.
+    window.setTimeout(() => {
+      if (!row.isConnected || isDetailOpen()) return;
+      dispatchPointer(row, 'pointerdown', x, y);
+      window.setTimeout(() => {
+        if (!row.isConnected || isDetailOpen()) return;
+        dispatchPointer(row, 'pointerup', x, y);
+      }, 560);
+    }, 20);
   }
 
   document.addEventListener('touchstart', (event) => {
-    const target = event.target;
-    const statusBtn = target.closest?.(STATUS_BUTTON_SELECTOR);
-    const itemRow = target.closest?.(ITEM_ROW_SELECTOR);
-
-    if (!statusBtn && !itemRow) {
-      touchGesture = null;
-      return;
-    }
-    if (itemRow && target.closest?.('button')) {
+    const row = event.target.closest?.(ITEM_ROW_SELECTOR);
+    if (!row || !modalContent.contains(row) || event.target.closest?.('button')) {
       touchGesture = null;
       return;
     }
@@ -108,8 +85,7 @@
     }
 
     touchGesture = {
-      statusBtn,
-      itemRow,
+      row,
       startX: touch.clientX,
       startY: touch.clientY,
       lastX: touch.clientX,
@@ -133,17 +109,11 @@
     const gesture = touchGesture;
     touchGesture = null;
     if (!gesture || gesture.moved) return;
+    if (!gesture.row?.isConnected || !modalContent.contains(gesture.row)) return;
+    if (event.target.closest?.('button')) return;
 
-    if (gesture.statusBtn?.isConnected) {
-      event.preventDefault();
-      gesture.statusBtn.click();
-      return;
-    }
-
-    if (gesture.itemRow?.isConnected && modalContent.contains(gesture.itemRow)) {
-      event.preventDefault();
-      activateItemRow(gesture.itemRow, gesture.lastX, gesture.lastY);
-    }
+    event.preventDefault();
+    activateItemRow(gesture.row, gesture.lastX, gesture.lastY);
   }, { passive: false });
 
   document.addEventListener('touchcancel', () => {
