@@ -1,0 +1,30 @@
+/* DRAGON BOARD V0.6.4.5 — iOS modal scrollbar/tap hardening */
+html.dragon-modal-root-lock {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+html.dragon-modal-root-lock body {
+  overscroll-behavior: none !important;
+}
+.modal-card,
+.modal.hero-status-modal .modal-card,
+.modal.status-item-detail-modal .modal-card,
+.modal.combat-item-modal .modal-card {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.modal-card::-webkit-scrollbar,
+.modal.hero-status-modal .modal-card::-webkit-scrollbar,
+.modal.status-item-detail-modal .modal-card::-webkit-scrollbar,
+.modal.combat-item-modal .modal-card::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+}
+.status-item-row.has-item,
+.personal-bag-row[data-status-bag-index] {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent;
+}
