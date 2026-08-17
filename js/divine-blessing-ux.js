@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.5.0 — HP 0 / divine blessing explanation
+// DRAGON BOARD V0.6.5.3 — HP 0 / divine blessing explanation + iOS scroll lock
 (() => {
   const gameLog = document.querySelector('#gameLog');
   const combatOverlay = document.querySelector('#combatOverlay');
@@ -16,6 +16,7 @@
     .blessing-destination{margin:10px 0;padding:9px;background:#17100c;border-left:3px solid #89a766;color:#cdb98e}
     .blessing-rule{font-size:11px;line-height:1.55;color:#b9a27b;margin:10px 0 14px}
     .blessing-ok{width:100%;border:3px solid #82a854;background:#496a32;color:#f3e4b8;padding:12px;font:inherit}
+    html.blessing-scroll-lock,html.blessing-scroll-lock body{overflow:hidden!important;overscroll-behavior:none!important}
   `;
   document.head.appendChild(style);
 
@@ -35,6 +36,23 @@
 
   const queue = [];
   let showing = false;
+  let scrollLockActive = false;
+
+  const preventBackgroundTouchMove = (event) => {
+    if (!overlay.hidden) event.preventDefault();
+  };
+
+  function setBlessingScrollLock(locked) {
+    locked = Boolean(locked);
+    if (locked === scrollLockActive) return;
+    scrollLockActive = locked;
+    document.documentElement.classList.toggle('blessing-scroll-lock', locked);
+    if (locked) {
+      document.addEventListener('touchmove', preventBackgroundTouchMove, { passive:false, capture:true });
+    } else {
+      document.removeEventListener('touchmove', preventBackgroundTouchMove, { capture:true });
+    }
+  }
 
   function blocked() {
     const inCombat = combatOverlay && !combatOverlay.classList.contains('hidden');
@@ -59,10 +77,12 @@
     overlay.querySelector('[data-blessing-hero]').textContent = notice.hero;
     overlay.querySelector('[data-blessing-destination]').textContent = `🏠 ${notice.destination} 마을로 귀환`;
     overlay.hidden = false;
+    setBlessingScrollLock(true);
   }
 
   overlay.querySelector('.blessing-ok')?.addEventListener('click', () => {
     overlay.hidden = true;
+    setBlessingScrollLock(false);
     showing = false;
     setTimeout(pump, 30);
   });
