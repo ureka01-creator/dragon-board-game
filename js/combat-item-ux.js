@@ -1,10 +1,8 @@
-// DRAGON BOARD V0.6.4.4 — combat consumable availability + iOS modal stability
+// DRAGON BOARD V0.6.5.0 — combat consumable availability UX
 (() => {
   const modal = document.querySelector('#modal');
   const modalContent = document.querySelector('#modalContent');
-  const modalCloseBtn = document.querySelector('#modalCloseBtn');
   const combatEnemies = document.querySelector('#combatEnemies');
-  const combatItemBtn = document.querySelector('#combatItemBtn');
   if (!modal || !modalContent || !combatEnemies) return;
 
   const style = document.createElement('style');
@@ -26,20 +24,6 @@
       font-size:.76em;
       white-space:nowrap;
     }
-    body.combat-open .modal.combat-item-modal:not(.hidden) {
-      position: fixed !important;
-      inset: 0 !important;
-      z-index: 2147483000 !important;
-      pointer-events: auto !important;
-      touch-action: manipulation !important;
-      -webkit-transform: translate3d(0,0,1px) !important;
-      transform: translate3d(0,0,1px) !important;
-    }
-    body.combat-open .modal.combat-item-modal:not(.hidden) .modal-card {
-      pointer-events: auto !important;
-      touch-action: pan-y !important;
-      -webkit-overflow-scrolling: touch;
-    }
   `;
   document.head.appendChild(style);
 
@@ -47,34 +31,8 @@
     return Boolean(combatEnemies.querySelector('.stage-enemy-actor.tier-boss'));
   }
 
-  function clearCombatItemModalOverrides() {
-    modal.style.removeProperty('pointer-events');
-    modal.style.removeProperty('z-index');
-    modal.removeAttribute('data-combat-item-stabilized');
-  }
-
-  function stabilizeCombatItemModal() {
-    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) {
-      clearCombatItemModalOverrides();
-      return;
-    }
-    if (modal.parentElement !== document.body) document.body.appendChild(modal);
-    modal.style.pointerEvents = 'auto';
-    modal.style.zIndex = '2147483000';
-    modal.setAttribute('data-combat-item-stabilized', 'true');
-    modal.removeAttribute('aria-hidden');
-    if (modalCloseBtn) {
-      modalCloseBtn.hidden = false;
-      if (!modalCloseBtn.textContent?.trim()) modalCloseBtn.textContent = '전투로 돌아가기';
-    }
-  }
-
   function refreshCombatItemAvailability() {
-    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) {
-      clearCombatItemModalOverrides();
-      return;
-    }
-    stabilizeCombatItemModal();
+    if (modal.classList.contains('hidden') || !modal.classList.contains('combat-item-modal')) return;
     const bossBattle = isBossBattle();
 
     modalContent.querySelectorAll('[data-combat-item]').forEach(button => {
@@ -107,22 +65,9 @@
     });
   }
 
-  combatItemBtn?.addEventListener('click', () => {
-    requestAnimationFrame(stabilizeCombatItemModal);
-    setTimeout(stabilizeCombatItemModal, 60);
-  }, true);
-
-  combatItemBtn?.addEventListener('touchend', () => {
-    setTimeout(stabilizeCombatItemModal, 0);
-  }, { passive: true, capture: true });
-
   new MutationObserver(refreshCombatItemAvailability).observe(modalContent, {
     childList: true,
     subtree: true,
-  });
-  new MutationObserver(refreshCombatItemAvailability).observe(modal, {
-    attributes: true,
-    attributeFilter: ['class'],
   });
   new MutationObserver(refreshCombatItemAvailability).observe(combatEnemies, {
     childList: true,
