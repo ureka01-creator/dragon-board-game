@@ -1,0 +1,217 @@
+name: Apply V0.6.4.5 iOS modal fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-v0645-ios-modal.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply V0.6.4.5 patch
+        shell: bash
+        run: |
+          cat > js/ios-modal-fix.js <<'EOF'
+          // DRAGON BOARD V0.6.4.5 — iOS modal scroll lock + status item tap fallback
+          (() => {
+            const modal = document.querySelector('#modal');
+            const modalContent = document.querySelector('#modalContent');
+            if (!modal || !modalContent) return;
+
+            const root = document.documentElement;
+            let rootLocked = false;
+            let previousRootOverflow = '';
+
+            function syncRootScrollLock() {
+              const open = !modal.classList.contains('hidden');
+              if (open && !rootLocked) {
+                previousRootOverflow = root.style.overflow || '';
+                root.style.overflow = 'hidden';
+                root.classList.add('dragon-modal-root-lock');
+                rootLocked = true;
+                return;
+              }
+              if (!open && rootLocked) {
+                root.style.overflow = previousRootOverflow;
+                root.classList.remove('dragon-modal-root-lock');
+                rootLocked = false;
+              }
+            }
+
+            new MutationObserver(syncRootScrollLock).observe(modal, {
+              attributes: true,
+              attributeFilter: ['class'],
+            });
+            syncRootScrollLock();
+
+            const ITEM_ROW_SELECTOR = '[data-status-equipped-slot], [data-status-bag-index]';
+            const nativeSetTimeout = window.setTimeout.bind(window);
+
+            function activateStatusRow(row, clientX = 0, clientY = 0) {
+              if (!row || !modalContent.contains(row)) return;
+              if (row.classList.contains('long-press-fired')) return;
+
+              const originalSetTimeout = window.setTimeout;
+              window.setTimeout = (callback, delay, ...args) => {
+                const nextDelay = Number(delay) === 520 ? 0 : delay;
+                return nativeSetTimeout(callback, nextDelay, ...args);
+              };
+
+              try {
+                const PointerCtor = window.PointerEvent || window.MouseEvent;
+                row.dispatchEvent(new PointerCtor('pointerdown', {
+                  bubbles: false,
+                  cancelable: true,
+                  clientX,
+                  clientY,
+                  pointerType: 'touch',
+                }));
+              } finally {
+                window.setTimeout = originalSetTimeout;
+              }
+            }
+
+            let touchGesture = null;
+
+            document.addEventListener('touchstart', (event) => {
+              const row = event.target.closest?.(ITEM_ROW_SELECTOR);
+              if (!row || !modalContent.contains(row) || event.target.closest('button')) {
+                touchGesture = null;
+                return;
+              }
+              const touch = event.touches?.[0];
+              if (!touch) return;
+              touchGesture = {
+                row,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                lastX: touch.clientX,
+                lastY: touch.clientY,
+                moved: false,
+              };
+            }, { passive: true });
+
+            document.addEventListener('touchmove', (event) => {
+              if (!touchGesture) return;
+              const touch = event.touches?.[0];
+              if (!touch) return;
+              touchGesture.lastX = touch.clientX;
+              touchGesture.lastY = touch.clientY;
+              if (Math.hypot(touch.clientX - touchGesture.startX, touch.clientY - touchGesture.startY) > 10) {
+                touchGesture.moved = true;
+              }
+            }, { passive: true });
+
+            document.addEventListener('touchend', () => {
+              const gesture = touchGesture;
+              touchGesture = null;
+              if (!gesture || gesture.moved) return;
+              nativeSetTimeout(() => {
+                if (!modalContent.contains(gesture.row)) return;
+                activateStatusRow(gesture.row, gesture.lastX, gesture.lastY);
+              }, 0);
+            }, { passive: true });
+
+            document.addEventListener('touchcancel', () => {
+              touchGesture = null;
+            }, { passive: true });
+
+            // Desktop/Playwright and iOS click fallback. If the built-in row click already
+            // opened the detail sheet, the row is detached and this becomes a no-op.
+            document.addEventListener('click', (event) => {
+              const row = event.target.closest?.(ITEM_ROW_SELECTOR);
+              if (!row || !modalContent.contains(row)) return;
+              if (event.target.closest('button')) return;
+              activateStatusRow(row, event.clientX || 0, event.clientY || 0);
+            });
+          })();
+          EOF
+
+          cat > css/ios-modal-fix.css <<'EOF'
+          /* DRAGON BOARD V0.6.4.5 — iOS modal scrollbar/tap hardening */
+          html.dragon-modal-root-lock {
+            overflow: hidden !important;
+            overscroll-behavior: none !important;
+          }
+          html.dragon-modal-root-lock body {
+            overscroll-behavior: none !important;
+          }
+          .modal-card,
+          .modal.hero-status-modal .modal-card,
+          .modal.status-item-detail-modal .modal-card,
+          .modal.combat-item-modal .modal-card {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+          }
+          .modal-card::-webkit-scrollbar,
+          .modal.hero-status-modal .modal-card::-webkit-scrollbar,
+          .modal.status-item-detail-modal .modal-card::-webkit-scrollbar,
+          .modal.combat-item-modal .modal-card::-webkit-scrollbar {
+            width: 0 !important;
+            height: 0 !important;
+            display: none !important;
+            background: transparent !important;
+            -webkit-appearance: none !important;
+          }
+          .status-item-row.has-item,
+          .personal-bag-row[data-status-bag-index] {
+            touch-action: manipulation !important;
+            -webkit-tap-highlight-color: transparent;
+          }
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'marker missing in {path}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once('index.html', 'PROTOTYPE V0.6.4.4', 'PROTOTYPE V0.6.4.5')
+          replace_once(
+              'index.html',
+              '<link rel="stylesheet" href="css/style.css?v=0643" />',
+              '<link rel="stylesheet" href="css/style.css?v=0643" />\n  <link rel="stylesheet" href="css/ios-modal-fix.css?v=0645" />'
+          )
+          replace_once(
+              'index.html',
+              '  <script src="js/boots-roll-ux.js?v=0622"></script>',
+              '  <script src="js/ios-modal-fix.js?v=0645"></script>\n  <script src="js/boots-roll-ux.js?v=0622"></script>'
+          )
+
+          ui = Path('tests/ui-modal.spec.cjs')
+          text = ui.read_text().replace('PROTOTYPE V0.6.4.4', 'PROTOTYPE V0.6.4.5', 1)
+          old = """  await expect(page.locator('#modal')).toHaveClass(/hero-status-modal/);\n  await expect(page.locator('#modal')).not.toHaveClass(/hidden/);\n\n  const row = page.locator('[data-status-bag-index=\"0\"]').first();\n  await expect(row).toBeVisible();\n  await row.click();\n\n  await expect(page.locator('.status-item-detail-sheet')).toBeVisible();"""
+          new = """  await expect(page.locator('#modal')).toHaveClass(/hero-status-modal/);\n  await expect(page.locator('#modal')).not.toHaveClass(/hidden/);\n  await expect.poll(() => page.evaluate(() => document.documentElement.style.overflow)).toBe('hidden');\n\n  const row = page.locator('[data-status-bag-index=\"0\"]').first();\n  await expect(row).toBeVisible();\n  const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);\n  if (hasTouch) await row.tap();\n  else await row.click();\n\n  await expect(page.locator('.status-item-detail-sheet')).toBeVisible();"""
+          if old not in text:
+              raise SystemExit('ui-modal tap marker missing')
+          ui.write_text(text.replace(old, new, 1))
+
+          regression = Path('tests/regression.spec.cjs')
+          text = regression.read_text()
+          if 'PROTOTYPE V0.6.4.4' not in text:
+              raise SystemExit('regression version marker missing')
+          regression.write_text(text.replace('PROTOTYPE V0.6.4.4', 'PROTOTYPE V0.6.4.5', 1))
+
+          workflow = Path('.github/workflows/browser-regression.yml')
+          text = workflow.read_text()
+          if 'Run V0.6.4.4 regression suite' not in text:
+              raise SystemExit('browser workflow label marker missing')
+          workflow.write_text(text.replace('Run V0.6.4.4 regression suite', 'Run V0.6.4.5 regression suite', 1))
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/ios-modal-fix.js css/ios-modal-fix.css tests/ui-modal.spec.cjs tests/regression.spec.cjs .github/workflows/browser-regression.yml
+          git commit -m "Fix iOS modal scroll and item tap V0.6.4.5"
+          git push
