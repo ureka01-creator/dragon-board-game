@@ -1,4 +1,4 @@
-// DRAGON BOARD V0.6.2.1 — loot candidate detail + equipment modal UX
+// DRAGON BOARD V0.6.5.9 — loot candidate detail + modal observer loop guard
 (() => {
   const lootActions = document.querySelector('#lootActions');
   const modal = document.querySelector('#modal');
@@ -108,8 +108,11 @@
   function refreshEquipModal() {
     const comparing = Boolean(modalContent.querySelector('.equip-confirm-sheet')) && modal.classList.contains('equip-compare-modal');
     modalCloseBtn.style.display = comparing ? 'none' : '';
-    // 비교창의 내부 취소/확정으로 상태창에 돌아왔을 때 잔여 클래스를 정리한다.
-    if (!comparing && modalContent.querySelector('.hero-status-sheet')) modal.classList.remove('equip-compare-modal');
+    // WebKit에서는 존재하지 않는 class를 반복 remove하는 것도 observer 재호출을 만들 수 있다.
+    // 실제 잔여 클래스가 있을 때만 제거해 자기 자신을 다시 깨우는 microtask loop를 막는다.
+    if (!comparing && modalContent.querySelector('.hero-status-sheet') && modal.classList.contains('equip-compare-modal')) {
+      modal.classList.remove('equip-compare-modal');
+    }
   }
 
   new MutationObserver(() => {
