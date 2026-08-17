@@ -9,7 +9,7 @@ on:
       - 'index.html'
       - 'css/**'
       - 'js/**'
-      - 'tests/status-modal-repro.spec.cjs'
+      - 'tests/**'
       - 'package.json'
       - 'playwright.config.cjs'
       - '.github/workflows/status-modal-repro.yml'
@@ -19,9 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  reproduce:
+  reproduce-and-regress:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,14 +29,16 @@ jobs:
           node-version: 24
       - name: Install test dependencies
         run: npm install --no-audit --no-fund
-      - name: Install WebKit
-        run: npx playwright install --with-deps webkit
-      - name: Reproduce iPhone status modal
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium webkit
+      - name: Verify iPhone status modal reproduction is fixed
         run: npx playwright test tests/status-modal-repro.spec.cjs --project=webkit-iphone --reporter=list
-      - name: Upload reproduction traces
-        if: always()
+      - name: Run full browser regression suite
+        run: npm run test:e2e
+      - name: Upload failure traces
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: status-modal-repro-${{ github.sha }}
+          name: status-modal-regression-${{ github.sha }}
           path: test-results/
           if-no-files-found: ignore
