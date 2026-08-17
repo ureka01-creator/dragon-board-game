@@ -1,56 +1,57 @@
-// DRAGON BOARD V0.6.5.0 — status item tap UX
+// DRAGON BOARD V0.6.5.3 — iOS status item tap bridge
 (() => {
   const modalContent = document.querySelector('#modalContent');
   if (!modalContent) return;
 
   const ITEM_ROW_SELECTOR = '[data-status-equipped-slot], [data-status-bag-index]';
+  let touchGesture = null;
 
-  // 기존 상세/교체 로직을 그대로 재사용한다.
-  // 아이템 행을 일반 탭했을 때 기존 long-press pointerdown 핸들러를
-  // 즉시 실행시키되, 전역 타이머에는 영향을 주지 않는다.
-  document.addEventListener('click', (event) => {
-    const row = event.target.closest?.(ITEM_ROW_SELECTOR);
-    if (!row || !modalContent.contains(row)) return;
-    if (event.target.closest('button')) return;
-    if (row.classList.contains('long-press-fired')) return;
-
-    const nativeSetTimeout = window.setTimeout;
-    window.setTimeout = (callback, delay, ...args) => {
-      const nextDelay = Number(delay) === 520 ? 0 : delay;
-      return nativeSetTimeout(callback, nextDelay, ...args);
-    };
-
-    try {
-      const PointerCtor = window.PointerEvent || window.MouseEvent;
-      row.dispatchEvent(new PointerCtor('pointerdown', {
-        bubbles: false,
-        cancelable: true,
-        clientX: 0,
-        clientY: 0,
-        pointerType: 'touch',
-      }));
-    } finally {
-      window.setTimeout = nativeSetTimeout;
-    }
-  });
-
-  function refreshTapCopy() {
-    modalContent.querySelectorAll('.status-item-hint, .bag-rule-note').forEach((el) => {
-      if (el.innerHTML.includes('길게 누르면')) {
-        el.innerHTML = el.innerHTML.replaceAll('길게 누르면', '누르면');
-      }
-    });
-    modalContent.querySelectorAll(`${ITEM_ROW_SELECTOR}[aria-label]`).forEach((el) => {
-      const label = el.getAttribute('aria-label') || '';
-      if (label.includes('길게 눌러')) {
-        el.setAttribute('aria-label', label.replaceAll('길게 눌러', '눌러'));
-      }
-    });
+  function getItemRow(target) {
+    const row = target?.closest?.(ITEM_ROW_SELECTOR);
+    if (!row || !modalContent.contains(row)) return null;
+    if (target?.closest?.('button')) return null;
+    return row;
   }
 
-  new MutationObserver(refreshTapCopy).observe(modalContent, {
-    childList: true,
-    subtree: true,
-  });
-  refreshTapCopy();
+  document.addEventListener('touchstart', (event) => {
+    const row = getItemRow(event.target);
+    const touch = event.touches?.[0];
+    if (!row || !touch) {
+      touchGesture = null;
+      return;
+    }
+
+    touchGesture = {
+      row,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      moved: false,
+    };
+  }, { passive: true, capture: true });
+
+  document.addEventListener('touchmove', (event) => {
+    if (!touchGesture) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    if (Math.hypot(touch.clientX - touchGesture.startX, touch.clientY - touchGesture.startY) > 12) {
+      touchGesture.moved = true;
+    }
+  }, { passive: true, capture: true });
+
+  document.addEventListener('touchend', (event) => {
+    const gesture = touchGesture;
+    touchGesture = null;
+    if (!gesture || gesture.moved) return;
+    if (!gesture.row?.isConnected || !modalContent.contains(gesture.row)) return;
+    if (event.target?.closest?.('button')) return;
+
+    // iOS Safari에서 짧은 탭 뒤 click이 누락되는 경우를 직접 보정한다.
+    // game.js의 기존 row click 핸들러를 그대로 호출하므로 상세/교체 로직은 한 곳에만 유지된다.
+    event.preventDefault();
+    gesture.row.click();
+  }, { passive: false, capture: true });
+
+  document.addEventListener('touchcancel', () => {
+    touchGesture = null;
+  }, { passive: true, capture: true });
 })();
