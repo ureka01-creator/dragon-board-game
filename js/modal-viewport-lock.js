@@ -1,14 +1,12 @@
-// DRAGON BOARD V0.6.5.5 — iPhone-safe shared modal viewport lock
+// DRAGON BOARD V0.6.5.6 — iPhone visual-viewport anchored modal
 (() => {
   const modal = document.querySelector('#modal');
   const root = document.documentElement;
   const body = document.body;
   if (!modal || !root || !body) return;
 
-  // game.js still writes body { position:fixed; top:-scrollY } while a modal opens.
-  // On iPhone Safari that geometry change can move the visual viewport before any
-  // later JavaScript correction runs. Keep the legacy class for compatibility,
-  // but make those inline geometry properties ineffective at style resolution.
+  // game.js의 기존 body fixed 잠금은 iPhone Safari에서 현재 스크롤 위치를
+  // 기준으로 모달을 화면 밖에 배치할 수 있다. body는 항상 정상 흐름에 둔다.
   const guardStyle = document.createElement('style');
   guardStyle.id = 'dragon-modal-viewport-guard';
   guardStyle.textContent = `
@@ -19,29 +17,29 @@
       right: auto !important;
       width: auto !important;
     }
-    html.dragon-modal-viewport-lock,
-    html.dragon-modal-viewport-lock body {
-      overflow: hidden !important;
-      overscroll-behavior: none !important;
-    }
-    html.dragon-modal-viewport-lock #modal:not(.hidden) {
-      position: fixed !important;
-      inset: 0 !important;
-      width: 100vw !important;
-      height: 100dvh !important;
-      max-height: 100dvh !important;
+    #modal.dragon-vv-modal:not(.hidden) {
+      position: absolute !important;
+      inset: auto !important;
       box-sizing: border-box !important;
+      overflow: hidden !important;
+      z-index: 10000 !important;
+    }
+    #modal.dragon-vv-modal:not(.hidden) > .modal-card {
+      max-height: calc(var(--dragon-vv-height, 100vh) - 24px) !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
     }
   `;
   document.head.appendChild(guardStyle);
 
   let active = false;
   let savedScrollY = 0;
-  let previousRootOverflow = '';
-  let previousBodyOverflow = '';
-  let previousOverscroll = '';
+  let savedOverscroll = '';
+  let rafId = 0;
 
-  function readScrollY() {
+  const vv = window.visualViewport;
+
+  function currentDocumentY() {
     const fixedTop = Number.parseFloat(body.style.top || '0');
     if (Number.isFinite(fixedTop) && fixedTop < 0) return -fixedTop;
     return window.scrollY || root.scrollTop || 0;
@@ -53,6 +51,43 @@
     body.style.left = '';
     body.style.right = '';
     body.style.width = '';
+    // game.js가 넣은 overflow 값이 있으면 제거하되 페이지 자체 overflow는 건드리지 않는다.
+    if (body.style.overflow === 'hidden') body.style.overflow = '';
+    if (root.style.overflow === 'hidden') root.style.overflow = '';
+  }
+
+  function viewportMetrics() {
+    return {
+      top: (window.scrollY || root.scrollTop || savedScrollY || 0) + (vv?.offsetTop || 0),
+      left: (vv?.offsetLeft || 0),
+      width: Math.max(1, vv?.width || root.clientWidth || window.innerWidth),
+      height: Math.max(1, vv?.height || window.innerHeight || root.clientHeight),
+    };
+  }
+
+  function applyModalGeometry() {
+    if (!active || modal.classList.contains('hidden')) return;
+    const m = viewportMetrics();
+    modal.classList.add('dragon-vv-modal');
+    modal.style.setProperty('top', `${m.top}px`, 'important');
+    modal.style.setProperty('left', `${m.left}px`, 'important');
+    modal.style.setProperty('width', `${m.width}px`, 'important');
+    modal.style.setProperty('height', `${m.height}px`, 'important');
+    modal.style.setProperty('max-height', `${m.height}px`, 'important');
+    modal.style.setProperty('--dragon-vv-height', `${m.height}px`);
+  }
+
+  function scheduleGeometry() {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(applyModalGeometry);
+  }
+
+  function clearModalGeometry() {
+    cancelAnimationFrame(rafId);
+    modal.classList.remove('dragon-vv-modal');
+    ['top','left','width','height','max-height','--dragon-vv-height'].forEach(prop => {
+      modal.style.removeProperty(prop);
+    });
   }
 
   function sync() {
@@ -60,30 +95,22 @@
 
     if (open) {
       if (!active) {
-        savedScrollY = readScrollY();
-        previousRootOverflow = root.style.overflow || '';
-        previousBodyOverflow = body.style.overflow || '';
-        previousOverscroll = root.style.overscrollBehavior || '';
+        savedScrollY = currentDocumentY();
+        savedOverscroll = root.style.overscrollBehavior || '';
         active = true;
       }
 
-      // Clear the legacy inline geometry too, so getComputedStyle/layout callers
-      // do not inherit stale fixed-body values while the modal is visible.
       clearLegacyBodyGeometry();
-      root.style.overflow = 'hidden';
-      body.style.overflow = 'hidden';
       root.style.overscrollBehavior = 'none';
-      root.classList.add('dragon-modal-viewport-lock');
+      applyModalGeometry();
       return;
     }
 
     if (!active) return;
 
+    clearModalGeometry();
     clearLegacyBodyGeometry();
-    body.style.overflow = previousBodyOverflow;
-    root.style.overflow = previousRootOverflow;
-    root.style.overscrollBehavior = previousOverscroll;
-    root.classList.remove('dragon-modal-viewport-lock');
+    root.style.overscrollBehavior = savedOverscroll;
     active = false;
 
     const restoreY = savedScrollY;
@@ -94,8 +121,7 @@
     });
   }
 
-  // Do not allow the page behind the modal to rubber-band on iOS. Scrolling
-  // inside the modal card remains available.
+  // 모달 카드 안쪽은 스크롤 허용, 배경은 iOS rubber-band를 막는다.
   document.addEventListener('touchmove', (event) => {
     if (!active) return;
     if (event.target.closest?.('.modal-card')) return;
@@ -107,17 +133,21 @@
     attributeFilter: ['class'],
   });
 
-  // game.js can re-apply its inline fixed geometry after the modal observer.
-  // Strip it in the same microtask checkpoint, before Safari paints a frame.
+  // game.js observer가 body fixed를 다시 쓰더라도 paint 전에 제거한다.
   new MutationObserver(() => {
-    if (!modal.classList.contains('hidden') &&
-        (body.style.position === 'fixed' || body.style.top || body.style.left || body.style.right)) {
-      queueMicrotask(sync);
+    if (!active || modal.classList.contains('hidden')) return;
+    if (body.style.position === 'fixed' || body.style.top || body.style.left || body.style.right) {
+      clearLegacyBodyGeometry();
+      scheduleGeometry();
     }
   }).observe(body, {
     attributes: true,
     attributeFilter: ['style'],
   });
+
+  vv?.addEventListener('resize', scheduleGeometry);
+  vv?.addEventListener('scroll', scheduleGeometry);
+  window.addEventListener('orientationchange', scheduleGeometry);
 
   sync();
 })();
