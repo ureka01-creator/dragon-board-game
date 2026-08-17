@@ -123,8 +123,6 @@ jobs:
               touchGesture = null;
             }, { passive: true });
 
-            // Desktop/Playwright and iOS click fallback. If the built-in row click already
-            // opened the detail sheet, the row is detached and this becomes a no-op.
             document.addEventListener('click', (event) => {
               const row = event.target.closest?.(ITEM_ROW_SELECTOR);
               if (!row || !modalContent.contains(row)) return;
@@ -202,16 +200,10 @@ jobs:
           if 'PROTOTYPE V0.6.4.4' not in text:
               raise SystemExit('regression version marker missing')
           regression.write_text(text.replace('PROTOTYPE V0.6.4.4', 'PROTOTYPE V0.6.4.5', 1))
-
-          workflow = Path('.github/workflows/browser-regression.yml')
-          text = workflow.read_text()
-          if 'Run V0.6.4.4 regression suite' not in text:
-              raise SystemExit('browser workflow label marker missing')
-          workflow.write_text(text.replace('Run V0.6.4.4 regression suite', 'Run V0.6.4.5 regression suite', 1))
           PY
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html js/ios-modal-fix.js css/ios-modal-fix.css tests/ui-modal.spec.cjs tests/regression.spec.cjs .github/workflows/browser-regression.yml
+          git add index.html js/ios-modal-fix.js css/ios-modal-fix.css tests/ui-modal.spec.cjs tests/regression.spec.cjs
           git commit -m "Fix iOS modal scroll and item tap V0.6.4.5"
           git push
