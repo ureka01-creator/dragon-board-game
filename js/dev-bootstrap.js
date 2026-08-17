@@ -1,8 +1,8 @@
-// DRAGON BOARD V0.6.4.2 — developer runtime bootstrap
+// DRAGON BOARD V0.6.4.4 — developer runtime bootstrap
 // Loaded only with ?dev=1. Normal players still execute js/game.js directly.
 (() => {
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', 'js/game.js?v=0642-dev', false);
+  xhr.open('GET', 'js/game.js?v=0644-dev', false);
   xhr.send(null);
   if (xhr.status < 200 || xhr.status >= 300) throw new Error(`DEV bootstrap: game.js load failed (${xhr.status})`);
 
