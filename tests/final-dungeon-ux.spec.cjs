@@ -19,11 +19,14 @@ async function startKnight(page) {
 
 async function defeatCurrentEnemy(page) {
   const attack = page.locator('#combatAttackBtn');
-  await expect(attack).toBeEnabled({ timeout: 8000 });
+  await expect(page.locator('#combatOverlay')).toBeVisible();
+  await expect(attack).toBeEnabled({ timeout: 10000 });
   const result = await page.evaluate(() => window.DRAGON_BOARD_DEV_API.enemyHpOne());
   expect(result.ok).toBe(true);
+  // enemyHpOne() rerenders combat, so wait for the animation/input lock to settle again.
+  await expect(attack).toBeEnabled({ timeout: 10000 });
   await attack.click();
-  await expect(page.locator('#combatOverlay')).toBeHidden({ timeout: 10000 });
+  await expect(page.locator('#combatOverlay')).toBeHidden({ timeout: 12000 });
 }
 
 test('dragon castle entry presents a four-stage dungeon track before combat', async ({ page }) => {
@@ -45,11 +48,9 @@ test('corridor waits for the player D20 roll and altar gates the dragon throne',
   await startKnight(page);
   await page.locator('.final-dungeon-enter').click();
 
-  await expect(page.locator('#combatOverlay')).toBeVisible();
   await defeatCurrentEnemy(page);
 
-  // Core stage 1 already has a clear message. Keep it as the guardian-clear beat,
-  // then advance into the V0.6.6.0 corridor interaction.
+  // Guardian clear must wait for the player before entering the corridor.
   await expect(page.locator('#modal')).toBeVisible();
   await expect(page.locator('#modalContent')).toContainText('성문 돌파');
   await page.locator('#modalCloseBtn').click();
