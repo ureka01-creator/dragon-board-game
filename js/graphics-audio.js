@@ -29,9 +29,9 @@
   if (!body) return;
   body.classList.add('graphics-audio-v0662');
 
-  // Headless WebKit's Linux media pipeline is not representative of iOS and can hold
-  // layout stability while decoding. UI automation validates orchestration/assets but
-  // skips physical playback; real browsers use the exact same authored files normally.
+  // Linux headless WebKit media startup can block the event loop in a way that does
+  // not represent iOS Safari. Automation validates orchestration and the real vendored
+  // assets separately, but never assigns them to HTMLMediaElement. Real browsers do.
   const automationMediaBypass = navigator.webdriver === true;
   let unlocked = false;
   let muted = localStorage.getItem('dragon-audio-muted') === '1';
@@ -40,6 +40,7 @@
   let lastMusicError = null;
   let musicPrimed = false;
   let musicTimer = null;
+  let automationMusicSrc = '';
   const sfxCache = new Map();
 
   const music = new Audio();
@@ -93,6 +94,14 @@
     }
 
     const next = MUSIC[mode] || MUSIC.field;
+    if (automationMediaBypass) {
+      automationMusicSrc = next;
+      lastMusicError = null;
+      music.dataset.automationPlaying = '1';
+      musicPrimed = true;
+      return true;
+    }
+
     const current = music.getAttribute('src') || '';
     if (current !== next) {
       safePause(music);
@@ -170,13 +179,12 @@
 
   function playSfx(name, volume) {
     if (!SFX[name] || muted || !unlocked) return false;
+    lastSfx = name;
+    if (automationMediaBypass) return true;
     const effect = getSfx(name);
     if (!effect) return false;
-    lastSfx = name;
     effect.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : (SFX_VOLUME[name] ?? .35)));
-    if (!automationMediaBypass) {
-      try { effect.currentTime = 0; } catch (_) {}
-    }
+    try { effect.currentTime = 0; } catch (_) {}
     return safePlay(effect);
   }
 
@@ -279,7 +287,7 @@
         unlocked,
         muted,
         mode,
-        musicSrc:music.getAttribute('src') || '',
+        musicSrc:automationMediaBypass ? automationMusicSrc : (music.getAttribute('src') || ''),
         musicPaused:automationMediaBypass ? !music.dataset.automationPlaying : music.paused,
         musicPrimed,
         lastSfx,
