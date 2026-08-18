@@ -162,10 +162,12 @@
     armTimer = null;
     pendingFeedback = { type, name:buttonName(button) };
     armedButton = null;
+    // The core handler rerenders #modalContent during this same click. Re-decorate
+    // explicitly after propagation instead of observing the entire modal subtree.
+    scheduleDecorate();
     // Let the original shop listener execute the actual transaction.
   },true);
 
-  new MutationObserver(scheduleDecorate).observe(modalContent,{childList:true,subtree:true});
   new MutationObserver(scheduleDecorate).observe(modal,{attributes:true,attributeFilter:['class']});
   scheduleDecorate();
 })();
