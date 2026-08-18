@@ -1,0 +1,59 @@
+name: Vendor Audio V0.6.6.2
+
+on:
+  push:
+    branches:
+      - agent/graphics-audio-0662
+    paths:
+      - '.github/workflows/vendor-audio-0662.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  vendor-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/graphics-audio-0662
+      - name: Download pinned CC0 audio assets
+        run: |
+          set -euo pipefail
+          mkdir -p assets/audio/bgm assets/audio/sfx
+
+          MEDIEVAL='https://raw.githubusercontent.com/tunasafa/medieaval-days/8ee84ce61b7e9034603301931629c53bab248da4/assets/music'
+          AOZORA='https://raw.githubusercontent.com/tegnike/aozora-islands/6dc06266c3263e93d8b8efd3d7e9a31b7db141f8/src/assets/audio'
+          CASINO='https://raw.githubusercontent.com/ash4rk/food-pusher/48de332dd9a6c896e6faa6dba4c15676f69c9c84/assets/sfx/kenney_casino/Audio'
+          DUNGEON='https://raw.githubusercontent.com/jarlah/dungeon-haskell/8a443d355b99dc3aa09b5c5cd8bf02b55b2fe2c4/assets'
+
+          curl --fail --location --retry 3 "$MEDIEVAL/Lament_for_a_Warriors_Soul.mp3" -o assets/audio/bgm/title.mp3
+          curl --fail --location --retry 3 "$MEDIEVAL/Exploration.mp3" -o assets/audio/bgm/field.mp3
+          curl --fail --location --retry 3 "$AOZORA/battle_music_01-loop.ogg" -o assets/audio/bgm/combat.ogg
+          curl --fail --location --retry 3 "$AOZORA/battle_music_final_loop.mp3" -o assets/audio/bgm/boss.mp3
+
+          curl --fail --location --retry 3 "$CASINO/dice-throw-1.ogg" -o assets/audio/sfx/dice.ogg
+          curl --fail --location --retry 3 "$CASINO/dice-shake-1.ogg" -o assets/audio/sfx/dice-shake.ogg
+          curl --fail --location --retry 3 "$CASINO/chips-collide-1.ogg" -o assets/audio/sfx/shop.ogg
+          curl --fail --location --retry 3 "$AOZORA/sfx-attack.ogg" -o assets/audio/sfx/attack.ogg
+          curl --fail --location --retry 3 "$AOZORA/sfx-damage.ogg" -o assets/audio/sfx/damage.ogg
+          curl --fail --location --retry 3 "$AOZORA/sfx-block.ogg" -o assets/audio/sfx/block.ogg
+          curl --fail --location --retry 3 "$AOZORA/sfx-command.ogg" -o assets/audio/sfx/confirm.ogg
+          curl --fail --location --retry 3 "$AOZORA/sfx-card-draw.ogg" -o assets/audio/sfx/loot.ogg
+          curl --fail --location --retry 3 "$DUNGEON/sfx/crit.ogg" -o assets/audio/sfx/skill.ogg
+          curl --fail --location --retry 3 "$DUNGEON/sfx/miss.ogg" -o assets/audio/sfx/miss.ogg
+          curl --fail --location --retry 3 "$DUNGEON/sfx/levelup.ogg" -o assets/audio/sfx/victory.ogg
+
+      - name: Commit vendored audio
+        run: |
+          set -euo pipefail
+          git add assets/audio
+          if git diff --cached --quiet; then
+            echo 'Audio assets already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Vendor authored CC0 audio assets [audio-vendored]'
+          git push origin HEAD:agent/graphics-audio-0662
