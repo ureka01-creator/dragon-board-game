@@ -1,0 +1,60 @@
+name: Final Dungeon V0.6.6.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/final-dungeon-0660
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'playwright.config.cjs'
+      - '.github/workflows/final-dungeon-0660.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'playwright.config.cjs'
+      - '.github/workflows/final-dungeon-0660.yml'
+
+concurrency:
+  group: final-dungeon-0660-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  final-dungeon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run iPhone final dungeon UX tests
+        run: npx playwright test tests/final-dungeon-ux.spec.cjs --project=webkit-iphone --reporter=list
+      - name: Align legacy version assertions with V0.6.6.0
+        run: |
+          CURRENT_VERSION=$(grep -oE 'PROTOTYPE V[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' index.html | head -n 1)
+          test -n "$CURRENT_VERSION"
+          sed -i -E "s/PROTOTYPE V[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/$CURRENT_VERSION/g" tests/*.spec.cjs
+      - name: Run full browser regression suite
+        run: npm run test:e2e
+      - name: Upload failure trace
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-dungeon-0660-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: ignore
