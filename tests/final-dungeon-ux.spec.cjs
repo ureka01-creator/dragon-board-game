@@ -48,6 +48,12 @@ test('corridor waits for the player D20 roll and altar gates the dragon throne',
   await expect(page.locator('#combatOverlay')).toBeVisible();
   await defeatCurrentEnemy(page);
 
+  // Core stage 1 already has a clear message. Keep it as the guardian-clear beat,
+  // then advance into the V0.6.6.0 corridor interaction.
+  await expect(page.locator('#modal')).toBeVisible();
+  await expect(page.locator('#modalContent')).toContainText('성문 돌파');
+  await page.locator('#modalCloseBtn').click();
+
   const rollButton = page.locator('.final-dungeon-roll-btn');
   await expect(rollButton).toBeVisible();
   await expect(page.locator('.final-dungeon-stage-title')).toContainText('봉인의 회랑');
