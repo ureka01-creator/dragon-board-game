@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
+// V0.6.6.0 regression rerun: legacy castle flow now drives the interactive dungeon controls.
 async function startKnight(page) {
   await page.addInitScript(() => {
     Math.random = () => 0.99;
