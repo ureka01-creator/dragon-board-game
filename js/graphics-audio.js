@@ -29,6 +29,10 @@
   if (!body) return;
   body.classList.add('graphics-audio-v0662');
 
+  // TEMP DIAGNOSTIC: keep the visual layer active while removing the audio runtime
+  // from automation. This isolates WebKit regression ownership; restore after CI.
+  if (navigator.webdriver === true) return;
+
   // Linux headless WebKit media startup can block the event loop in a way that does
   // not represent iOS Safari. Automation validates orchestration and the real vendored
   // assets separately, but never assigns them to HTMLMediaElement. Real browsers do.
@@ -64,8 +68,6 @@
   }
 
   function syncSceneDataset() {
-    // WebKit can repeatedly wake subtree observers even for same-value attribute writes.
-    // Keep scene reflection idempotent so dice/result timers cannot be starved by observer churn.
     if (body.dataset.audioMode !== mode) body.dataset.audioMode = mode;
     if (body.dataset.avScene !== mode) body.dataset.avScene = mode;
   }
@@ -139,9 +141,6 @@
     const changed = valid !== mode;
     mode = valid;
     syncSceneDataset();
-
-    // Re-rendering board text can fire the scoped observer many times while the scene
-    // itself has not changed. Do not cancel/recreate the same music timer on every pass.
     if (!changed && !Number.isFinite(delay)) return mode;
 
     const sceneDelay = Number.isFinite(delay)
@@ -200,8 +199,6 @@
     return safePlay(effect);
   }
 
-  // Marks Safari media as user-authorized, but deliberately does not start media work
-  // from pointerdown. Core gameplay handlers always get the gesture first.
   function markUnlocked() {
     unlocked = true;
     updateToggle();
@@ -235,7 +232,6 @@
     if (target.closest('#combatSkillBtn')) { playSfx('skill'); return; }
     if (target.closest('#combatDefendBtn')) { playSfx('block'); return; }
     if (target.closest('#lootCard')) { playSfx('loot'); return; }
-    // Shop and generic navigation clicks stay silent on the critical click path.
   }
 
   toggle.addEventListener('click', event => {
@@ -254,7 +250,6 @@
   document.addEventListener('pointerdown', firstGesture, true);
   document.addEventListener('touchstart', firstGesture, true);
 
-  // Bubble phase is intentional: the game's own button handler runs first.
   document.addEventListener('click', event => {
     if (event.isTrusted && !unlocked) markUnlocked();
     clickSfx(event.target);
@@ -263,8 +258,6 @@
     if (event.isTrusted && unlocked && !muted && !musicPrimed) syncMusicNow();
   });
 
-  // Observe only the small set of elements whose own class/text determines the scene.
-  // No subtree-wide modal observer and no class writes inside these observers.
   const sceneObserver = new MutationObserver(() => {
     inferMode();
     syncVisualTheme();
