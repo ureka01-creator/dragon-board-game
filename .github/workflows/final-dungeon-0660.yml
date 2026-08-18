@@ -12,6 +12,16 @@ on:
       - 'tests/final-dungeon-ux.spec.cjs'
       - 'playwright.config.cjs'
       - '.github/workflows/final-dungeon-0660.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'tests/final-dungeon-ux.spec.cjs'
+      - 'playwright.config.cjs'
+      - '.github/workflows/final-dungeon-0660.yml'
 
 concurrency:
   group: final-dungeon-0660-${{ github.ref }}
