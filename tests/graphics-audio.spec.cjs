@@ -1,28 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
-async function installMediaShim(page) {
-  await page.addInitScript(() => {
-    const originalPaused = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'paused');
-    try {
-      Object.defineProperty(HTMLMediaElement.prototype, 'paused', {
-        configurable: true,
-        get() { return this.__dragonPlaying ? false : (originalPaused?.get ? originalPaused.get.call(this) : true); },
-      });
-    } catch (_) {}
-    HTMLMediaElement.prototype.play = function() {
-      this.__dragonPlaying = true;
-      return Promise.resolve();
-    };
-    HTMLMediaElement.prototype.pause = function() {
-      this.__dragonPlaying = false;
-    };
-  });
-}
-
 async function openGame(page) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await installMediaShim(page);
   await page.goto('/');
   return errors;
 }
@@ -46,16 +26,29 @@ test('visual polish layer is loaded and region board gets atmospheric treatment'
   expect(errors).toEqual([]);
 });
 
-test('iPhone unlocks authored external audio on first gesture and mute persists', async ({ page }) => {
+test('authored external audio is vendored locally and iPhone mute state persists', async ({ page }) => {
   const errors = await openGame(page);
   const initial = await page.evaluate(() => window.DRAGON_AUDIO_API?.snapshot?.());
   expect(initial).toBeTruthy();
-  expect(initial.assetKind).toBe('external');
+  expect(initial.assetKind).toBe('vendored-external');
   expect(initial.unlocked).toBe(false);
-  expect(initial.assets.music.field).toMatch(/^https:\/\/cdn\.jsdelivr\.net\/gh\/.+@\w+\/.+\.(mp3|ogg)$/);
-  expect(initial.assets.music.boss).toMatch(/boss\.ogg$/);
-  expect(initial.assets.sfx.dice).toMatch(/dice-throw-1\.ogg$/);
-  expect(initial.assets.sfx.attack).toMatch(/sfx-attack\.ogg$/);
+  expect(initial.assets.music.field).toBe('assets/audio/bgm/field.mp3');
+  expect(initial.assets.music.boss).toBe('assets/audio/bgm/boss.mp3');
+  expect(initial.assets.sfx.dice).toBe('assets/audio/sfx/dice.ogg');
+  expect(initial.assets.sfx.attack).toBe('assets/audio/sfx/attack.ogg');
+
+  for (const asset of [
+    '/assets/audio/bgm/title.mp3',
+    '/assets/audio/bgm/field.mp3',
+    '/assets/audio/bgm/combat.ogg',
+    '/assets/audio/bgm/boss.mp3',
+    '/assets/audio/sfx/dice.ogg',
+    '/assets/audio/sfx/attack.ogg',
+  ]) {
+    const response = await page.request.get(asset);
+    expect(response.ok(), `${asset} should be served`).toBe(true);
+    expect((await response.body()).length, `${asset} should not be empty`).toBeGreaterThan(4000);
+  }
 
   await page.locator('#titleStartBtn').click();
   await expect.poll(() => page.evaluate(() => window.DRAGON_AUDIO_API?.snapshot?.().unlocked)).toBe(true);
