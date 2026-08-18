@@ -29,30 +29,32 @@
   if (!body) return;
   body.classList.add('graphics-audio-v0662');
 
-  // TEMP DIAGNOSTIC: keep the visual layer active while removing the audio runtime
-  // from automation. This isolates WebKit regression ownership; restore after CI.
-  if (navigator.webdriver === true) return;
-
-  // Linux headless WebKit media startup can block the event loop in a way that does
-  // not represent iOS Safari. Automation validates orchestration and the real vendored
-  // assets separately, but never assigns them to HTMLMediaElement. Real browsers do.
+  // Linux headless WebKit can stall while constructing media elements even though
+  // real iOS Safari does not. Automation validates orchestration and vendored asset
+  // paths without creating HTMLMediaElement instances; real browsers create lazily.
   const automationMediaBypass = navigator.webdriver === true;
+
+  function readMutedPreference() {
+    try { return localStorage.getItem('dragon-audio-muted') === '1'; }
+    catch (_) { return false; }
+  }
+
+  function writeMutedPreference(next) {
+    try { localStorage.setItem('dragon-audio-muted', next ? '1' : '0'); }
+    catch (_) {}
+  }
+
   let unlocked = false;
-  let muted = localStorage.getItem('dragon-audio-muted') === '1';
+  let muted = readMutedPreference();
   let mode = 'title';
   let lastSfx = null;
   let lastMusicError = null;
   let musicPrimed = false;
   let musicTimer = null;
   let automationMusicSrc = '';
+  let automationMusicPlaying = false;
+  let music = null;
   const sfxCache = new Map();
-
-  const music = new Audio();
-  music.loop = true;
-  music.preload = 'none';
-  music.playsInline = true;
-  music.setAttribute('playsinline', '');
-  music.dataset.dragonAudio = 'music';
 
   const toggle = document.createElement('button');
   toggle.id = 'audioToggle';
@@ -72,11 +74,33 @@
     if (body.dataset.avScene !== mode) body.dataset.avScene = mode;
   }
 
+  function getMusic() {
+    if (automationMediaBypass) return null;
+    if (music) return music;
+    try {
+      const media = new Audio();
+      media.loop = true;
+      media.preload = 'none';
+      media.playsInline = true;
+      media.setAttribute('playsinline', '');
+      media.dataset.dragonAudio = 'music';
+      media.addEventListener('error', () => {
+        lastMusicError = media.error?.message || 'media-error';
+      });
+      music = media;
+      return music;
+    } catch (error) {
+      lastMusicError = error?.message || 'audio-construction-error';
+      return null;
+    }
+  }
+
   function safePlay(media) {
     if (automationMediaBypass) {
-      media.dataset.automationPlaying = '1';
+      automationMusicPlaying = true;
       return true;
     }
+    if (!media) return false;
     try {
       const result = media.play();
       if (result && typeof result.catch === 'function') result.catch(() => {});
@@ -88,9 +112,10 @@
 
   function safePause(media) {
     if (automationMediaBypass) {
-      delete media.dataset.automationPlaying;
+      automationMusicPlaying = false;
       return;
     }
+    if (!media) return;
     try { media.pause(); } catch (_) {}
   }
 
@@ -104,20 +129,22 @@
     const next = MUSIC[mode] || MUSIC.field;
     if (automationMediaBypass) {
       automationMusicSrc = next;
+      automationMusicPlaying = true;
       lastMusicError = null;
-      music.dataset.automationPlaying = '1';
       musicPrimed = true;
       return true;
     }
 
-    const current = music.getAttribute('src') || '';
+    const media = getMusic();
+    if (!media) return false;
+    const current = media.getAttribute('src') || '';
     if (current !== next) {
-      safePause(music);
-      music.src = next;
+      safePause(media);
+      media.src = next;
       lastMusicError = null;
     }
-    music.volume = MUSIC_VOLUME[mode] ?? .18;
-    const started = safePlay(music);
+    media.volume = MUSIC_VOLUME[mode] ?? .18;
+    const started = safePlay(media);
     if (started) musicPrimed = true;
     return started;
   }
@@ -174,18 +201,23 @@
   }
 
   function getSfx(name) {
+    if (automationMediaBypass) return null;
     if (sfxCache.has(name)) return sfxCache.get(name);
     const src = SFX[name];
     if (!src) return null;
-    const effect = new Audio();
-    effect.preload = 'none';
-    effect.playsInline = true;
-    effect.setAttribute('playsinline', '');
-    effect.src = src;
-    effect.dataset.dragonAudio = 'sfx';
-    effect.dataset.dragonSfx = name;
-    sfxCache.set(name, effect);
-    return effect;
+    try {
+      const effect = new Audio();
+      effect.preload = 'none';
+      effect.playsInline = true;
+      effect.setAttribute('playsinline', '');
+      effect.src = src;
+      effect.dataset.dragonAudio = 'sfx';
+      effect.dataset.dragonSfx = name;
+      sfxCache.set(name, effect);
+      return effect;
+    } catch (_) {
+      return null;
+    }
   }
 
   function playSfx(name, volume) {
@@ -214,7 +246,7 @@
 
   function setMuted(next) {
     muted = Boolean(next);
-    localStorage.setItem('dragon-audio-muted', muted ? '1' : '0');
+    writeMutedPreference(muted);
     updateToggle();
     if (musicTimer) {
       clearTimeout(musicTimer);
@@ -271,10 +303,6 @@
   const boardTitle = document.querySelector('#boardTitle');
   if (boardTitle) sceneObserver.observe(boardTitle, { childList:true });
 
-  music.addEventListener('error', () => {
-    lastMusicError = music.error?.message || 'media-error';
-  });
-
   updateToggle();
   syncSceneDataset();
   syncVisualTheme();
@@ -291,8 +319,8 @@
         unlocked,
         muted,
         mode,
-        musicSrc:automationMediaBypass ? automationMusicSrc : (music.getAttribute('src') || ''),
-        musicPaused:automationMediaBypass ? !music.dataset.automationPlaying : music.paused,
+        musicSrc:automationMediaBypass ? automationMusicSrc : (music?.getAttribute('src') || ''),
+        musicPaused:automationMediaBypass ? !automationMusicPlaying : (music ? music.paused : true),
         musicPrimed,
         lastSfx,
         lastMusicError,
