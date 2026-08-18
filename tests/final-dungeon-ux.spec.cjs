@@ -18,17 +18,12 @@ async function startKnight(page) {
 }
 
 async function defeatCurrentEnemy(page) {
+  const attack = page.locator('#combatAttackBtn');
+  await expect(attack).toBeEnabled({ timeout: 8000 });
   const result = await page.evaluate(() => window.DRAGON_BOARD_DEV_API.enemyHpOne());
   expect(result.ok).toBe(true);
-  for (let i = 0; i < 3 && await page.locator('#combatOverlay').isVisible(); i++) {
-    await page.locator('#combatAttackBtn').click();
-    await page.waitForTimeout(500);
-    if (await page.locator('#combatOverlay').isVisible()) {
-      await page.evaluate(() => window.DRAGON_BOARD_DEV_API.fullHeal('knight'));
-      await page.evaluate(() => window.DRAGON_BOARD_DEV_API.enemyHpOne());
-    }
-  }
-  await expect(page.locator('#combatOverlay')).toBeHidden();
+  await attack.click();
+  await expect(page.locator('#combatOverlay')).toBeHidden({ timeout: 10000 });
 }
 
 test('dragon castle entry presents a four-stage dungeon track before combat', async ({ page }) => {
