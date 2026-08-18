@@ -26,6 +26,20 @@ test('visual polish layer is loaded and region board gets atmospheric treatment'
   expect(errors).toEqual([]);
 });
 
+test('iPhone movement dice still settles with the polish layer enabled', async ({ page }) => {
+  const errors = await openGame(page);
+  await page.locator('#titleStartBtn').click();
+  await page.locator('.hero-card').first().click();
+  await page.locator('#startGameBtn').click();
+  await expect(page.locator('#gameScreen')).toHaveClass(/active/);
+
+  const die = page.locator('#diceRoller');
+  await page.locator('#rollBtn').click();
+  await expect(die).toHaveAttribute('aria-hidden', 'false', { timeout: 2500 });
+  await expect(die).toHaveAttribute('aria-hidden', 'true', { timeout: 7000 });
+  expect(errors).toEqual([]);
+});
+
 test('authored external audio is vendored locally and iPhone mute state persists', async ({ page }) => {
   const errors = await openGame(page);
   const initial = await page.evaluate(() => window.DRAGON_AUDIO_API?.snapshot?.());
