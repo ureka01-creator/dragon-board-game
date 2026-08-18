@@ -478,6 +478,25 @@ async function resolveEventOrGenericFlow(page) {
   }
 }
 
+async function advanceFinalDungeonUx(page) {
+  const actions = [
+    ['.final-dungeon-roll-btn', 420],
+    ['.final-dungeon-continue-btn', 260],
+    ['.final-dungeon-altar-continue', 180],
+    ['.final-dungeon-throne-open', 260],
+    ['.final-dungeon-enter', 260],
+  ];
+  for (const [selector, waitMs] of actions) {
+    const action = page.locator(selector).first();
+    if (await action.isVisible()) {
+      await action.evaluate(el => el.click());
+      await page.waitForTimeout(waitMs);
+      return true;
+    }
+  }
+  return false;
+}
+
 async function beginPreparedMove(page, targetId) {
   await page.evaluate(id => {
     window.__pendingMove = window.__DRAGON_TEST_API.beginMove(id);
@@ -612,12 +631,9 @@ test('dragon castle full flow reaches victory and blocks further movement', asyn
     }
     const modal = page.locator('#modal');
     if (await modal.isVisible()) {
-      const enter = page.locator('.final-dungeon-enter');
-      if (await enter.isVisible()) await enter.evaluate(el => el.click());
-      else {
-        const close = page.locator('#modalCloseBtn');
-        if (await close.isVisible()) await close.evaluate(el => el.click());
-      }
+      if (await advanceFinalDungeonUx(page)) continue;
+      const close = page.locator('#modalCloseBtn');
+      if (await close.isVisible()) await close.evaluate(el => el.click());
       await page.waitForTimeout(180);
       continue;
     }
@@ -764,6 +780,7 @@ test('dragon castle keeps cleared stages after a final-boss defeat', async ({ pa
       continue;
     }
     if (await page.locator('#modal').isVisible()) {
+      if (await advanceFinalDungeonUx(page)) continue;
       const close = page.locator('#modalCloseBtn');
       if (await close.isVisible()) await close.evaluate(el => el.click());
       await page.waitForTimeout(180);
