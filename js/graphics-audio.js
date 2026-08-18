@@ -56,7 +56,7 @@
   const toggle = document.createElement('button');
   toggle.id = 'audioToggle';
   toggle.type = 'button';
-  toggle.className = 'dragon-audio-toggle';
+  toggle.className = 'dragon-audio-toggle audio-toggle-v0662';
   toggle.setAttribute('aria-label', '게임 사운드 켜기 또는 끄기');
   body.appendChild(toggle);
 
@@ -78,6 +78,7 @@
 
   function syncMusic() {
     body.dataset.audioMode = mode;
+    body.dataset.avScene = mode;
     if (!unlocked || muted) {
       music.pause();
       return;
