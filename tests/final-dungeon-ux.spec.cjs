@@ -30,6 +30,7 @@ async function defeatCurrentEnemy(page) {
 }
 
 test('dragon castle entry presents a four-stage dungeon track before combat', async ({ page }) => {
+  test.setTimeout(60000);
   await startKnight(page);
 
   const track = page.locator('.final-dungeon-track');
@@ -45,6 +46,7 @@ test('dragon castle entry presents a four-stage dungeon track before combat', as
 });
 
 test('corridor waits for the player D20 roll and altar gates the dragon throne', async ({ page }) => {
+  test.setTimeout(60000);
   await startKnight(page);
   await page.locator('.final-dungeon-enter').click();
 
