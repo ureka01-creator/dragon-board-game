@@ -44,7 +44,9 @@
   let mode = 'title';
   let lastSfx = null;
   let lastMusicError = null;
-  let sfxSerial = 0;
+  let musicPrimed = false;
+  let musicTimer = null;
+  const sfxCache = new Map();
 
   const music = new Audio();
   music.loop = true;
@@ -76,12 +78,12 @@
     }
   }
 
-  function syncMusic() {
+  function syncMusicNow() {
     body.dataset.audioMode = mode;
     body.dataset.avScene = mode;
     if (!unlocked || muted) {
       music.pause();
-      return;
+      return false;
     }
 
     const next = MUSIC[mode] || MUSIC.field;
@@ -89,22 +91,36 @@
     if (current !== next) {
       music.pause();
       music.src = next;
-      music.volume = MUSIC_VOLUME[mode] ?? .18;
       lastMusicError = null;
-    } else {
-      music.volume = MUSIC_VOLUME[mode] ?? .18;
     }
-    safePlay(music);
+    music.volume = MUSIC_VOLUME[mode] ?? .18;
+    const started = safePlay(music);
+    if (started) musicPrimed = true;
+    return started;
   }
 
-  function setMode(next) {
-    const valid = Object.prototype.hasOwnProperty.call(MUSIC, next) ? next : 'field';
-    if (mode === valid) {
-      syncMusic();
-      return mode;
+  function scheduleMusic(delay = 360) {
+    body.dataset.audioMode = mode;
+    body.dataset.avScene = mode;
+    if (musicTimer) clearTimeout(musicTimer);
+    musicTimer = null;
+    if (!unlocked || muted) {
+      music.pause();
+      return;
     }
+    musicTimer = setTimeout(() => {
+      musicTimer = null;
+      syncMusicNow();
+    }, delay);
+  }
+
+  function setMode(next, delay) {
+    const valid = Object.prototype.hasOwnProperty.call(MUSIC, next) ? next : 'field';
     mode = valid;
-    syncMusic();
+    const sceneDelay = Number.isFinite(delay)
+      ? delay
+      : (valid === 'field' ? 900 : valid === 'combat' || valid === 'boss' ? 180 : 250);
+    scheduleMusic(sceneDelay);
     return mode;
   }
 
@@ -131,87 +147,97 @@
     map.dataset.theme = theme;
   }
 
-  function playSfx(name, volume) {
+  function getSfx(name) {
+    if (sfxCache.has(name)) return sfxCache.get(name);
     const src = SFX[name];
-    if (!src || muted || !unlocked) return false;
-    lastSfx = name;
-    const effect = new Audio(src);
-    effect.preload = 'auto';
+    if (!src) return null;
+    const effect = new Audio();
+    effect.preload = 'none';
     effect.playsInline = true;
-    effect.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : (SFX_VOLUME[name] ?? .35)));
+    effect.setAttribute('playsinline', '');
+    effect.src = src;
     effect.dataset.dragonAudio = 'sfx';
     effect.dataset.dragonSfx = name;
-    const serial = ++sfxSerial;
-    effect.dataset.dragonSerial = String(serial);
-    safePlay(effect);
-    const cleanup = () => {
-      effect.removeEventListener('ended', cleanup);
-      effect.removeEventListener('error', cleanup);
-    };
-    effect.addEventListener('ended', cleanup, { once:true });
-    effect.addEventListener('error', cleanup, { once:true });
+    sfxCache.set(name, effect);
+    return effect;
+  }
+
+  function playSfx(name, volume) {
+    if (!SFX[name] || muted || !unlocked) return false;
+    const effect = getSfx(name);
+    if (!effect) return false;
+    lastSfx = name;
+    effect.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : (SFX_VOLUME[name] ?? .35)));
+    try { effect.currentTime = 0; } catch (_) {}
+    return safePlay(effect);
+  }
+
+  // Marks Safari media as user-authorized, but deliberately does not start network/media work
+  // from pointerdown. Core gameplay handlers always get the gesture first.
+  function markUnlocked() {
+    unlocked = true;
+    updateToggle();
     return true;
   }
 
   function unlock() {
-    if (!unlocked) unlocked = true;
+    markUnlocked();
     inferMode();
     syncVisualTheme();
-    syncMusic();
-    updateToggle();
-    return true;
+    return syncMusicNow();
   }
 
   function setMuted(next) {
     muted = Boolean(next);
     localStorage.setItem('dragon-audio-muted', muted ? '1' : '0');
     updateToggle();
+    if (musicTimer) {
+      clearTimeout(musicTimer);
+      musicTimer = null;
+    }
     if (muted) music.pause();
-    else if (unlocked) syncMusic();
+    else if (unlocked) scheduleMusic(0);
     return muted;
   }
 
   function clickSfx(target) {
-    if (!target?.closest) return;
-    if (target.closest('#audioToggle')) return;
-    if (target.closest('#rollBtn,.final-dungeon-roll,[data-final-dungeon-roll]')) {
-      playSfx('dice');
-      return;
-    }
+    if (!target?.closest || target.closest('#audioToggle')) return;
+    if (target.closest('#rollBtn,.final-dungeon-roll,[data-final-dungeon-roll]')) { playSfx('dice'); return; }
     if (target.closest('#combatAttackBtn')) { playSfx('attack'); return; }
     if (target.closest('#combatSkillBtn')) { playSfx('skill'); return; }
     if (target.closest('#combatDefendBtn')) { playSfx('block'); return; }
     if (target.closest('#lootCard')) { playSfx('loot'); return; }
-    if (target.closest('[data-shop-buy],[data-shop-sell]')) { playSfx('shop'); return; }
-    if (target.closest('button,[role="button"]')) playSfx('confirm');
+    // Shop and generic navigation clicks intentionally stay silent here. Their core async
+    // flows must never compete with remote media startup on iPhone/WebKit.
   }
 
   toggle.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    if (!unlocked) unlock();
+    if (!unlocked) markUnlocked();
     setMuted(!muted);
   });
 
-  // iOS/Safari: the first media play must originate from a real user gesture.
   const firstGesture = event => {
     if (!event.isTrusted) return;
-    unlock();
+    markUnlocked();
     document.removeEventListener('pointerdown', firstGesture, true);
     document.removeEventListener('touchstart', firstGesture, true);
-    document.removeEventListener('click', firstGesture, true);
   };
   document.addEventListener('pointerdown', firstGesture, true);
   document.addEventListener('touchstart', firstGesture, true);
-  document.addEventListener('click', firstGesture, true);
 
+  // Bubble phase is intentional: the game's own button handler runs first. We then update
+  // presentation/audio without sitting on the critical input path.
   document.addEventListener('click', event => {
+    if (event.isTrusted && !unlocked) markUnlocked();
     clickSfx(event.target);
-    requestAnimationFrame(() => {
-      inferMode();
-      syncVisualTheme();
-    });
-  }, true);
+    inferMode();
+    syncVisualTheme();
+    // Prime the one long-lived music element only after the first core click has completed.
+    // Later scene swaps are deliberately delayed so movement/combat/modal promises win the frame.
+    if (event.isTrusted && unlocked && !muted && !musicPrimed) syncMusicNow();
+  });
 
   // Observe only the small set of elements whose own class/text determines the audio scene.
   // No subtree-wide modal observer and no class writes inside these observers.
@@ -233,7 +259,8 @@
   });
 
   updateToggle();
-  inferMode();
+  body.dataset.audioMode = mode;
+  body.dataset.avScene = mode;
   syncVisualTheme();
 
   window.DRAGON_AUDIO_API = Object.freeze({
@@ -249,6 +276,7 @@
         mode,
         musicSrc:music.getAttribute('src') || '',
         musicPaused:music.paused,
+        musicPrimed,
         lastSfx,
         lastMusicError,
         assets:{ music:{...MUSIC}, sfx:{...SFX} },
