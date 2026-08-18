@@ -63,6 +63,13 @@
     toggle.title = muted ? '사운드 켜기' : '사운드 끄기';
   }
 
+  function syncSceneDataset() {
+    // WebKit can repeatedly wake subtree observers even for same-value attribute writes.
+    // Keep scene reflection idempotent so dice/result timers cannot be starved by observer churn.
+    if (body.dataset.audioMode !== mode) body.dataset.audioMode = mode;
+    if (body.dataset.avScene !== mode) body.dataset.avScene = mode;
+  }
+
   function safePlay(media) {
     if (automationMediaBypass) {
       media.dataset.automationPlaying = '1';
@@ -86,8 +93,7 @@
   }
 
   function syncMusicNow() {
-    body.dataset.audioMode = mode;
-    body.dataset.avScene = mode;
+    syncSceneDataset();
     if (!unlocked || muted) {
       safePause(music);
       return false;
@@ -115,8 +121,7 @@
   }
 
   function scheduleMusic(delay = 360) {
-    body.dataset.audioMode = mode;
-    body.dataset.avScene = mode;
+    syncSceneDataset();
     if (musicTimer) clearTimeout(musicTimer);
     musicTimer = null;
     if (!unlocked || muted) {
@@ -131,7 +136,14 @@
 
   function setMode(next, delay) {
     const valid = Object.prototype.hasOwnProperty.call(MUSIC, next) ? next : 'field';
+    const changed = valid !== mode;
     mode = valid;
+    syncSceneDataset();
+
+    // Re-rendering board text can fire the scoped observer many times while the scene
+    // itself has not changed. Do not cancel/recreate the same music timer on every pass.
+    if (!changed && !Number.isFinite(delay)) return mode;
+
     const sceneDelay = Number.isFinite(delay)
       ? delay
       : (valid === 'field' ? 650 : valid === 'combat' || valid === 'boss' ? 160 : 220);
@@ -159,7 +171,7 @@
     else if (/숲|고목|뿌리/.test(boardTitle)) theme = 'forest';
     else if (/전쟁|전장|성채|참호/.test(boardTitle)) theme = 'war';
     else if (/화산|황무지|용암|잿불/.test(boardTitle)) theme = 'volcano';
-    map.dataset.theme = theme;
+    if (map.dataset.theme !== theme) map.dataset.theme = theme;
   }
 
   function getSfx(name) {
@@ -271,8 +283,7 @@
   });
 
   updateToggle();
-  body.dataset.audioMode = mode;
-  body.dataset.avScene = mode;
+  syncSceneDataset();
   syncVisualTheme();
 
   window.DRAGON_AUDIO_API = Object.freeze({
