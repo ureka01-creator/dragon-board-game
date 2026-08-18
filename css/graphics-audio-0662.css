@@ -1,0 +1,175 @@
+/* DRAGON BOARD V0.6.6.2 — dark-fantasy visual polish layer */
+body.graphics-audio-v0662 {
+  --av-gold:#d1a75d;
+  --av-ember:#b96538;
+  --av-mist:#7e8a88;
+  --av-deep:#080706;
+  position:relative;
+}
+body.graphics-audio-v0662::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:9998;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 8%,rgba(255,226,164,.045),transparent 34%),
+    linear-gradient(to bottom,transparent 68%,rgba(0,0,0,.18));
+  opacity:.82;
+}
+.audio-toggle-v0662 {
+  position:fixed;
+  z-index:10020;
+  top:max(10px,env(safe-area-inset-top));
+  right:max(10px,env(safe-area-inset-right));
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  border:2px solid #7e6849;
+  border-radius:4px;
+  background:rgba(18,14,10,.92);
+  color:#f1d69a;
+  box-shadow:0 3px 0 #080604,0 0 18px rgba(210,166,86,.12);
+  font-size:18px;
+  line-height:1;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+.audio-toggle-v0662:active { transform:translateY(2px); box-shadow:0 1px 0 #080604; }
+.audio-toggle-v0662[aria-pressed="true"] { opacity:.62; filter:saturate(.55); }
+
+body.graphics-audio-v0662 .pixel-panel {
+  box-shadow:0 4px 0 rgba(0,0,0,.38),0 0 24px rgba(152,112,61,.035);
+}
+body.graphics-audio-v0662 .hud,
+body.graphics-audio-v0662 .party-panel,
+body.graphics-audio-v0662 .log-panel {
+  background-image:linear-gradient(180deg,rgba(255,233,188,.025),transparent 38%);
+}
+body.graphics-audio-v0662 .party-member.active,
+body.graphics-audio-v0662 .party-member.unit-active {
+  box-shadow:inset 0 0 0 1px rgba(221,183,105,.32),0 0 13px rgba(196,145,69,.10);
+}
+
+body.graphics-audio-v0662 #worldMap {
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  background-image:
+    radial-gradient(circle at 50% 38%,rgba(224,195,137,.08),transparent 44%),
+    linear-gradient(145deg,rgba(45,34,25,.78),rgba(12,10,9,.96));
+  box-shadow:inset 0 0 0 1px rgba(201,160,92,.12),inset 0 -30px 55px rgba(0,0,0,.22);
+}
+body.graphics-audio-v0662 #worldMap::before,
+body.graphics-audio-v0662 #worldMap::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:-1;
+}
+body.graphics-audio-v0662 #worldMap::before {
+  opacity:.58;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(0deg,rgba(0,0,0,.024) 0 1px,transparent 1px 11px);
+}
+body.graphics-audio-v0662 #worldMap[data-theme="grave"] {
+  background-image:radial-gradient(circle at 50% 35%,rgba(132,151,147,.13),transparent 42%),linear-gradient(145deg,#1c2422,#090b0c 75%);
+}
+body.graphics-audio-v0662 #worldMap[data-theme="forest"] {
+  background-image:radial-gradient(circle at 54% 34%,rgba(78,122,72,.16),transparent 44%),linear-gradient(145deg,#172416,#090c09 74%);
+}
+body.graphics-audio-v0662 #worldMap[data-theme="war"] {
+  background-image:radial-gradient(circle at 52% 34%,rgba(131,65,48,.15),transparent 44%),linear-gradient(145deg,#281815,#0d0908 74%);
+}
+body.graphics-audio-v0662 #worldMap[data-theme="volcano"] {
+  background-image:radial-gradient(circle at 50% 38%,rgba(211,87,42,.19),transparent 42%),linear-gradient(145deg,#2c1510,#0f0907 76%);
+}
+body.graphics-audio-v0662 .map-node {
+  position:relative;
+  box-shadow:0 3px 0 rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.035);
+}
+body.graphics-audio-v0662 .map-node.discovered .node-icon { filter:drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+body.graphics-audio-v0662 .map-node.reachable {
+  box-shadow:0 3px 0 rgba(0,0,0,.34),0 0 0 1px rgba(223,180,92,.4),0 0 12px rgba(222,169,72,.16);
+}
+body.graphics-audio-v0662 .map-node.reachable::after {
+  content:"";
+  position:absolute;
+  inset:3px;
+  border:1px solid rgba(239,196,103,.24);
+  pointer-events:none;
+  opacity:.72;
+}
+body.graphics-audio-v0662 .map-node.current {
+  filter:brightness(1.11) saturate(1.08);
+  box-shadow:0 3px 0 rgba(0,0,0,.34),0 0 0 2px rgba(238,195,103,.42),0 0 20px rgba(223,169,70,.18);
+}
+body.graphics-audio-v0662 .map-node.dragon-spawned {
+  filter:brightness(1.16) saturate(1.18);
+  box-shadow:0 3px 0 rgba(0,0,0,.34),0 0 0 2px rgba(206,92,48,.36),0 0 18px rgba(211,78,42,.18);
+}
+
+body.graphics-audio-v0662 .combat-stage {
+  isolation:isolate;
+  box-shadow:inset 0 -45px 65px rgba(0,0,0,.25),inset 0 0 0 1px rgba(222,177,95,.09);
+}
+body.graphics-audio-v0662 .combat-stage::before,
+body.graphics-audio-v0662 .combat-stage::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+body.graphics-audio-v0662 .combat-stage::before {
+  z-index:0;
+  background:radial-gradient(circle at 70% 38%,rgba(197,89,49,.09),transparent 34%),radial-gradient(circle at 22% 42%,rgba(101,128,127,.06),transparent 31%);
+}
+body.graphics-audio-v0662[data-av-scene="boss"] .combat-stage::before {
+  background:radial-gradient(circle at 72% 38%,rgba(223,74,34,.2),transparent 38%),linear-gradient(180deg,rgba(80,10,5,.08),rgba(0,0,0,.24));
+  opacity:.76;
+}
+body.graphics-audio-v0662 .stage-hero-actor.active {
+  filter:brightness(1.12);
+  box-shadow:0 0 0 2px rgba(231,193,110,.28),0 0 18px rgba(226,174,78,.12);
+}
+body.graphics-audio-v0662 .stage-enemy-actor.selected {
+  filter:brightness(1.1) saturate(1.08);
+  box-shadow:0 0 0 2px rgba(199,86,59,.26),0 0 20px rgba(189,68,45,.13);
+}
+body.graphics-audio-v0662 .modal-card,
+body.graphics-audio-v0662 .loot-shell,
+body.graphics-audio-v0662 .combat-shell {
+  box-shadow:0 8px 0 rgba(0,0,0,.42),0 0 36px rgba(142,96,48,.08);
+}
+body.graphics-audio-v0662 .event-card-head,
+body.graphics-audio-v0662 .shop-head,
+body.graphics-audio-v0662 .hero-status-top {
+  text-shadow:0 2px 0 rgba(0,0,0,.42);
+}
+body.graphics-audio-v0662 .pixel-btn.primary:not(:disabled) {
+  box-shadow:0 3px 0 rgba(0,0,0,.4),inset 0 1px rgba(255,255,255,.08);
+}
+body.graphics-audio-v0662 .pixel-btn.primary:not(:disabled):active { transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.45); }
+
+@media (max-width:520px) {
+  .audio-toggle-v0662 { width:42px;height:42px;font-size:17px; }
+  body.graphics-audio-v0662 .map-node.reachable::after { inset:2px; }
+  /* Keep the iPhone compositor free for the core dice / movement animations. */
+  body.graphics-audio-v0662::before { position:absolute; }
+  /* WebKit can stall the timer that resolves the JS dice sequence when the
+     landed state starts a filter animation on top of the polish layers.
+     The core D6 motion/result transition is JS-driven, so keep the final
+     brightness but skip only this 240ms decorative filter pulse on iPhone. */
+  body.graphics-audio-v0662 .dice-roller.landed {
+    animation:none;
+    filter:brightness(1.08);
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  body.graphics-audio-v0662 *,
+  body.graphics-audio-v0662 *::before,
+  body.graphics-audio-v0662 *::after { animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important; }
+}
