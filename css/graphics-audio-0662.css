@@ -159,6 +159,14 @@ body.graphics-audio-v0662 .pixel-btn.primary:not(:disabled):active { transform:t
   body.graphics-audio-v0662 .map-node.reachable::after { inset:2px; }
   /* Keep the iPhone compositor free for the core dice / movement animations. */
   body.graphics-audio-v0662::before { position:absolute; }
+  /* WebKit can stall the timer that resolves the JS dice sequence when the
+     landed state starts a filter animation on top of the polish layers.
+     The core D6 motion/result transition is JS-driven, so keep the final
+     brightness but skip only this 240ms decorative filter pulse on iPhone. */
+  body.graphics-audio-v0662 .dice-roller.landed {
+    animation:none;
+    filter:brightness(1.08);
+  }
 }
 @media (prefers-reduced-motion:reduce) {
   body.graphics-audio-v0662 *,
