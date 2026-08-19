@@ -1,4 +1,12 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('node:fs');
+const path = require('node:path');
+
+function previewPath(testInfo, name) {
+  const dir = path.join('test-results', 'visual-polish');
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, `${testInfo.project.name}-${name}.png`);
+}
 
 async function openGame(page) {
   const errors = [];
@@ -7,7 +15,7 @@ async function openGame(page) {
   return errors;
 }
 
-test('V0.6.6.3 code-only visual theme loads on the title screen', async ({ page }) => {
+test('V0.6.6.3 code-only visual theme loads on the title screen', async ({ page }, testInfo) => {
   const errors = await openGame(page);
 
   await expect(page.locator('body')).toHaveClass(/visual-polish-v0663/);
@@ -31,10 +39,11 @@ test('V0.6.6.3 code-only visual theme loads on the title screen', async ({ page 
   expect(titleVisual.background).not.toBe('none');
   expect(titleVisual.dragonFontSize).toBe(0);
   expect(titleVisual.wingClip).not.toBe('none');
+  await page.screenshot({ path: previewPath(testInfo, 'title'), fullPage: true });
   expect(errors).toEqual([]);
 });
 
-test('hero cards and board use the upgraded surfaces without changing game flow', async ({ page }) => {
+test('hero cards and board use the upgraded surfaces without changing game flow', async ({ page }, testInfo) => {
   const errors = await openGame(page);
 
   await page.locator('#titleStartBtn').click();
@@ -47,6 +56,7 @@ test('hero cards and board use the upgraded surfaces without changing game flow'
   }));
   expect(cardBefore.radius).toBeGreaterThanOrEqual(8);
   expect(cardBefore.portraitHeight).toBeGreaterThan(120);
+  await page.screenshot({ path: previewPath(testInfo, 'hero-select'), fullPage: true });
 
   await firstHero.click();
   await expect(firstHero).toHaveClass(/selected/);
@@ -67,10 +77,11 @@ test('hero cards and board use the upgraded surfaces without changing game flow'
   expect(boardVisual.radius).toBeGreaterThanOrEqual(8);
   expect(boardVisual.background).not.toBe('none');
   expect(boardVisual.nodeRadius).toBeGreaterThanOrEqual(4);
+  await page.screenshot({ path: previewPath(testInfo, 'board'), fullPage: true });
   expect(errors).toEqual([]);
 });
 
-test('combat presentation keeps a staged background under the visual theme', async ({ page }) => {
+test('combat presentation keeps a staged background under the visual theme', async ({ page }, testInfo) => {
   const errors = await openGame(page);
   await page.locator('#combatOverlay').evaluate(el => el.classList.remove('hidden'));
   await expect(page.locator('#combatOverlay')).toBeVisible();
@@ -87,5 +98,6 @@ test('combat presentation keeps a staged background under the visual theme', asy
   expect(combatVisual.minHeight).toBeGreaterThanOrEqual(300);
   expect(combatVisual.radius).toBeGreaterThanOrEqual(7);
   expect(combatVisual.background).not.toBe('none');
+  await page.screenshot({ path: previewPath(testInfo, 'combat'), fullPage: true });
   expect(errors).toEqual([]);
 });
