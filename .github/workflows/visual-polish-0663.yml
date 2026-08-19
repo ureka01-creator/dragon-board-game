@@ -1,0 +1,48 @@
+name: Visual Polish V0.6.6.3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/visual-polish-0663
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'tests/visual-polish.spec.cjs'
+      - '.github/workflows/visual-polish-0663.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'css/**'
+      - 'tests/visual-polish.spec.cjs'
+      - '.github/workflows/visual-polish-0663.yml'
+
+concurrency:
+  group: visual-polish-0663-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iphone-preview:
+    name: iPhone visual preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install WebKit
+        run: npx playwright install --with-deps webkit
+      - name: Run visual polish tests
+        run: npx playwright test tests/visual-polish.spec.cjs --project=webkit-iphone --reporter=list
+      - name: Upload visual preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-polish-0663-${{ github.sha }}
+          path: test-results/visual-polish/
+          if-no-files-found: warn
